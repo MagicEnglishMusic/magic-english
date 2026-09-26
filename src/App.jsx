@@ -70,7 +70,7 @@ function getInitialView() {
 }
 
 function MainApp() {
-  const { isAuthenticated, role, isOnboarded, logout } = useAuth();
+  const { isAuthenticated, role, isOnboarded, loading, logout } = useAuth();
 
   // Navigation State
   // 'dashboard' | 'classroom' | 'my-lessons' | 'song-player' | 'tracks' | 'materials' | 'pronunciation' | 'musical-practice' | 'gamification' | 'profile' | 'ranking' | 'community' | 'login' | 'register' | 'forgot-password' | 'onboarding' | 'admin-login' | 'admin'
@@ -105,25 +105,33 @@ function MainApp() {
 
   // Administrative Guard: /admin requires admin authentication
   useEffect(() => {
+    if (loading) return;
     if (currentView === 'admin') {
       const isAdminUser = isAuthenticated && role === 'admin';
       if (!isAdminUser) {
         navigateTo('admin-login', '/admin/login');
       }
     }
-  }, [currentView, isAuthenticated, role]);
+  }, [currentView, isAuthenticated, role, loading]);
 
-  // Student Authentication Guard for student-protected pages
+  // Student Authentication Guard for student-protected and onboarding pages
   useEffect(() => {
+    if (loading) return;
+
     const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'admin-login'].includes(currentView);
+    
     if (!isPublicAuthRoute && currentView !== 'admin') {
       if (!isAuthenticated) {
         navigateTo('login', '/login');
       } else if (!isOnboarded && currentView !== 'onboarding') {
         navigateTo('onboarding', '/onboarding');
+      } else if (isOnboarded && currentView === 'onboarding') {
+        navigateTo('dashboard', '/dashboard');
       }
+    } else if (isAuthenticated && role === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
+      navigateTo('dashboard', '/dashboard');
     }
-  }, [currentView, isAuthenticated, isOnboarded]);
+  }, [currentView, isAuthenticated, isOnboarded, loading, role]);
 
   // Open Classroom Video Lesson View
   const handleOpenClassroom = (lessonData) => {
@@ -206,6 +214,10 @@ function MainApp() {
     logout();
     navigateTo('login', '/login');
   };
+
+  if (loading) {
+    return <MagicLoadingScreen message="Conectando à sua conta Magic English..." />;
+  }
 
   // ==========================================
   // 1. PUBLIC AUTHENTICATION ROUTES

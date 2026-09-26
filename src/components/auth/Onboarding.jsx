@@ -9,6 +9,7 @@ export default function Onboarding({ onComplete }) {
   const [objective, setObjective] = useState('✈️ Viajar');
   const [currentSkillLevel, setCurrentSkillLevel] = useState('🌱 Iniciante');
   const [dailyStudyTime, setDailyStudyTime] = useState('20 minutos');
+  const [isSaving, setIsSaving] = useState(false);
 
   const objectiveOptions = [
     { id: 'travel', label: '✈️ Viajar', desc: 'Viajar pelo mundo sem medo de se comunicar' },
@@ -31,9 +32,19 @@ export default function Onboarding({ onComplete }) {
     { id: '60m', label: '1 hora', desc: 'Imersão completa e fixação profunda' },
   ];
 
-  const handleFinish = () => {
-    completeOnboarding({ objective, currentSkillLevel, dailyStudyTime });
-    if (onComplete) onComplete();
+  const handleFinish = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await completeOnboarding({ objective, currentSkillLevel, dailyStudyTime });
+      if (onComplete) {
+        onComplete();
+      }
+    } catch (err) {
+      console.error('Error completing onboarding:', err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -239,11 +250,21 @@ export default function Onboarding({ onComplete }) {
             ) : (
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={handleFinish}
-                className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2"
+                className="px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Trophy className="w-4 h-4" />
-                <span>Começar minha Jornada no Magic English</span>
+                {isSaving ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>Salvando suas preferências...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="w-4 h-4" />
+                    <span>Começar minha Jornada no Magic English</span>
+                  </>
+                )}
               </button>
             )}
           </div>

@@ -84,8 +84,8 @@ export function AuthProvider({ children }) {
             xp: profile.xp ?? 0,
             streak: profile.streak ?? 0,
             plan: profile.plan || 'VIP Pro',
-            objective: profile.objective || '',
-            currentSkillLevel: profile.current_skill_level || '🌱 Iniciante',
+            objective: profile.objective || '✈️ Viajar',
+            currentSkillLevel: profile.level || profile.current_skill_level || '🌱 Iniciante',
             dailyStudyTime: profile.daily_study_time || '20 minutos',
             kiwifyData: {
               orderId: profile.kiwify_order_id || 'KW-ONLINE',
@@ -103,7 +103,7 @@ export function AuthProvider({ children }) {
             xp: 0,
             streak: 0,
             plan: 'VIP Pro',
-            objective: '',
+            objective: '✈️ Viajar',
             currentSkillLevel: '🌱 Iniciante',
             dailyStudyTime: '20 minutos',
             kiwifyData: {
@@ -117,7 +117,7 @@ export function AuthProvider({ children }) {
             isAuthenticated: true,
             user: cleanUser,
             role: cleanUser.role,
-            isOnboarded: profile ? (profile.is_onboarded ?? false) : false,
+            isOnboarded: profile ? Boolean(profile.is_onboarded) : false,
             loading: false
           });
         } else {
@@ -192,8 +192,9 @@ export function AuthProvider({ children }) {
             xp: profile.xp ?? 0,
             streak: profile.streak ?? 0,
             plan: profile.plan || 'VIP Pro',
-            objective: profile.objective,
-            dailyStudyTime: profile.daily_study_time,
+            objective: profile.objective || '✈️ Viajar',
+            currentSkillLevel: profile.level || profile.current_skill_level || '🌱 Iniciante',
+            dailyStudyTime: profile.daily_study_time || '20 minutos',
             kiwifyData: {
               orderId: profile.kiwify_order_id,
               product: 'Magic English VIP',
@@ -210,7 +211,8 @@ export function AuthProvider({ children }) {
             xp: 0,
             streak: 0,
             plan: 'VIP Pro',
-            objective: '',
+            objective: '✈️ Viajar',
+            currentSkillLevel: '🌱 Iniciante',
             dailyStudyTime: '20 minutos',
             kiwifyData: {
               orderId: 'KW-NEW',
@@ -223,7 +225,7 @@ export function AuthProvider({ children }) {
             isAuthenticated: true,
             user: loadedUser,
             role: loadedUser.role,
-            isOnboarded: profile ? (profile.is_onboarded ?? false) : false,
+            isOnboarded: profile ? Boolean(profile.is_onboarded) : false,
             loading: false
           });
 
@@ -326,34 +328,59 @@ export function AuthProvider({ children }) {
 
   // 3. Complete Onboarding
   const completeOnboarding = async ({ objective, currentSkillLevel, dailyStudyTime }) => {
+    const selectedObjective = objective || '✈️ Viajar';
+    const selectedLevel = currentSkillLevel || '🌱 Iniciante';
+    const selectedTime = dailyStudyTime || '20 minutos';
+
     if (isSupabaseConfigured && authState.user?.id) {
       try {
-        await supabase
+        const { error: upsertErr } = await supabase
           .from('profiles')
-          .update({
-            objective,
-            daily_study_time: dailyStudyTime,
-            is_onboarded: true
-          })
-          .eq('id', authState.user.id);
+          .upsert({
+            id: authState.user.id,
+            name: authState.user.name || authState.user.email?.split('@')[0] || 'Aluno',
+            email: authState.user.email,
+            objective: selectedObjective,
+            level: selectedLevel,
+            daily_study_time: selectedTime,
+            is_onboarded: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+        if (upsertErr) {
+          console.warn('Supabase onboarding upsert error, falling back to update:', upsertErr);
+          await supabase
+            .from('profiles')
+            .update({
+              objective: selectedObjective,
+              level: selectedLevel,
+              daily_study_time: selectedTime,
+              is_onboarded: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', authState.user.id);
+        }
       } catch (err) {
-        console.warn('Supabase onboarding update:', err.message);
+        console.warn('Supabase onboarding update exception:', err.message);
       }
     }
 
     setAuthState((prev) => {
-      if (!prev.user) return prev;
+      if (!prev.user) return { ...prev, isOnboarded: true };
       return {
         ...prev,
         user: {
           ...prev.user,
-          objective: objective || prev.user.objective,
-          currentSkillLevel: currentSkillLevel || prev.user.currentSkillLevel,
-          dailyStudyTime: dailyStudyTime || prev.user.dailyStudyTime
+          objective: selectedObjective,
+          level: selectedLevel,
+          currentSkillLevel: selectedLevel,
+          dailyStudyTime: selectedTime
         },
         isOnboarded: true
       };
     });
+
+    return { success: true };
   };
 
   // 4. Password Recovery
