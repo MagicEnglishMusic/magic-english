@@ -164,6 +164,7 @@ ALTER TABLE public.ranking ENABLE ROW LEVEL SECURITY;
 
 -- 3.1 Profiles Policies
 CREATE POLICY "Public profiles are readable by everyone" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Admins have full access to profiles" ON public.profiles FOR ALL USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')

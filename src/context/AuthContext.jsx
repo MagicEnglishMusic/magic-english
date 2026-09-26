@@ -58,68 +58,114 @@ export function AuthProvider({ children }) {
     };
   });
 
+  // Helper to resolve user and onboarding state from multiple persistent sources
+  const resolveUserState = async (sessionUser) => {
+    if (!sessionUser) return null;
+
+    const userId = sessionUser.id;
+    const localOnboardedKey = `magic_english_onboarded_${userId}`;
+    const isLocalOnboarded = localStorage.getItem(localOnboardedKey) === 'true';
+    const isMetadataOnboarded = Boolean(sessionUser.user_metadata?.is_onboarded);
+
+    let profile = null;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!error && data) {
+        profile = data;
+      }
+    } catch (err) {
+      console.warn('Profile lookup warning:', err.message);
+    }
+
+    const isProfileOnboarded = Boolean(profile?.is_onboarded);
+    const resolvedIsOnboarded = isProfileOnboarded || isMetadataOnboarded || isLocalOnboarded;
+
+    // Healing mechanism: if client/metadata has true, ensure profiles in database is synced to true
+    if (resolvedIsOnboarded) {
+      localStorage.setItem(localOnboardedKey, 'true');
+      if (profile && !profile.is_onboarded) {
+        supabase
+          .from('profiles')
+          .update({ is_onboarded: true, updated_at: new Date().toISOString() })
+          .eq('id', userId)
+          .then(() => {});
+      }
+    }
+
+    const cleanUser = profile ? {
+      id: profile.id,
+      name: profile.name || sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
+      email: profile.email || sessionUser.email,
+      role: profile.role || sessionUser.user_metadata?.role || 'student',
+      avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+      level: profile.level || sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
+      levelNumber: profile.level_number || 1,
+      xp: profile.xp ?? 0,
+      streak: profile.streak ?? 0,
+      plan: profile.plan || 'VIP Pro',
+      objective: profile.objective || sessionUser.user_metadata?.objective || '✈️ Viajar',
+      currentSkillLevel: profile.level || sessionUser.user_metadata?.level || '🌱 Iniciante',
+      dailyStudyTime: profile.daily_study_time || sessionUser.user_metadata?.daily_study_time || '20 minutos',
+      kiwifyData: {
+        orderId: profile.kiwify_order_id || 'KW-ONLINE',
+        product: 'Magic English VIP',
+        accessStatus: profile.kiwify_status || 'active'
+      }
+    } : {
+      id: sessionUser.id,
+      name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
+      email: sessionUser.email,
+      role: sessionUser.user_metadata?.role || 'student',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+      level: sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
+      levelNumber: 1,
+      xp: 0,
+      streak: 0,
+      plan: 'VIP Pro',
+      objective: sessionUser.user_metadata?.objective || '✈️ Viajar',
+      currentSkillLevel: sessionUser.user_metadata?.level || '🌱 Iniciante',
+      dailyStudyTime: sessionUser.user_metadata?.daily_study_time || '20 minutos',
+      kiwifyData: {
+        orderId: 'KW-NEW',
+        product: 'Magic English VIP',
+        accessStatus: 'active'
+      }
+    };
+
+    return {
+      user: cleanUser,
+      role: cleanUser.role,
+      isOnboarded: resolvedIsOnboarded
+    };
+  };
+
   // Listen to Supabase Auth State changes if configured
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
+    let isMounted = true;
+
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
         if (session?.user) {
-          // Fetch profile from database
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          const cleanUser = profile ? {
-            id: profile.id,
-            name: profile.name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
-            email: profile.email || session.user.email,
-            role: profile.role || 'student',
-            avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-            level: profile.level || 'Nível 1 • First Steps',
-            levelNumber: profile.level_number || 1,
-            xp: profile.xp ?? 0,
-            streak: profile.streak ?? 0,
-            plan: profile.plan || 'VIP Pro',
-            objective: profile.objective || '✈️ Viajar',
-            currentSkillLevel: profile.level || profile.current_skill_level || '🌱 Iniciante',
-            dailyStudyTime: profile.daily_study_time || '20 minutos',
-            kiwifyData: {
-              orderId: profile.kiwify_order_id || 'KW-ONLINE',
-              product: 'Magic English VIP',
-              accessStatus: profile.kiwify_status || 'active'
-            }
-          } : {
-            id: session.user.id,
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0],
-            email: session.user.email,
-            role: session.user.user_metadata?.role || 'student',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-            level: 'Nível 1 • First Steps',
-            levelNumber: 1,
-            xp: 0,
-            streak: 0,
-            plan: 'VIP Pro',
-            objective: '✈️ Viajar',
-            currentSkillLevel: '🌱 Iniciante',
-            dailyStudyTime: '20 minutos',
-            kiwifyData: {
-              orderId: 'KW-NEW',
-              product: 'Magic English VIP',
-              accessStatus: 'active'
-            }
-          };
-
-          setAuthState({
-            isAuthenticated: true,
-            user: cleanUser,
-            role: cleanUser.role,
-            isOnboarded: profile ? Boolean(profile.is_onboarded) : false,
-            loading: false
-          });
+          const resolved = await resolveUserState(session.user);
+          if (isMounted && resolved) {
+            setAuthState({
+              isAuthenticated: true,
+              user: resolved.user,
+              role: resolved.role,
+              isOnboarded: resolved.isOnboarded,
+              loading: false
+            });
+          }
         } else {
           setAuthState({
             isAuthenticated: false,
@@ -131,19 +177,22 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.warn('Supabase session load error:', err.message);
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          role: null,
-          isOnboarded: false,
-          loading: false
-        });
+        if (isMounted) {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            role: null,
+            isOnboarded: false,
+            loading: false
+          });
+        }
       }
     };
 
     checkSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
       if (event === 'SIGNED_OUT' || !session) {
         setAuthState({
           isAuthenticated: false,
@@ -152,12 +201,14 @@ export function AuthProvider({ children }) {
           isOnboarded: false,
           loading: false
         });
-      } else if (event === 'SIGNED_IN' && session?.user) {
+      } else if (session?.user) {
+        // Handles SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION
         checkSession();
       }
     });
 
     return () => {
+      isMounted = false;
       authListener?.subscription?.unsubscribe();
     };
   }, []);
@@ -175,61 +226,17 @@ export function AuthProvider({ children }) {
         if (error) throw error;
 
         if (data?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          const loadedUser = profile ? {
-            id: profile.id,
-            name: profile.name || data.user.user_metadata?.name || data.user.email?.split('@')[0],
-            email: profile.email || data.user.email,
-            role: profile.role || 'student',
-            avatar: profile.avatar_url,
-            level: profile.level || 'Nível 1 • First Steps',
-            levelNumber: profile.level_number || 1,
-            xp: profile.xp ?? 0,
-            streak: profile.streak ?? 0,
-            plan: profile.plan || 'VIP Pro',
-            objective: profile.objective || '✈️ Viajar',
-            currentSkillLevel: profile.level || profile.current_skill_level || '🌱 Iniciante',
-            dailyStudyTime: profile.daily_study_time || '20 minutos',
-            kiwifyData: {
-              orderId: profile.kiwify_order_id,
-              product: 'Magic English VIP',
-              accessStatus: profile.kiwify_status || 'active'
-            }
-          } : {
-            id: data.user.id,
-            name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
-            email: data.user.email,
-            role: 'student',
-            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-            level: 'Nível 1 • First Steps',
-            levelNumber: 1,
-            xp: 0,
-            streak: 0,
-            plan: 'VIP Pro',
-            objective: '✈️ Viajar',
-            currentSkillLevel: '🌱 Iniciante',
-            dailyStudyTime: '20 minutos',
-            kiwifyData: {
-              orderId: 'KW-NEW',
-              product: 'Magic English VIP',
-              accessStatus: 'active'
-            }
-          };
-
-          setAuthState({
-            isAuthenticated: true,
-            user: loadedUser,
-            role: loadedUser.role,
-            isOnboarded: profile ? Boolean(profile.is_onboarded) : false,
-            loading: false
-          });
-
-          return { success: true, user: loadedUser };
+          const resolved = await resolveUserState(data.user);
+          if (resolved) {
+            setAuthState({
+              isAuthenticated: true,
+              user: resolved.user,
+              role: resolved.role,
+              isOnboarded: resolved.isOnboarded,
+              loading: false
+            });
+            return { success: true, user: resolved.user };
+          }
         }
       } catch (err) {
         console.warn('Supabase login error:', err.message);
@@ -276,7 +283,8 @@ export function AuthProvider({ children }) {
           options: {
             data: {
               name: name.trim(),
-              role: 'student'
+              role: 'student',
+              is_onboarded: false
             }
           }
         });
@@ -302,7 +310,7 @@ export function AuthProvider({ children }) {
       xp: 0,
       streak: 0,
       plan: 'Magic Free Trial',
-      objective: '',
+      objective: '✈️ Viajar',
       currentSkillLevel: '🌱 Iniciante',
       dailyStudyTime: '15 minutos',
       achievementsCount: 0,
@@ -326,45 +334,68 @@ export function AuthProvider({ children }) {
     return { success: true, user: newUser };
   };
 
-  // 3. Complete Onboarding
+  // 3. Complete Onboarding (Multi-Layer Persistent)
   const completeOnboarding = async ({ objective, currentSkillLevel, dailyStudyTime }) => {
     const selectedObjective = objective || '✈️ Viajar';
     const selectedLevel = currentSkillLevel || '🌱 Iniciante';
     const selectedTime = dailyStudyTime || '20 minutos';
+    const userId = authState.user?.id;
 
-    if (isSupabaseConfigured && authState.user?.id) {
+    if (userId) {
+      // 1. Save to LocalStorage immediately
+      localStorage.setItem(`magic_english_onboarded_${userId}`, 'true');
+      localStorage.setItem(`magic_english_pref_${userId}`, JSON.stringify({
+        objective: selectedObjective,
+        level: selectedLevel,
+        dailyStudyTime: selectedTime
+      }));
+    }
+
+    if (isSupabaseConfigured && userId) {
       try {
-        const { error: upsertErr } = await supabase
+        // 2. Update Supabase Auth user_metadata
+        await supabase.auth.updateUser({
+          data: {
+            is_onboarded: true,
+            objective: selectedObjective,
+            level: selectedLevel,
+            daily_study_time: selectedTime
+          }
+        });
+
+        // 3. Update Supabase Public Profiles Table
+        const { error: updateErr } = await supabase
           .from('profiles')
-          .upsert({
-            id: authState.user.id,
-            name: authState.user.name || authState.user.email?.split('@')[0] || 'Aluno',
-            email: authState.user.email,
+          .update({
             objective: selectedObjective,
             level: selectedLevel,
             daily_study_time: selectedTime,
             is_onboarded: true,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
+          })
+          .eq('id', userId);
 
-        if (upsertErr) {
-          console.warn('Supabase onboarding upsert error, falling back to update:', upsertErr);
+        if (updateErr) {
+          console.warn('Profiles update warning, attempting upsert:', updateErr);
           await supabase
             .from('profiles')
-            .update({
+            .upsert({
+              id: userId,
+              name: authState.user.name || authState.user.email?.split('@')[0] || 'Aluno',
+              email: authState.user.email,
               objective: selectedObjective,
               level: selectedLevel,
               daily_study_time: selectedTime,
               is_onboarded: true,
               updated_at: new Date().toISOString()
-            })
-            .eq('id', authState.user.id);
+            }, { onConflict: 'id' });
         }
       } catch (err) {
         console.warn('Supabase onboarding update exception:', err.message);
       }
     }
 
+    // 4. Update React global authState synchronously
     setAuthState((prev) => {
       if (!prev.user) return { ...prev, isOnboarded: true };
       return {
