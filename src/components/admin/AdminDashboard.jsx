@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Layers, 
@@ -11,19 +11,49 @@ import {
   ArrowRight,
   ShieldCheck,
   Zap,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react';
-import { ADMIN_STATS, RECENT_ACTIVITIES } from '../../data/adminData';
+import { adminService } from '../../services/adminService';
 
 export default function AdminDashboard({
   onNavigateTab
 }) {
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalModules: 0,
+    totalLessons: 0,
+    totalSongs: 0,
+    totalContentTime: '0h'
+  });
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      setIsLoading(true);
+      try {
+        const [statsRes, actRes] = await Promise.all([
+          adminService.getDashboardStats(),
+          adminService.getRecentActivities()
+        ]);
+        if (statsRes?.data) setStats(statsRes.data);
+        if (actRes?.data) setRecentActivities(actRes.data);
+      } catch (err) {
+        console.warn('Error loading dashboard data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadDashboardData();
+  }, []);
+
   const statCards = [
     {
       id: "students",
       label: "Total de Alunos",
-      value: ADMIN_STATS.totalStudents.toLocaleString('pt-BR'),
-      sub: "+48 novos esta semana",
+      value: stats.totalStudents.toLocaleString('pt-BR'),
+      sub: stats.totalStudents > 0 ? "Alunos cadastrados" : "Nenhum aluno cadastrado",
       icon: Users,
       color: "text-purple-400",
       bg: "bg-purple-500/10",
@@ -33,8 +63,8 @@ export default function AdminDashboard({
     {
       id: "modules",
       label: "Total de Módulos",
-      value: ADMIN_STATS.totalModules,
-      sub: "4 publicados • 2 rascunhos",
+      value: stats.totalModules,
+      sub: stats.totalModules > 0 ? `${stats.totalModules} módulos ativos` : "Nenhum módulo criado",
       icon: Layers,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
@@ -44,8 +74,8 @@ export default function AdminDashboard({
     {
       id: "lessons",
       label: "Total de Aulas",
-      value: ADMIN_STATS.totalLessons,
-      sub: "100% com vídeos e PDFs",
+      value: stats.totalLessons,
+      sub: stats.totalLessons > 0 ? `${stats.totalLessons} aulas cadastradas` : "Nenhuma aula cadastrada",
       icon: Tv,
       color: "text-cyan-400",
       bg: "bg-cyan-500/10",
@@ -55,8 +85,8 @@ export default function AdminDashboard({
     {
       id: "songs",
       label: "Magic Songs",
-      value: ADMIN_STATS.totalSongs,
-      sub: "Com distribuição SSOT",
+      value: stats.totalSongs,
+      sub: stats.totalSongs > 0 ? "Com distribuição SSOT" : "Nenhuma música cadastrada",
       icon: Music,
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
@@ -66,7 +96,7 @@ export default function AdminDashboard({
     {
       id: "time",
       label: "Tempo de Conteúdo",
-      value: ADMIN_STATS.totalContentTime,
+      value: stats.totalContentTime,
       sub: "Aulas em vídeo e áudio",
       icon: Clock,
       color: "text-amber-400",
@@ -177,35 +207,47 @@ export default function AdminDashboard({
           </div>
 
           <div className="space-y-3">
-            {RECENT_ACTIVITIES.map((act) => (
-              <div
-                key={act.id}
-                className="p-3.5 rounded-2xl bg-[#141728] border border-slate-800/80 flex items-center justify-between gap-3 hover:border-slate-700 transition-all"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#1b1f35] border border-slate-700 flex items-center justify-center text-lg flex-shrink-0">
-                    {act.icon}
+            {recentActivities.length > 0 ? (
+              recentActivities.map((act) => (
+                <div
+                  key={act.id}
+                  className="p-3.5 rounded-2xl bg-[#141728] border border-slate-800/80 flex items-center justify-between gap-3 hover:border-slate-700 transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#1b1f35] border border-slate-700 flex items-center justify-center text-lg flex-shrink-0">
+                      {act.icon || '⚡'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-bold text-white truncate">
+                        {act.title}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {act.desc}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-bold text-white truncate">
-                      {act.title}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {act.desc}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="text-right flex-shrink-0">
-                  <span className="text-[10px] text-slate-500 font-medium block">
-                    {act.time}
-                  </span>
-                  <span className="text-[10px] text-purple-300 font-semibold bg-purple-500/10 px-2 py-0.2 rounded border border-purple-500/20">
-                    {act.admin}
-                  </span>
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-[10px] text-slate-500 font-medium block">
+                      {act.time}
+                    </span>
+                    <span className="text-[10px] text-purple-300 font-semibold bg-purple-500/10 px-2 py-0.2 rounded border border-purple-500/20">
+                      {act.admin || 'Admin'}
+                    </span>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="p-8 text-center rounded-2xl bg-[#141728]/50 border border-slate-800/50 space-y-2">
+                <Activity className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-xs font-bold text-slate-400">
+                  Nenhuma atividade recente registrada
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  As ações administrativas e novos cadastros aparecerão em tempo real aqui.
+                </p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 

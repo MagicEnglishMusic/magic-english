@@ -16,10 +16,10 @@ export const materialsService = {
 
       const { data, error } = await query;
       if (error) throw error;
-      return { data: data && data.length > 0 ? data : materialsList, error: null };
+      return { data: data || [], error: null };
     } catch (err) {
-      console.warn('Fallback to local materials:', err.message);
-      return { data: materialsList, error: null };
+      console.warn('Error fetching materials from Supabase:', err.message);
+      return { data: [], error: err.message };
     }
   },
 

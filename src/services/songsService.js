@@ -16,10 +16,10 @@ export const songsService = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return { data: data && data.length > 0 ? data : magicSongsList, error: null };
+      return { data: data || [], error: null };
     } catch (err) {
-      console.warn('Fallback to local songs:', err.message);
-      return { data: magicSongsList, error: null };
+      console.warn('Error fetching songs from Supabase:', err.message);
+      return { data: [], error: err.message };
     }
   },
 

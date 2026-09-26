@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Layers, Plus, Edit2, Trash2, CheckCircle2, Eye, X, Image, Sparkles } from 'lucide-react';
-import { INITIAL_ADMIN_MODULES } from '../../data/adminData';
+import React, { useState, useEffect } from 'react';
+import { Layers, Plus, Edit2, Trash2, CheckCircle2, Eye, X, Image, Sparkles, FolderPlus } from 'lucide-react';
+import { modulesService } from '../../services/modulesService';
 
 export default function ModuleManager() {
-  const [modules, setModules] = useState(INITIAL_ADMIN_MODULES);
+  const [modules, setModules] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -11,18 +12,58 @@ export default function ModuleManager() {
     track: 'Inglês do Zero',
     image: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80',
     status: 'Publicado',
-    order: modules.length + 1
+    order: 1
   });
 
-  const handleCreateModule = (e) => {
+  useEffect(() => {
+    async function fetchModules() {
+      setIsLoading(true);
+      try {
+        const { data } = await modulesService.getModules();
+        if (data) {
+          const formatted = data.map((m, idx) => ({
+            id: m.id,
+            order: m.order_index || m.order || idx + 1,
+            title: m.title || 'Módulo Sem Nome',
+            description: m.description || '',
+            image: m.banner_url || m.image || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80',
+            lessonsCount: m.lessons_count || m.lessonsCount || 0,
+            songsCount: m.songs_count || m.songsCount || 0,
+            status: m.status === 'published' ? 'Publicado' : (m.status === 'draft' ? 'Rascunho' : (m.status || 'Publicado')),
+            track: m.track || 'Inglês do Zero'
+          }));
+          setModules(formatted);
+          setFormData((prev) => ({ ...prev, order: formatted.length + 1 }));
+        }
+      } catch (err) {
+        console.warn('Error fetching modules:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchModules();
+  }, []);
+
+  const handleCreateModule = async (e) => {
     e.preventDefault();
     if (!formData.title) return;
 
+    const payload = {
+      title: formData.title,
+      description: formData.description || '',
+      banner_url: formData.image,
+      order_index: modules.length + 1,
+      status: formData.status === 'Publicado' ? 'published' : 'draft',
+      lessons_count: 0,
+      songs_count: 0
+    };
+
+    const res = await modulesService.createModule(payload);
     const newMod = {
-      id: `mod-${Date.now()}`,
+      id: res.data?.id || `mod-${Date.now()}`,
       order: modules.length + 1,
       title: formData.title,
-      description: formData.description || 'Descrição do módulo de aprendizado.',
+      description: formData.description || '',
       image: formData.image,
       lessonsCount: 0,
       songsCount: 0,
@@ -42,7 +83,8 @@ export default function ModuleManager() {
     });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
+    await modulesService.deleteModule(id);
     setModules(modules.filter((m) => m.id !== id));
   };
 
@@ -71,69 +113,90 @@ export default function ModuleManager() {
       </div>
 
       {/* Modules Grid / Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {modules.map((mod, idx) => (
-          <div
-            key={mod.id}
-            className="p-5 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-4 group shadow-xl"
-          >
-            <div className="space-y-3">
-              {/* Cover Banner */}
-              <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-800">
-                <img
-                  src={mod.image}
-                  alt={mod.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                
-                <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-black/60 text-purple-300 font-mono text-xs font-bold border border-purple-500/30">
-                  Ordem: #{mod.order || idx + 1}
-                </span>
+      {modules.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {modules.map((mod, idx) => (
+            <div
+              key={mod.id}
+              className="p-5 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-4 group shadow-xl"
+            >
+              <div className="space-y-3">
+                {/* Cover Banner */}
+                <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-800">
+                  <img
+                    src={mod.image}
+                    alt={mod.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                  
+                  <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-lg bg-black/60 text-purple-300 font-mono text-xs font-bold border border-purple-500/30">
+                    Ordem: #{mod.order || idx + 1}
+                  </span>
 
-                <span className={`absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                  mod.status === 'Publicado'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                }`}>
-                  {mod.status}
-                </span>
+                  <span className={`absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                    mod.status === 'Publicado'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  }`}>
+                    {mod.status}
+                  </span>
 
-                <div className="absolute bottom-2.5 left-2.5 right-2.5 text-xs text-slate-300 font-semibold">
-                  Trilha: {mod.track}
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 text-xs text-slate-300 font-semibold">
+                    Trilha: {mod.track}
+                  </div>
+                </div>
+
+                {/* Info */}
+                <div>
+                  <h3 className="text-base font-black text-white truncate">
+                    {mod.title}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                    {mod.description}
+                  </p>
+                </div>
+
+                {/* Metrics */}
+                <div className="pt-3 border-t border-[#1e2338] flex items-center justify-between text-xs text-slate-400">
+                  <span>{mod.lessonsCount} aulas cadastradas</span>
+                  <span>{mod.songsCount} músicas SSOT</span>
                 </div>
               </div>
 
-              {/* Info */}
-              <div>
-                <h3 className="text-base font-black text-white truncate">
-                  {mod.title}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                  {mod.description}
-                </p>
-              </div>
-
-              {/* Metrics */}
-              <div className="pt-3 border-t border-[#1e2338] flex items-center justify-between text-xs text-slate-400">
-                <span>{mod.lessonsCount} aulas cadastradas</span>
-                <span>{mod.songsCount} músicas SSOT</span>
+              {/* Actions */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#1e2338]">
+                <button
+                  onClick={() => handleDelete(mod.id)}
+                  className="p-2 rounded-lg bg-[#191d30] text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                  title="Excluir Módulo"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#1e2338]">
-              <button
-                onClick={() => handleDelete(mod.id)}
-                className="p-2 rounded-lg bg-[#191d30] text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                title="Excluir Módulo"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="p-12 text-center rounded-3xl bg-[#111425] border border-[#1e233b] shadow-xl space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400 mx-auto">
+            <Layers className="w-8 h-8" />
           </div>
-        ))}
-      </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-white">Nenhum módulo cadastrado</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Comece criando o primeiro módulo de aprendizado para estruturar as aulas e músicas do curso.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Criar Primeiro Módulo</span>
+          </button>
+        </div>
+      )}
 
       {/* Modal: Criar Módulo */}
       {isModalOpen && (

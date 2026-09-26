@@ -1,11 +1,11 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { learningTracks } from '../data/mockData';
+import { learningTracksList } from '../data/mockData';
 
 export const modulesService = {
   // Fetch all modules ordered
   async getModules() {
     if (!isSupabaseConfigured) {
-      return { data: learningTracks, error: null };
+      return { data: learningTracksList, error: null };
     }
 
     try {
@@ -15,10 +15,10 @@ export const modulesService = {
         .order('order_index', { ascending: true });
 
       if (error) throw error;
-      return { data: data && data.length > 0 ? data : learningTracks, error: null };
+      return { data: data || [], error: null };
     } catch (err) {
-      console.warn('Fallback to local modules:', err.message);
-      return { data: learningTracks, error: null };
+      console.warn('Error fetching modules from Supabase:', err.message);
+      return { data: [], error: err.message };
     }
   },
 
