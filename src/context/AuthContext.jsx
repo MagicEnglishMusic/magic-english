@@ -38,13 +38,14 @@ export const DEFAULT_ADMIN = {
 };
 
 export function AuthProvider({ children }) {
-  // authState: { isAuthenticated: boolean, user: Object | null, role: 'student' | 'admin' | null, isOnboarded: boolean, loading: boolean }
+  // authState: { isAuthenticated: boolean, user: Object | null, role: 'student' | 'admin' | null, accessStatus: 'active' | 'pending_payment' | 'blocked' | 'refunded' | 'trial', isOnboarded: boolean, loading: boolean }
   const [authState, setAuthState] = useState(() => {
     if (isSupabaseConfigured) {
       return {
         isAuthenticated: false,
         user: null,
         role: null,
+        accessStatus: 'pending_payment',
         isOnboarded: false,
         loading: true
       };
@@ -53,6 +54,7 @@ export function AuthProvider({ children }) {
       isAuthenticated: true, // Default active demo session only when Supabase is not configured
       user: DEFAULT_STUDENT,
       role: 'student',
+      accessStatus: 'active',
       isOnboarded: true,
       loading: false
     };
@@ -97,11 +99,18 @@ export function AuthProvider({ children }) {
       }
     }
 
+    const resolvedRole = profile?.role || sessionUser.user_metadata?.role || 'student';
+    // Admins always have active access. Students respect profile.access_status or fallback to active.
+    const resolvedAccessStatus = resolvedRole === 'admin' 
+      ? 'active' 
+      : (profile?.access_status || 'active');
+
     const cleanUser = profile ? {
       id: profile.id,
       name: profile.name || sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
       email: profile.email || sessionUser.email,
-      role: profile.role || sessionUser.user_metadata?.role || 'student',
+      role: resolvedRole,
+      accessStatus: resolvedAccessStatus,
       avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
       level: profile.level || sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
       levelNumber: profile.level_number || 1,
@@ -114,13 +123,14 @@ export function AuthProvider({ children }) {
       kiwifyData: {
         orderId: profile.kiwify_order_id || 'KW-ONLINE',
         product: 'Magic English VIP',
-        accessStatus: profile.kiwify_status || 'active'
+        accessStatus: resolvedAccessStatus
       }
     } : {
       id: sessionUser.id,
       name: sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
       email: sessionUser.email,
-      role: sessionUser.user_metadata?.role || 'student',
+      role: resolvedRole,
+      accessStatus: resolvedAccessStatus,
       avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
       level: sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
       levelNumber: 1,
@@ -133,13 +143,14 @@ export function AuthProvider({ children }) {
       kiwifyData: {
         orderId: 'KW-NEW',
         product: 'Magic English VIP',
-        accessStatus: 'active'
+        accessStatus: resolvedAccessStatus
       }
     };
 
     return {
       user: cleanUser,
       role: cleanUser.role,
+      accessStatus: resolvedAccessStatus,
       isOnboarded: resolvedIsOnboarded
     };
   };
@@ -162,6 +173,7 @@ export function AuthProvider({ children }) {
               isAuthenticated: true,
               user: resolved.user,
               role: resolved.role,
+              accessStatus: resolved.accessStatus,
               isOnboarded: resolved.isOnboarded,
               loading: false
             });
@@ -171,6 +183,7 @@ export function AuthProvider({ children }) {
             isAuthenticated: false,
             user: null,
             role: null,
+            accessStatus: 'pending_payment',
             isOnboarded: false,
             loading: false
           });
@@ -458,15 +471,40 @@ export function AuthProvider({ children }) {
       isAuthenticated: false,
       user: null,
       role: null,
+      accessStatus: 'pending_payment',
       isOnboarded: false,
       loading: false
     });
+  };
+
+  // 7. Refresh Current Session & Profile State
+  const refreshSession = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const resolved = await resolveUserState(session.user);
+        if (resolved) {
+          setAuthState({
+            isAuthenticated: true,
+            user: resolved.user,
+            role: resolved.role,
+            accessStatus: resolved.accessStatus,
+            isOnboarded: resolved.isOnboarded,
+            loading: false
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Session refresh error:', err.message);
+    }
   };
 
   const value = {
     isAuthenticated: authState.isAuthenticated,
     user: authState.user,
     role: authState.role,
+    accessStatus: authState.accessStatus || authState.user?.accessStatus || 'active',
     isOnboarded: authState.isOnboarded,
     loading: authState.loading,
     loginStudent,
@@ -474,6 +512,7 @@ export function AuthProvider({ children }) {
     completeOnboarding,
     resetPassword,
     loginAdmin,
+    refreshSession,
     logout
   };
 

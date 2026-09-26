@@ -258,17 +258,19 @@ function MainApp() {
     );
   }
 
-  // ROUTE 4: Public/Protected Student Onboarding (/onboarding)
+  // ROUTE 4: Protected Student Onboarding (/onboarding)
   if (currentView === 'onboarding') {
     return (
-      <Suspense fallback={<MagicLoadingScreen message="Personalizando sua jornada..." />}>
-        <Onboarding
-          onComplete={() => {
-            navigateTo('dashboard', '/dashboard');
-            setActiveTab('home');
-          }}
-        />
-      </Suspense>
+      <ProtectedRoute requiredRole="student" onRedirect={(view) => navigateTo(view, '/login')}>
+        <Suspense fallback={<MagicLoadingScreen message="Personalizando sua jornada..." />}>
+          <Onboarding
+            onComplete={() => {
+              navigateTo('dashboard', '/dashboard');
+              setActiveTab('home');
+            }}
+          />
+        </Suspense>
+      </ProtectedRoute>
     );
   }
 
