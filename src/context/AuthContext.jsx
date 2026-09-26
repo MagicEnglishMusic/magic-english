@@ -164,8 +164,8 @@ export function AuthProvider({ children }) {
 
   // 1. Student Login
   const loginStudent = async (email, password) => {
-    // If Supabase is configured and not default demo, try Supabase auth
-    if (isSupabaseConfigured && email !== DEFAULT_STUDENT.email) {
+    // If Supabase is configured, authenticate via Supabase Auth
+    if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),

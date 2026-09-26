@@ -4,13 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function LoginStudent({ onLoginSuccess, onGoToRegister, onGoToForgotPassword, onGoToAdminLogin }) {
   const { loginStudent } = useAuth();
-  const [email, setEmail] = useState('joao.silva@magicenglish.com');
-  const [password, setPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -25,18 +25,19 @@ export default function LoginStudent({ onLoginSuccess, onGoToRegister, onGoToFor
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      loginStudent(email, password);
+    try {
+      await loginStudent(email, password);
       setIsLoading(false);
       if (onLoginSuccess) onLoginSuccess();
-    }, 450);
-  };
-
-  const handleDemoStudent = () => {
-    setEmail('joao.silva@magicenglish.com');
-    setPassword('senha123');
-    loginStudent('joao.silva@magicenglish.com', 'senha123');
-    if (onLoginSuccess) onLoginSuccess();
+    } catch (err) {
+      setIsLoading(false);
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid_grant')) {
+        setError('E-mail ou senha incorretos. Verifique seus dados e tente novamente.');
+      } else {
+        setError(msg || 'Erro ao realizar login. Tente novamente.');
+      }
+    }
   };
 
   return (
@@ -167,16 +168,8 @@ export default function LoginStudent({ onLoginSuccess, onGoToRegister, onGoToFor
             </button>
           </form>
 
-          {/* Create Account & Quick Demo */}
-          <div className="pt-2 border-t border-[#1e233b] text-center space-y-3">
-            <button
-              onClick={handleDemoStudent}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#14182b] hover:bg-[#1b2038] border border-slate-700/80 text-purple-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Entrar com Aluno Demo (João Silva)</span>
-            </button>
-
+          {/* Create Account Link */}
+          <div className="pt-4 border-t border-[#1e233b] text-center">
             <p className="text-xs text-slate-400">
               Ainda não tem conta?{' '}
               <button
