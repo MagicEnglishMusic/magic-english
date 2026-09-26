@@ -264,10 +264,12 @@ export function AuthProvider({ children }) {
 
   // 2. Student Registration
   const registerStudent = async ({ name, email, password }) => {
+    let userId = `std-${Date.now()}`;
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password: password,
           options: {
             data: {
@@ -278,13 +280,17 @@ export function AuthProvider({ children }) {
         });
 
         if (error) throw error;
+        if (data?.user?.id) {
+          userId = data.user.id;
+        }
       } catch (err) {
-        console.warn('Supabase registration fallback:', err.message);
+        console.warn('Supabase registration error:', err.message);
+        throw err;
       }
     }
 
     const newUser = {
-      id: `std-${Date.now()}`,
+      id: userId,
       name: name.trim(),
       email: email.trim().toLowerCase(),
       role: 'student',
@@ -301,7 +307,7 @@ export function AuthProvider({ children }) {
       progressPercent: 0,
       kiwifyData: {
         orderId: `KW-${Math.floor(100000 + Math.random() * 900000)}`,
-        product: 'Magic English VIP Anual',
+        product: 'Magic English VIP',
         accessStatus: 'active',
         checkoutProvider: 'Kiwify Engine'
       }

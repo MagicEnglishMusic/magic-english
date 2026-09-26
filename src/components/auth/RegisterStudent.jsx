@@ -12,7 +12,7 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -35,11 +35,30 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      registerStudent({ name, email, password });
+    try {
+      await registerStudent({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password
+      });
+
+      // Clear all state after success
+      setName('');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
       setIsLoading(false);
+
       if (onRegisterSuccess) onRegisterSuccess();
-    }, 500);
+    } catch (err) {
+      setIsLoading(false);
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('user already exists')) {
+        setError('Este e-mail já está cadastrado. Faça login ou utilize a recuperação de senha.');
+      } else {
+        setError(msg || 'Erro ao realizar cadastro. Tente novamente.');
+      }
+    }
   };
 
   return (
@@ -121,6 +140,7 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
                 <input
                   type="text"
                   required
+                  autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Seu nome completo"
@@ -139,6 +159,7 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu.email@exemplo.com"
@@ -157,6 +178,7 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
@@ -182,6 +204,7 @@ export default function RegisterStudent({ onRegisterSuccess, onGoToLogin }) {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita sua senha"
