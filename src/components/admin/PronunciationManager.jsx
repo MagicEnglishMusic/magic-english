@@ -1,17 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic, Plus, Volume2, Sparkles, Trash2, X, CheckCircle2 } from 'lucide-react';
-import { INITIAL_ADMIN_VOCABULARY, INITIAL_ADMIN_SONGS } from '../../data/adminData';
+import { songsService } from '../../services/songsService';
 
 export default function PronunciationManager() {
-  const [vocabList, setVocabList] = useState(INITIAL_ADMIN_VOCABULARY);
+  const [vocabList, setVocabList] = useState([]);
+  const [songsList, setSongsList] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     word: '',
     phonetic: '',
     translation: '',
-    song: 'Hello Song',
+    song: '',
     tip: ''
   });
+
+  useEffect(() => {
+    async function loadSongs() {
+      try {
+        const { data } = await songsService.getSongs();
+        if (data && data.length > 0) {
+          setSongsList(data);
+          setFormData((prev) => ({ ...prev, song: data[0].title }));
+        }
+      } catch (err) {
+        console.warn('Error loading songs in PronunciationManager:', err);
+      }
+    }
+    loadSongs();
+  }, []);
 
   const speak = (text) => {
     if ('speechSynthesis' in window) {
@@ -32,7 +48,7 @@ export default function PronunciationManager() {
       word: formData.word,
       phonetic: formData.phonetic || `/${formData.word.toLowerCase()}/`,
       translation: formData.translation,
-      song: formData.song,
+      song: formData.song || (songsList[0]?.title || 'Geral'),
       tip: formData.tip || "Articulação natural em inglês nativo."
     };
 
@@ -69,53 +85,72 @@ export default function PronunciationManager() {
       </div>
 
       {/* Vocab Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {vocabList.map((item) => (
-          <div
-            key={item.id}
-            className="p-5 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-3 shadow-xl group"
+      {vocabList.length === 0 ? (
+        <div className="p-12 rounded-3xl bg-[#111425]/50 border border-dashed border-[#1e233b] text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto">
+            <Mic className="w-6 h-6" />
+          </div>
+          <p className="text-white font-bold text-sm">Nenhuma palavra cadastrada para fonética</p>
+          <p className="text-slate-400 text-xs max-w-sm mx-auto">
+            Adicione palavras e termos com guia fonético e dicas de articulação para os alunos treinarem pronúncia.
+          </p>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs font-bold border border-purple-500/30 transition-all cursor-pointer"
           >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/15 px-2 py-0.5 rounded">
-                  {item.phonetic}
+            <Plus className="w-4 h-4" />
+            <span>Cadastrar Primeira Palavra</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {vocabList.map((item) => (
+            <div
+              key={item.id}
+              className="p-5 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-3 shadow-xl group"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/15 px-2 py-0.5 rounded">
+                    {item.phonetic}
+                  </span>
+                  <button
+                    onClick={() => speak(item.word)}
+                    className="p-1.5 rounded-lg bg-[#181c32] text-purple-300 hover:text-white hover:bg-purple-600 transition-colors cursor-pointer"
+                    title="Ouvir pronúncia"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-black text-white">
+                    {item.word}
+                  </h3>
+                  <p className="text-xs text-slate-300 font-medium">
+                    🇧🇷 {item.translation}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                    {item.tip}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[#1e2338] flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-semibold truncate">
+                  🎵 {item.song}
                 </span>
                 <button
-                  onClick={() => speak(item.word)}
-                  className="p-1.5 rounded-lg bg-[#181c32] text-purple-300 hover:text-white hover:bg-purple-600 transition-colors cursor-pointer"
-                  title="Ouvir pronúncia"
+                  onClick={() => handleDelete(item.id)}
+                  className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
                 >
-                  <Volume2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-
-              <div>
-                <h3 className="text-xl font-black text-white">
-                  {item.word}
-                </h3>
-                <p className="text-xs text-slate-300 font-medium">
-                  🇧🇷 {item.translation}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
-                  {item.tip}
-                </p>
-              </div>
             </div>
-
-            <div className="pt-3 border-t border-[#1e2338] flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-semibold truncate">
-                🎵 {item.song}
-              </span>
-              <button
-                onClick={() => handleDelete(item.id)}
-                className="p-1 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal: Adicionar Palavra */}
       {isModalOpen && (
@@ -186,7 +221,8 @@ export default function PronunciationManager() {
                   onChange={(e) => setFormData({ ...formData, song: e.target.value })}
                   className="w-full bg-[#161a2e] border border-[#242b46] rounded-xl px-3 py-2 text-white text-xs"
                 >
-                  {INITIAL_ADMIN_SONGS.map((s) => (
+                  <option value="Geral">Geral (Sem música associada)</option>
+                  {songsList.map((s) => (
                     <option key={s.id} value={s.title}>{s.title}</option>
                   ))}
                 </select>

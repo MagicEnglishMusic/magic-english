@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -15,23 +15,63 @@ import {
   Sparkles,
   ShieldAlert
 } from 'lucide-react';
+import { adminService } from '../../services/adminService';
 
 export default function AdminSidebar({
   activeTab = 'dashboard',
   setActiveTab,
   onReturnToPlatform
 }) {
+  const [stats, setStats] = useState({
+    totalStudents: null,
+    totalModules: null,
+    totalLessons: null,
+    totalSongs: null
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadStats() {
+      try {
+        const { data } = await adminService.getDashboardStats();
+        if (isMounted && data) {
+          setStats({
+            totalStudents: data.totalStudents ?? 0,
+            totalModules: data.totalModules ?? 0,
+            totalLessons: data.totalLessons ?? 0,
+            totalSongs: data.totalSongs ?? 0
+          });
+        }
+      } catch (err) {
+        console.warn('Error fetching stats in AdminSidebar:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    loadStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  const formatBadge = (val) => {
+    if (isLoading || val === null || val === undefined) return '...';
+    return String(val);
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'courses', label: 'Cursos & Trilhas', icon: BookOpen },
-    { id: 'modules', label: 'Módulos', icon: Layers, badge: '6' },
-    { id: 'lessons', label: 'Aulas', icon: Tv, badge: '32' },
-    { id: 'songs', label: 'Músicas (SSOT)', icon: Music, badge: 'Auto' },
+    { id: 'modules', label: 'Módulos', icon: Layers, badge: formatBadge(stats.totalModules) },
+    { id: 'lessons', label: 'Aulas', icon: Tv, badge: formatBadge(stats.totalLessons) },
+    { id: 'songs', label: 'Músicas (SSOT)', icon: Music, badge: formatBadge(stats.totalSongs) },
     { id: 'materials', label: 'Materiais PDF', icon: FileText },
     { id: 'pronunciation', label: 'Pronúncia (IA)', icon: Mic },
     { id: 'practice', label: 'Prática Musical', icon: Brain },
     { id: 'gamification', label: 'Gamificação & XP', icon: Trophy },
-    { id: 'students', label: 'Alunos', icon: Users, badge: '1.2k' },
+    { id: 'students', label: 'Alunos', icon: Users, badge: formatBadge(stats.totalStudents) },
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 
