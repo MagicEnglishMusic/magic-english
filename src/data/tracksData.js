@@ -8,7 +8,7 @@ export const tracksData = [
     fullDescription: "Construa uma base sólida e natural com o método musical. Aprenda cumprimentos, números, cores, rotina e estruturas essenciais sem decorar regras complicadas.",
     lessonsCount: 24,
     songsCount: 12,
-    progress: 42,
+    progress: 0,
     isLocked: false,
     image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1000&auto=format&fit=crop&q=80",
     gradient: "from-purple-900/80 via-[#141226] to-[#0c0e17]",
@@ -25,7 +25,7 @@ export const tracksData = [
             title: "Hello Song",
             type: "Música & Vocabulário",
             duration: "3:24",
-            status: "completed", // 'completed' | 'in_progress' | 'locked'
+            status: "in_progress", // 'completed' | 'in_progress' | 'locked'
             xp: 50,
             songId: "song-1"
           },
@@ -35,7 +35,7 @@ export const tracksData = [
             title: "Numbers Song",
             type: "Música & Contagem",
             duration: "2:58",
-            status: "completed",
+            status: "locked",
             xp: 50,
             songId: "song-2"
           },
@@ -45,7 +45,7 @@ export const tracksData = [
             title: "Colors Song",
             type: "Música & Descrições",
             duration: "3:45",
-            status: "in_progress",
+            status: "locked",
             xp: 50,
             songId: "song-3"
           },

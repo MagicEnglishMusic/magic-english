@@ -14,9 +14,10 @@ import {
 import TrailCard from './TrailCard';
 import ProgressBar from './ProgressBar';
 import { tracksData, userJourneyLevels } from '../../data/tracksData';
-import { userData } from '../../data/mockData';
+import { useGamification } from '../../context/GamificationContext';
 
 export default function TracksListView({ onSelectTrack, onContinueCurrentTrack }) {
+  const { streak, xp, currentLevel } = useGamification();
   const currentTrack = tracksData[0]; // Inglês do Zero
 
   return (
@@ -43,7 +44,7 @@ export default function TracksListView({ onSelectTrack, onContinueCurrentTrack }
             <Flame className="w-4 h-4 text-amber-400 animate-bounce" />
             <div>
               <span className="text-[10px] text-slate-400 block font-normal leading-none">Sequência</span>
-              <span>{userData.streak} dias</span>
+              <span>{streak} dias</span>
             </div>
           </div>
 
@@ -52,7 +53,7 @@ export default function TracksListView({ onSelectTrack, onContinueCurrentTrack }
             <Star className="w-4 h-4 text-purple-400 fill-purple-400/30" />
             <div>
               <span className="text-[10px] text-slate-400 block font-normal leading-none">Total XP</span>
-              <span>{userData.xp} XP</span>
+              <span>{xp} XP</span>
             </div>
           </div>
 
@@ -61,7 +62,7 @@ export default function TracksListView({ onSelectTrack, onContinueCurrentTrack }
             <Target className="w-4 h-4 text-blue-400" />
             <div>
               <span className="text-[10px] text-slate-400 block font-normal leading-none">Nível</span>
-              <span>Intermediário</span>
+              <span>{currentLevel.title}</span>
             </div>
           </div>
         </div>

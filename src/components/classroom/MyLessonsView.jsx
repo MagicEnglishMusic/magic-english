@@ -66,10 +66,10 @@ export default function MyLessonsView({ onOpenLesson }) {
               <div className="pt-2 border-t border-[#1c2138] space-y-1">
                 <div className="flex items-center justify-between text-[11px] text-slate-400">
                   <span>{lesson.duration}</span>
-                  <span className="font-bold text-white">{lesson.progress}%</span>
+                  <span className="font-bold text-white">{lesson.progress > 0 ? `${lesson.progress}%` : 'Disponível'}</span>
                 </div>
                 <div className="w-full bg-[#181d30] h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full" style={{ width: `${lesson.progress}%` }}></div>
+                  <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full" style={{ width: `${lesson.progress || 0}%` }}></div>
                 </div>
               </div>
             </div>

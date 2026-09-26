@@ -75,13 +75,15 @@ export default function ContinueSection({ onSelectLesson }) {
                     <Clock className="w-3 h-3" />
                     {lesson.duration}
                   </span>
-                  <span className="font-bold text-white">{lesson.progress}% concluído</span>
+                  <span className="font-bold text-white">
+                    {lesson.progress > 0 ? `${lesson.progress}% concluído` : 'Disponível'}
+                  </span>
                 </div>
 
                 <div className="w-full bg-[#181d30] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400 rounded-full"
-                    style={{ width: `${lesson.progress}%` }}
+                    style={{ width: `${lesson.progress || 0}%` }}
                   ></div>
                 </div>
               </div>

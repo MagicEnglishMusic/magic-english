@@ -46,9 +46,34 @@ export default function StudentProfileView({
     completedLessons: isRealUser ? 0 : studentProfileData.stats.completedLessons,
     masteredSongs: songMasteryList.filter((s) => s.status === 'mastered').length,
     unlockedBadges: badges.filter((b) => b.unlocked).length,
-    totalStudyTime: isRealUser ? (xp > 0 ? "15min" : "0h 00min") : studentProfileData.stats.totalStudyTime,
+    totalStudyTime: isRealUser ? (xp > 0 ? `${Math.round(xp / 10)} min` : "0 min") : studentProfileData.stats.totalStudyTime,
     accuracyRate: isRealUser ? (xp > 0 ? "100%" : "--") : studentProfileData.stats.accuracyRate
   };
+
+  const rankingInfo = isRealUser ? {
+    league: "💎 Liga Diamante",
+    tier: xp > 0 ? "Ativo" : "Iniciante",
+    currentRank: 99,
+    weeklyPoints: xp,
+    seasonEndsIn: "3 dias"
+  } : studentProfileData.rankingInfo;
+
+  const musicCollection = isRealUser ? studentProfileData.musicCollection.map((s) => ({
+    ...s,
+    status: 'not_started',
+    statusLabel: 'Não iniciada',
+    progress: 0
+  })) : studentProfileData.musicCollection;
+
+  const modulesProgress = isRealUser ? studentProfileData.modulesProgress.map((m, idx) => ({
+    ...m,
+    status: idx === 0 ? 'in_progress' : 'locked',
+    statusLabel: idx === 0 ? 'Disponível' : 'Bloqueado',
+    progress: 0,
+    completedLessons: 0
+  })) : studentProfileData.modulesProgress;
+
+  const activityTimeline = isRealUser ? [] : studentProfileData.activityTimeline;
 
   return (
     <div className="flex-1 p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
@@ -81,17 +106,17 @@ export default function StudentProfileView({
               <span className="text-xs text-slate-400 font-medium">Temporada Ativa</span>
             </div>
             <h4 className="text-base font-black text-white mt-0.5">
-              {studentProfileData.rankingInfo.league} • Posição #{studentProfileData.rankingInfo.currentRank} ({studentProfileData.rankingInfo.tier})
+              {rankingInfo.league} • Posição #{rankingInfo.currentRank} ({rankingInfo.tier})
             </h4>
             <p className="text-xs text-slate-400">
-              {studentProfileData.rankingInfo.weeklyPoints} pontos acumulados nesta semana. Encerramento em {studentProfileData.rankingInfo.seasonEndsIn}.
+              {rankingInfo.weeklyPoints} pontos acumulados nesta semana. Encerramento em {rankingInfo.seasonEndsIn}.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 self-start md:self-auto">
           <span className="text-xs text-amber-300 bg-[#121526] px-3 py-1.5 rounded-xl border border-amber-500/30 font-bold">
-            ⚡ Top 5 da Liga
+            {isRealUser ? (xp > 0 ? "⚡ Ativo na Liga" : "🌱 Iniciando Jornada") : "⚡ Top 5 da Liga"}
           </span>
         </div>
       </div>
@@ -107,18 +132,18 @@ export default function StudentProfileView({
 
       {/* 6. Minhas Músicas (Personal Music Library) */}
       <SongCollection
-        songs={studentProfileData.musicCollection}
+        songs={musicCollection}
         onOpenSong={onOpenSong}
       />
 
       {/* 7. Meus Módulos (Course Modules Progress) */}
       <ModuleProgressCard
-        modules={studentProfileData.modulesProgress}
+        modules={modulesProgress}
         onOpenModule={onOpenModule}
       />
 
       {/* 8. Histórico de Atividades (Timeline) */}
-      <ActivityTimeline activities={studentProfileData.activityTimeline} />
+      <ActivityTimeline activities={activityTimeline} />
 
     </div>
   );

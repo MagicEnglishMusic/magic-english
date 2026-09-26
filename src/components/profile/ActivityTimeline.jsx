@@ -26,42 +26,52 @@ export default function ActivityTimeline({
       </div>
 
       {/* Timeline List */}
-      <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-[2px] before:bg-gradient-to-b before:from-purple-500 before:via-indigo-500 before:to-slate-800">
-        {activities.map((item) => (
-          <div key={item.id} className="relative group">
-            {/* Timeline Node Icon */}
-            <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform`}>
-              {item.icon}
-            </div>
+      {activities.length === 0 ? (
+        <div className="p-8 rounded-2xl bg-[#111424]/60 border border-dashed border-[#1e233b] text-center space-y-2">
+          <History className="w-8 h-8 text-purple-400 mx-auto opacity-60" />
+          <p className="text-sm font-bold text-white">Nenhuma atividade registrada ainda</p>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Suas aulas assistidas, práticas de karaokê e desafios concluídos aparecerão aqui conforme você estuda.
+          </p>
+        </div>
+      ) : (
+        <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-[2px] before:bg-gradient-to-b before:from-purple-500 before:via-indigo-500 before:to-slate-800">
+          {activities.map((item) => (
+            <div key={item.id} className="relative group">
+              {/* Timeline Node Icon */}
+              <div className={`absolute -left-6 top-1 w-6 h-6 rounded-full ${item.bg} ${item.border} border flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform`}>
+                {item.icon}
+              </div>
 
-            {/* Content Box */}
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-[#111424] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-0.5 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-white truncate">
-                    {item.title}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    {item.time} • {item.timestamp}
+              {/* Content Box */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-[#111424] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-white truncate">
+                      {item.title}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      {item.time} • {item.timestamp}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 truncate">
+                    {item.subtitle}
+                  </p>
+                </div>
+
+                {/* XP Pill */}
+                <div className="self-start sm:self-auto">
+                  <span className="inline-flex items-center gap-1 text-xs font-extrabold text-amber-400 bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/30">
+                    <Zap className="w-3 h-3 fill-amber-400" />
+                    {item.xp}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 truncate">
-                  {item.subtitle}
-                </p>
-              </div>
-
-              {/* XP Pill */}
-              <div className="self-start sm:self-auto">
-                <span className="inline-flex items-center gap-1 text-xs font-extrabold text-amber-400 bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/30">
-                  <Zap className="w-3 h-3 fill-amber-400" />
-                  {item.xp}
-                </span>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

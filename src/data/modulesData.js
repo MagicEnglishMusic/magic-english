@@ -5,7 +5,7 @@ export const currentOngoingLesson = {
   lessonNumber: "Aula 01",
   title: "Hello — Como se apresentar",
   subtitle: "Cumprimentos e primeiras conversas no exterior",
-  progress: 75,
+  progress: 0,
   duration: "15 min",
   thumbnail: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&auto=format&fit=crop&q=80"
 };
@@ -19,7 +19,7 @@ export const modulesLibraryData = [
     fullDescription: "Prepare-se para viajar o mundo com total autoconfiança. Domine o vocabulário e os diálogos práticos para o aeroporto, hotel, restaurante e emergências com auxílio das músicas de fixação.",
     lessonsCount: 8,
     songsCount: 6,
-    progress: 40,
+    progress: 0,
     isLocked: false,
     coverImage: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200&auto=format&fit=crop&q=80",
     gradient: "from-blue-900/90 via-[#0f192e] to-[#0a0c16]",
@@ -31,7 +31,7 @@ export const modulesLibraryData = [
         title: "No aeroporto — Check-in & Alfândega",
         description: "Aprenda a responder às perguntas da imigração e fazer o check-in sem complicação.",
         duration: "15 min",
-        status: "completed", // 'completed' | 'in_progress' | 'locked'
+        status: "in_progress", // 'completed' | 'in_progress' | 'locked'
         thumbnail: "https://images.unsplash.com/photo-1530521954074-e64f6810b32d?w=600&auto=format&fit=crop&q=80",
         relatedSong: "Travel Songs (Airport Edition)",
         xp: 50
@@ -42,7 +42,7 @@ export const modulesLibraryData = [
         title: "No hotel — Reservas & Check-in",
         description: "Como solicitar seu quarto, tirar dúvidas e pedir serviços na recepção do hotel.",
         duration: "14 min",
-        status: "in_progress",
+        status: "locked",
         thumbnail: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80",
         relatedSong: "Hotel Magic Hit",
         xp: 50

@@ -39,7 +39,7 @@ export default function RightPanel({ onOpenGamification }) {
         <div className="bg-[#121522] border border-[#20253b] rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-400">Meta Semanal de Prática</span>
-            <span className="text-white font-bold">5/7 dias</span>
+            <span className="text-white font-bold">{weeklyDays.filter((d) => d.completed).length}/7 dias</span>
           </div>
 
           <div className="grid grid-cols-7 gap-1.5 pt-1">
@@ -75,7 +75,7 @@ export default function RightPanel({ onOpenGamification }) {
                 <Clock className="w-3 h-3 text-cyan-400" />
                 Tempo de Prática
               </div>
-              <p className="text-sm font-bold text-white">48 min <span className="text-[10px] text-emerald-400 font-normal">+15%</span></p>
+              <p className="text-sm font-bold text-white">{xp > 0 ? `${Math.round(xp / 10)} min` : '0 min'}</p>
             </div>
             <div className="p-2.5 rounded-xl bg-[#171b2e] border border-slate-800/60">
               <div className="flex items-center gap-1.5 text-slate-400 text-[11px] mb-1">
