@@ -10,27 +10,103 @@ import {
   INITIAL_BADGES, 
   INITIAL_DAILY_CHALLENGES, 
   INITIAL_SONG_MASTERY,
-  SONG_MASTERY_CHECKLIST
+  SONG_MASTERY_CHECKLIST,
+  CLEAN_USER_GAMIFICATION,
+  CLEAN_BADGES,
+  CLEAN_DAILY_CHALLENGES,
+  CLEAN_SONG_MASTERY
 } from '../data/gamificationData';
 
 const GamificationContext = createContext(null);
 
 export function GamificationProvider({ children }) {
   const { user } = useAuth();
-  const [xp, setXp] = useState(user?.xp ?? INITIAL_USER_GAMIFICATION.xp);
-  const [streak, setStreak] = useState(user?.streak ?? INITIAL_USER_GAMIFICATION.streak);
-  const [weeklyDays, setWeeklyDays] = useState(INITIAL_USER_GAMIFICATION.weeklyDays);
-  const [badges, setBadges] = useState(INITIAL_BADGES);
-  const [dailyChallenges, setDailyChallenges] = useState(INITIAL_DAILY_CHALLENGES);
-  const [songMasteryList, setSongMasteryList] = useState(INITIAL_SONG_MASTERY);
+  const isRealUser = Boolean(user && user.id !== 'std-1');
+
+  const [xp, setXp] = useState(() => (isRealUser ? (user?.xp || 0) : (user?.xp ?? INITIAL_USER_GAMIFICATION.xp)));
+  const [streak, setStreak] = useState(() => (isRealUser ? (user?.streak || 0) : (user?.streak ?? INITIAL_USER_GAMIFICATION.streak)));
+  const [weeklyDays, setWeeklyDays] = useState(() => (isRealUser ? CLEAN_USER_GAMIFICATION.weeklyDays : INITIAL_USER_GAMIFICATION.weeklyDays));
+  const [badges, setBadges] = useState(() => (isRealUser ? CLEAN_BADGES : INITIAL_BADGES));
+  const [dailyChallenges, setDailyChallenges] = useState(() => (isRealUser ? CLEAN_DAILY_CHALLENGES : INITIAL_DAILY_CHALLENGES));
+  const [songMasteryList, setSongMasteryList] = useState(() => (isRealUser ? CLEAN_SONG_MASTERY : INITIAL_SONG_MASTERY));
 
   // Sync with Auth user when user profile changes
   useEffect(() => {
-    if (user?.xp !== undefined) {
-      setXp(user.xp);
+    if (!user) {
+      setXp(0);
+      setStreak(0);
+      setBadges(CLEAN_BADGES);
+      setSongMasteryList(CLEAN_SONG_MASTERY);
+      setDailyChallenges(CLEAN_DAILY_CHALLENGES);
+      setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
+      return;
     }
-    if (user?.streak !== undefined) {
-      setStreak(user.streak);
+
+    if (user.id === 'std-1') {
+      // Demo mode
+      setXp(user.xp ?? INITIAL_USER_GAMIFICATION.xp);
+      setStreak(user.streak ?? INITIAL_USER_GAMIFICATION.streak);
+      setBadges(INITIAL_BADGES);
+      setSongMasteryList(INITIAL_SONG_MASTERY);
+      setDailyChallenges(INITIAL_DAILY_CHALLENGES);
+      setWeeklyDays(INITIAL_USER_GAMIFICATION.weeklyDays);
+    } else {
+      // Real authenticated user - start clean and sync with Supabase
+      setXp(user.xp || 0);
+      setStreak(user.streak || 0);
+      setBadges(CLEAN_BADGES);
+      setSongMasteryList(CLEAN_SONG_MASTERY);
+      setDailyChallenges(CLEAN_DAILY_CHALLENGES);
+      setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
+
+      if (isSupabaseConfigured && user.id) {
+        // Fetch unlocked rewards
+        supabase
+          .from('rewards')
+          .select('*')
+          .eq('user_id', user.id)
+          .then(({ data: rewardsData }) => {
+            if (rewardsData && rewardsData.length > 0) {
+              setBadges((prev) =>
+                prev.map((b) => {
+                  const hasUnlocked = rewardsData.some((r) => r.title === b.title);
+                  return hasUnlocked ? { ...b, unlocked: true, unlockedAt: 'Desbloqueado' } : b;
+                })
+              );
+            }
+          });
+
+        // Fetch song mastery
+        supabase
+          .from('song_mastery')
+          .select('*')
+          .eq('user_id', user.id)
+          .then(({ data: songMasteryData }) => {
+            if (songMasteryData && songMasteryData.length > 0) {
+              setSongMasteryList((prev) =>
+                prev.map((s) => {
+                  const match = songMasteryData.find((r) => r.song_id === s.songId);
+                  if (match) {
+                    const checklist = {
+                      watched_lesson: match.step_video,
+                      listened_full: match.step_song,
+                      reverse_translation: match.step_reverse_translation,
+                      sing_along: match.step_sing_along,
+                      final_challenge: match.step_final_challenge
+                    };
+                    const count = Object.values(checklist).filter(Boolean).length;
+                    let status = 'not_started';
+                    if (count === 5) status = 'mastered';
+                    else if (count >= 3) status = 'practicing';
+                    else if (count >= 1) status = 'learning';
+                    return { ...s, checklist, status };
+                  }
+                  return s;
+                })
+              );
+            }
+          });
+      }
     }
   }, [user?.id, user?.xp, user?.streak]);
 

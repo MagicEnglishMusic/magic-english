@@ -39,12 +39,23 @@ export const DEFAULT_ADMIN = {
 
 export function AuthProvider({ children }) {
   // authState: { isAuthenticated: boolean, user: Object | null, role: 'student' | 'admin' | null, isOnboarded: boolean, loading: boolean }
-  const [authState, setAuthState] = useState({
-    isAuthenticated: true, // Default active demo session
-    user: DEFAULT_STUDENT,
-    role: 'student',
-    isOnboarded: true,
-    loading: false
+  const [authState, setAuthState] = useState(() => {
+    if (isSupabaseConfigured) {
+      return {
+        isAuthenticated: false,
+        user: null,
+        role: null,
+        isOnboarded: false,
+        loading: true
+      };
+    }
+    return {
+      isAuthenticated: true, // Default active demo session only when Supabase is not configured
+      user: DEFAULT_STUDENT,
+      role: 'student',
+      isOnboarded: true,
+      loading: false
+    };
   });
 
   // Listen to Supabase Auth State changes if configured
@@ -62,37 +73,71 @@ export function AuthProvider({ children }) {
             .eq('id', session.user.id)
             .single();
 
-          if (profile) {
-            setAuthState({
-              isAuthenticated: true,
-              user: {
-                id: profile.id,
-                name: profile.name,
-                email: profile.email,
-                role: profile.role || 'student',
-                avatar: profile.avatar_url,
-                level: profile.level,
-                levelNumber: profile.level_number || 1,
-                xp: profile.xp || 0,
-                streak: profile.streak || 0,
-                plan: profile.plan || 'VIP Pro',
-                objective: profile.objective,
-                currentSkillLevel: profile.current_skill_level,
-                dailyStudyTime: profile.daily_study_time,
-                kiwifyData: {
-                  orderId: profile.kiwify_order_id,
-                  product: 'Magic English VIP',
-                  accessStatus: profile.kiwify_status || 'active'
-                }
-              },
-              role: profile.role || 'student',
-              isOnboarded: profile.is_onboarded ?? true,
-              loading: false
-            });
-          }
+          const cleanUser = profile ? {
+            id: profile.id,
+            name: profile.name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
+            email: profile.email || session.user.email,
+            role: profile.role || 'student',
+            avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+            level: profile.level || 'Nível 1 • First Steps',
+            levelNumber: profile.level_number || 1,
+            xp: profile.xp ?? 0,
+            streak: profile.streak ?? 0,
+            plan: profile.plan || 'VIP Pro',
+            objective: profile.objective || '',
+            currentSkillLevel: profile.current_skill_level || '🌱 Iniciante',
+            dailyStudyTime: profile.daily_study_time || '20 minutos',
+            kiwifyData: {
+              orderId: profile.kiwify_order_id || 'KW-ONLINE',
+              product: 'Magic English VIP',
+              accessStatus: profile.kiwify_status || 'active'
+            }
+          } : {
+            id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0],
+            email: session.user.email,
+            role: session.user.user_metadata?.role || 'student',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+            level: 'Nível 1 • First Steps',
+            levelNumber: 1,
+            xp: 0,
+            streak: 0,
+            plan: 'VIP Pro',
+            objective: '',
+            currentSkillLevel: '🌱 Iniciante',
+            dailyStudyTime: '20 minutos',
+            kiwifyData: {
+              orderId: 'KW-NEW',
+              product: 'Magic English VIP',
+              accessStatus: 'active'
+            }
+          };
+
+          setAuthState({
+            isAuthenticated: true,
+            user: cleanUser,
+            role: cleanUser.role,
+            isOnboarded: profile ? (profile.is_onboarded ?? false) : false,
+            loading: false
+          });
+        } else {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            role: null,
+            isOnboarded: false,
+            loading: false
+          });
         }
       } catch (err) {
         console.warn('Supabase session load error:', err.message);
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          role: null,
+          isOnboarded: false,
+          loading: false
+        });
       }
     };
 
@@ -107,6 +152,8 @@ export function AuthProvider({ children }) {
           isOnboarded: false,
           loading: false
         });
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        checkSession();
       }
     });
 
@@ -136,14 +183,14 @@ export function AuthProvider({ children }) {
 
           const loadedUser = profile ? {
             id: profile.id,
-            name: profile.name,
-            email: profile.email,
+            name: profile.name || data.user.user_metadata?.name || data.user.email?.split('@')[0],
+            email: profile.email || data.user.email,
             role: profile.role || 'student',
             avatar: profile.avatar_url,
-            level: profile.level,
+            level: profile.level || 'Nível 1 • First Steps',
             levelNumber: profile.level_number || 1,
-            xp: profile.xp || 0,
-            streak: profile.streak || 0,
+            xp: profile.xp ?? 0,
+            streak: profile.streak ?? 0,
             plan: profile.plan || 'VIP Pro',
             objective: profile.objective,
             dailyStudyTime: profile.daily_study_time,
@@ -153,23 +200,38 @@ export function AuthProvider({ children }) {
               accessStatus: profile.kiwify_status || 'active'
             }
           } : {
-            ...DEFAULT_STUDENT,
-            email: email,
-            name: email.split('@')[0]
+            id: data.user.id,
+            name: data.user.user_metadata?.name || data.user.email?.split('@')[0],
+            email: data.user.email,
+            role: 'student',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+            level: 'Nível 1 • First Steps',
+            levelNumber: 1,
+            xp: 0,
+            streak: 0,
+            plan: 'VIP Pro',
+            objective: '',
+            dailyStudyTime: '20 minutos',
+            kiwifyData: {
+              orderId: 'KW-NEW',
+              product: 'Magic English VIP',
+              accessStatus: 'active'
+            }
           };
 
           setAuthState({
             isAuthenticated: true,
             user: loadedUser,
-            role: 'student',
-            isOnboarded: profile ? profile.is_onboarded : true,
+            role: loadedUser.role,
+            isOnboarded: profile ? (profile.is_onboarded ?? false) : false,
             loading: false
           });
 
           return { success: true, user: loadedUser };
         }
       } catch (err) {
-        console.warn('Supabase login warning, fallback to simulated:', err.message);
+        console.warn('Supabase login error:', err.message);
+        throw err;
       }
     }
 

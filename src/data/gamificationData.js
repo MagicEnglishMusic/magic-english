@@ -213,6 +213,36 @@ export const INITIAL_DAILY_CHALLENGES = [
   }
 ];
 
+// Clean Zeroed State for Real Registered Students
+export const CLEAN_USER_GAMIFICATION = {
+  xp: 0,
+  streak: 0,
+  nextGoalHint: "Assista à primeira aula para começar sua evolução.",
+  weeklyDays: [
+    { day: "Seg", date: "22/09", completed: false },
+    { day: "Ter", date: "23/09", completed: false },
+    { day: "Qua", date: "24/09", completed: false },
+    { day: "Qui", date: "25/09", completed: false },
+    { day: "Sex", date: "26/09", completed: false, isToday: true },
+    { day: "Sáb", date: "27/09", completed: false },
+    { day: "Dom", date: "28/09", completed: false }
+  ]
+};
+
+export const CLEAN_BADGES = INITIAL_BADGES.map((badge) => ({
+  ...badge,
+  unlocked: false,
+  unlockedAt: null,
+  progress: { current: 0, total: badge.progress?.total || 1 }
+}));
+
+export const CLEAN_DAILY_CHALLENGES = INITIAL_DAILY_CHALLENGES.map((ch) => ({
+  ...ch,
+  current: 0,
+  completed: false,
+  claimed: false
+}));
+
 // Song Mastery Status Constants & Criteria
 export const SONG_MASTERY_STATUS = {
   NOT_STARTED: {
@@ -331,3 +361,16 @@ export const INITIAL_SONG_MASTERY = [
     }
   }
 ];
+
+export const CLEAN_SONG_MASTERY = INITIAL_SONG_MASTERY.map((song) => ({
+  ...song,
+  status: "not_started",
+  masteredAt: null,
+  checklist: {
+    watched_lesson: false,
+    listened_full: false,
+    reverse_translation: false,
+    sing_along: false,
+    final_challenge: false
+  }
+}));

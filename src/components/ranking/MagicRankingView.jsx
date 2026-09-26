@@ -22,11 +22,15 @@ import {
   LEADERBOARDS, 
   SPECIAL_RANKINGS 
 } from '../../data/rankingData';
+import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 
 export default function MagicRankingView({ onContinueStudy }) {
+  const { user } = useAuth();
   const { xp, streak, currentLevel } = useGamification();
   const [activeFilter, setActiveFilter] = useState('weekly'); // 'weekly' | 'monthly' | 'allTime'
+
+  const isRealUser = Boolean(user && user.id !== 'std-1');
 
   const currentLeaderboard = LEADERBOARDS[activeFilter] || LEADERBOARDS.weekly;
 
@@ -38,9 +42,13 @@ export default function MagicRankingView({ onContinueStudy }) {
 
   const dynamicUserRanking = {
     ...CURRENT_USER_RANKING,
+    name: user?.name ? `${user.name} (Você)` : CURRENT_USER_RANKING.name,
+    avatar: user?.avatar || CURRENT_USER_RANKING.avatar,
     totalXp: xp,
+    weeklyXp: isRealUser ? xp : CURRENT_USER_RANKING.weeklyXp,
     streak: streak,
-    level: `Nível ${currentLevel.level} • ${currentLevel.title}`
+    level: `Nível ${currentLevel.level} • ${currentLevel.title}`,
+    rank: isRealUser ? (xp > 0 ? 15 : 99) : CURRENT_USER_RANKING.rank
   };
 
   return (
@@ -50,8 +58,8 @@ export default function MagicRankingView({ onContinueStudy }) {
       <RankingHeader
         league={CURRENT_USER_RANKING.league}
         leagueIcon={CURRENT_USER_RANKING.leagueIcon}
-        currentRank={CURRENT_USER_RANKING.rank}
-        weeklyXp={CURRENT_USER_RANKING.weeklyXp}
+        currentRank={dynamicUserRanking.rank}
+        weeklyXp={dynamicUserRanking.weeklyXp}
         seasonEndsIn={CURRENT_USER_RANKING.seasonEndsIn}
       />
 

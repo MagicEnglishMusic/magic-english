@@ -28,6 +28,8 @@ export default function StudentProfileView({
     songMasteryList
   } = useGamification();
 
+  const isRealUser = Boolean(user && user.id !== 'std-1');
+
   // Combine dynamic auth profile + gamification
   const currentStudent = {
     ...studentProfileData,
@@ -35,14 +37,17 @@ export default function StudentProfileView({
     email: user?.email || studentProfileData.email,
     avatar: user?.avatar || studentProfileData.avatar,
     role: user?.plan ? `Membro ${user.plan}` : studentProfileData.role,
-    motto: user?.objective ? `Objetivo: ${user.objective}` : studentProfileData.motto
+    motto: user?.objective ? `Objetivo: ${user.objective}` : studentProfileData.motto,
+    joinDate: isRealUser ? "Membro recente" : studentProfileData.joinDate
   };
 
   const dynamicStats = {
-    ...studentProfileData.stats,
     streakDays: streak,
+    completedLessons: isRealUser ? 0 : studentProfileData.stats.completedLessons,
     masteredSongs: songMasteryList.filter((s) => s.status === 'mastered').length,
-    unlockedBadges: badges.filter((b) => b.unlocked).length
+    unlockedBadges: badges.filter((b) => b.unlocked).length,
+    totalStudyTime: isRealUser ? (xp > 0 ? "15min" : "0h 00min") : studentProfileData.stats.totalStudyTime,
+    accuracyRate: isRealUser ? (xp > 0 ? "100%" : "--") : studentProfileData.stats.accuracyRate
   };
 
   return (
