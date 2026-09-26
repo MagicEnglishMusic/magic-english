@@ -11,8 +11,8 @@ export const weeklyChallengeData = {
   category: '🎯 Desafio Magic da Semana',
   description: 'Complete as 3 etapas essenciais de fixação musical desta semana e desbloqueie o Badge Exclusivo de Viagem!',
   objectives: [
-    { id: 'obj-1', label: 'Assistir a Aula 01 (No Aeroporto)', completed: true },
-    { id: 'obj-2', label: 'Fazer Prática Musical da música', completed: true },
+    { id: 'obj-1', label: 'Assistir a Aula 01 (No Aeroporto)', completed: false },
+    { id: 'obj-2', label: 'Fazer Prática Musical da música', completed: false },
     { id: 'obj-3', label: 'Treinar pronúncia com nota > 80%', completed: false },
   ],
   xpReward: 300,
@@ -103,10 +103,10 @@ export const communityGroupsData = [
 ];
 
 export const userImpactData = {
-  congratulatedCount: 24,
-  participationsCount: 15,
-  sharedAchievementsCount: 8,
-  reputationBadge: '🌟 Aluno Inspirador'
+  congratulatedCount: 0,
+  participationsCount: 0,
+  sharedAchievementsCount: 0,
+  reputationBadge: '🌱 Aluno Iniciante'
 };
 
 export const weeklyHighlightsData = [

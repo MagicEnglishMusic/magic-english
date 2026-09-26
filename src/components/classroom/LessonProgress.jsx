@@ -8,10 +8,10 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
   const { addXp, recordLessonProgress } = useGamification();
 
   const items = [
-    { label: 'Vídeo da Aula', status: 'done', icon: Tv },
-    { label: 'Magic Song Fixação', status: 'done', icon: Music },
-    { label: 'Pronúncia IA', status: 'done', icon: Mic },
-    { label: 'Prática Musical', status: 'in_progress', icon: Brain },
+    { label: 'Vídeo da Aula', status: isCompleted ? 'done' : 'pending', icon: Tv },
+    { label: 'Magic Song Fixação', status: isCompleted ? 'done' : 'pending', icon: Music },
+    { label: 'Pronúncia IA', status: isCompleted ? 'done' : 'pending', icon: Mic },
+    { label: 'Prática Musical', status: isCompleted ? 'done' : 'pending', icon: Brain },
   ];
 
   const handleComplete = () => {
@@ -37,8 +37,12 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
           <Trophy className="w-4 h-4 text-amber-400" />
           Sua Evolução na Aula
         </h3>
-        <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-          {isCompleted ? '100% Concluída' : '75% Progresso'}
+        <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+          isCompleted 
+            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+            : 'text-purple-300 bg-purple-500/10 border-purple-500/20'
+        }`}>
+          {isCompleted ? '100% Concluída' : 'Em Andamento'}
         </span>
       </div>
 

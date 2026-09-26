@@ -6,7 +6,7 @@ import { XP_REWARDS } from '../../data/gamificationData';
 export default function PronunciationPractice({ items = [] }) {
   const [selectedWordIndex, setSelectedWordIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [scores, setScores] = useState({ 0: 96 });
+  const [scores, setScores] = useState({});
   const { addXp } = useGamification();
 
   const currentItem = items[selectedWordIndex] || items[0] || {

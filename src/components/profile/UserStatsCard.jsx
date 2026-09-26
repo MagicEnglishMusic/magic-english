@@ -3,11 +3,11 @@ import { Flame, Tv, Music, Trophy, Clock, Sparkles, Award, Zap } from 'lucide-re
 
 export default function UserStatsCard({
   stats = {
-    streakDays: 12,
-    completedLessons: 24,
-    masteredSongs: 8,
-    unlockedBadges: 6,
-    totalStudyTime: "14h 30min"
+    streakDays: 0,
+    completedLessons: 0,
+    masteredSongs: 0,
+    unlockedBadges: 0,
+    totalStudyTime: "0 min"
   },
   className = ""
 }) {

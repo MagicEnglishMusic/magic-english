@@ -65,19 +65,19 @@ export const LEAGUES_LIST = [
 ];
 
 export const CURRENT_USER_RANKING = {
-  rank: 4,
-  name: "João Silva",
+  rank: 99,
+  name: "Você",
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-  level: "Nível 2 • Music Learner",
-  levelNumber: 2,
-  league: "Liga Diamante",
-  leagueIcon: "💎",
-  weeklyXp: 680,
-  totalXp: 2450,
-  trend: "up",
-  positionsGained: 3,
-  nextGoal: "Faltam 120 XP para chegar ao Top 3.",
-  xpToNextRank: 120,
+  level: "Nível 1 • First Steps",
+  levelNumber: 1,
+  league: "Liga Bronze",
+  leagueIcon: "🌱",
+  weeklyXp: 0,
+  totalXp: 0,
+  trend: "stable",
+  positionsGained: 0,
+  nextGoal: "Complete sua primeira aula ou Magic Song para pontuar no ranking!",
+  xpToNextRank: 50,
   seasonEndsIn: "3 dias e 8 horas"
 };
 
@@ -291,7 +291,7 @@ export const SPECIAL_RANKINGS = [
       value: "18 músicas dominadas",
       badge: "🥇 1º Lugar"
     },
-    userStat: "Você dominou 8 músicas (#4 na categoria)"
+    userStat: "Domine músicas para entrar no ranking"
   },
   {
     id: "voice-champion",
@@ -307,7 +307,7 @@ export const SPECIAL_RANKINGS = [
       value: "98% precisão vocal média",
       badge: "🥇 1º Lugar"
     },
-    userStat: "Sua precisão é de 94% (#3 na categoria)"
+    userStat: "Pratique no Voice Lab para pontuar"
   },
   {
     id: "streak-master",
@@ -323,7 +323,7 @@ export const SPECIAL_RANKINGS = [
       value: "142 dias seguidos",
       badge: "🥇 1º Lugar"
     },
-    userStat: "Sua sequência é de 12 dias (#6 na categoria)"
+    userStat: "Estude diariamente para construir sua sequência"
   },
   {
     id: "study-master",
@@ -339,6 +339,6 @@ export const SPECIAL_RANKINGS = [
       value: "42 aulas concluídas",
       badge: "🥇 1º Lugar"
     },
-    userStat: "Você concluiu 24 aulas (#5 na categoria)"
+    userStat: "Assista às aulas para subir nesta categoria"
   }
 ];

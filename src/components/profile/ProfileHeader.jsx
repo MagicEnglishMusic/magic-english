@@ -5,21 +5,21 @@ import LevelBadge from '../gamification/LevelBadge';
 
 export default function ProfileHeader({
   student,
-  xp = 2450,
-  streak = 12,
-  currentLevel = { level: 2, title: "Music Learner", icon: "🎵", minXp: 1000, maxXp: 3000 },
-  nextLevel = { level: 3, title: "Conversation Builder", icon: "💬", minXp: 3000, maxXp: 6000 },
-  levelProgress = 72,
-  xpToNextLevel = 550
+  xp = 0,
+  streak = 0,
+  currentLevel = { level: 1, title: "First Steps", icon: "🌱", minXp: 0, maxXp: 1000 },
+  nextLevel = { level: 2, title: "Music Learner", icon: "🎵", minXp: 1000, maxXp: 3000 },
+  levelProgress = 0,
+  xpToNextLevel = 1000
 }) {
   const {
-    name = "João Silva",
-    email = "joao.silva@magicenglish.com",
-    role = "Membro VIP Pro",
+    name = "Aluno",
+    email = "",
+    role = "Membro Aluno",
     avatar = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80",
-    joinDate = "Membro desde Agosto de 2026",
-    motto = "Continue evoluindo no seu ritmo.",
-    rankingInfo = { league: "Liga Diamante", tier: "Top 5%", currentRank: 4 }
+    joinDate = "Membro recente",
+    motto = "Aprenda inglês com música e ritmo.",
+    rankingInfo = { league: "Liga Bronze", tier: "Iniciante", currentRank: 99 }
   } = student || {};
 
   return (

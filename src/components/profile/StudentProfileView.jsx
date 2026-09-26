@@ -50,10 +50,20 @@ export default function StudentProfileView({
     accuracyRate: isRealUser ? (xp > 0 ? "100%" : "--") : studentProfileData.stats.accuracyRate
   };
 
+  const getLeagueInfo = (userXp) => {
+    if (userXp >= 15000) return { league: "👑 Liga Magic", tier: "Top 1%" };
+    if (userXp >= 8000) return { league: "💎 Liga Diamante", tier: "Top 5%" };
+    if (userXp >= 4000) return { league: "🥇 Liga Ouro", tier: "Top 15%" };
+    if (userXp >= 1500) return { league: "🥈 Liga Prata", tier: "Top 35%" };
+    return { league: "🌱 Liga Bronze", tier: "Iniciante" };
+  };
+
+  const userLeague = getLeagueInfo(xp);
+
   const rankingInfo = isRealUser ? {
-    league: "💎 Liga Diamante",
-    tier: xp > 0 ? "Ativo" : "Iniciante",
-    currentRank: 99,
+    league: userLeague.league,
+    tier: xp > 0 ? userLeague.tier : "Iniciante",
+    currentRank: xp > 0 ? 15 : 99,
     weeklyPoints: xp,
     seasonEndsIn: "3 dias"
   } : studentProfileData.rankingInfo;

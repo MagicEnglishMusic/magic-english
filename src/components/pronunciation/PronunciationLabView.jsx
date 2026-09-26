@@ -17,9 +17,9 @@ export default function PronunciationLabView() {
           </p>
         </div>
 
-        <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Média Geral: 94% Precisão</span>
+        <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+          <span>Voice Lab Ativo</span>
         </span>
       </div>
 
