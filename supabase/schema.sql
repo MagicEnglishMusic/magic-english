@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   daily_study_time TEXT DEFAULT '20 minutos',
   plan TEXT DEFAULT 'VIP Pro',
   is_onboarded BOOLEAN DEFAULT false,
+  access_status TEXT DEFAULT 'pending_payment' CHECK (access_status IN ('active', 'pending_payment', 'blocked', 'refunded', 'trial')),
+  subscription_expires_at TIMESTAMPTZ,
   kiwify_order_id TEXT,
   kiwify_status TEXT DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()),
@@ -148,6 +150,29 @@ CREATE TABLE IF NOT EXISTS public.ranking (
   UNIQUE(user_id)
 );
 
+-- 2.10 PURCHASES (Compras e Assinaturas Kiwify)
+CREATE TABLE IF NOT EXISTS public.purchases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  kiwify_order_id TEXT NOT NULL UNIQUE,
+  customer_name TEXT,
+  customer_email TEXT NOT NULL,
+  customer_mobile TEXT,
+  product_id TEXT NOT NULL,
+  product_name TEXT,
+  offer_id TEXT,
+  payment_method TEXT,
+  installments INTEGER DEFAULT 1,
+  amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  net_amount NUMERIC(10,2),
+  status TEXT NOT NULL DEFAULT 'paid',
+  access_status TEXT NOT NULL DEFAULT 'active' CHECK (access_status IN ('active', 'pending_payment', 'blocked', 'refunded', 'trial')),
+  webhook_event TEXT,
+  raw_payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()),
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
+);
+
 -- ==============================================
 -- 3. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================
@@ -161,6 +186,7 @@ ALTER TABLE public.user_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.song_mastery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rewards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ranking ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 
 -- 3.1 Profiles Policies
 CREATE POLICY "Public profiles are readable by everyone" ON public.profiles FOR SELECT USING (true);
@@ -199,6 +225,17 @@ CREATE POLICY "Users insert own rewards" ON public.rewards FOR INSERT WITH CHECK
 -- 3.5 Ranking Policies
 CREATE POLICY "Ranking viewable by all users" ON public.ranking FOR SELECT USING (true);
 CREATE POLICY "Ranking updatable by authenticated user for self" ON public.ranking FOR ALL USING (auth.uid() = user_id);
+
+-- 3.6 Purchases Policies (Kiwify Commercial Access)
+CREATE POLICY "Students can view own purchases" ON public.purchases FOR SELECT TO authenticated USING (
+  auth.uid() = user_id 
+  OR customer_email = (SELECT email FROM public.profiles WHERE id = auth.uid())
+);
+CREATE POLICY "Admins have full access to purchases" ON public.purchases FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+) WITH CHECK (
+  EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
+);
 
 -- ==============================================
 -- 4. AUTOMATIC PROFILE TRIGGER ON AUTH.USERS INSERT
