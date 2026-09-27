@@ -200,16 +200,16 @@ export const achievementsList = [
     title: "Primeira Aula Concluída",
     description: "Assistiu ao vídeo e praticou a pronúncia",
     icon: "Tv",
-    unlocked: true,
-    date: "Hoje"
+    unlocked: false,
+    date: "Bloqueado"
   },
   {
     id: "ach-2",
     title: "Ritmo Perfeito",
     description: "100% de precisão na canção da aula",
     icon: "Music",
-    unlocked: true,
-    date: "Ontem"
+    unlocked: false,
+    date: "Bloqueado"
   },
   {
     id: "ach-3",

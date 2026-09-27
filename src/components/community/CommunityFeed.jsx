@@ -51,9 +51,23 @@ export default function CommunityFeed({ posts }) {
 
       {/* Posts Stream */}
       <div className="space-y-4">
-        {filteredPosts.map((post) => (
-          <CommunityPost key={post.id} post={post} />
-        ))}
+        {filteredPosts.length === 0 ? (
+          <div className="p-8 rounded-3xl bg-[#111425] border border-dashed border-[#1e233b] text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-400">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-base font-bold text-white">Nenhuma atividade recente na comunidade</h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                Seja o primeiro a praticar uma música, assistir a uma aula ou conquistar um marco para compartilhar sua evolução com os outros alunos!
+              </p>
+            </div>
+          </div>
+        ) : (
+          filteredPosts.map((post) => (
+            <CommunityPost key={post.id} post={post} />
+          ))
+        )}
       </div>
     </div>
   );

@@ -99,32 +99,41 @@ export default function ConversationRoom({ data }) {
 
       {/* Messages Thread */}
       <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className="p-3.5 rounded-2xl bg-[#14172a] border border-slate-800/80 flex items-start gap-3.5"
-          >
-            <img
-              src={msg.avatar}
-              alt={msg.author}
-              className="w-9 h-9 rounded-xl object-cover ring-1 ring-purple-500/40 flex-shrink-0"
-            />
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-white">{msg.author}</span>
-                  <span className="text-[10px] text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded font-semibold">
-                    {msg.level}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500">{msg.time}</span>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
-                {msg.content}
-              </p>
-            </div>
+        {messages.length === 0 ? (
+          <div className="p-4 rounded-2xl bg-[#14172a]/60 border border-dashed border-slate-800 text-center space-y-1">
+            <p className="text-xs font-bold text-slate-300">Nenhuma mensagem nesta sala ainda</p>
+            <p className="text-[11px] text-slate-500">
+              Pratique sua pronúncia digitando uma frase no campo abaixo para inaugurar a conversa!
+            </p>
           </div>
-        ))}
+        ) : (
+          messages.map((msg) => (
+            <div
+              key={msg.id}
+              className="p-3.5 rounded-2xl bg-[#14172a] border border-slate-800/80 flex items-start gap-3.5"
+            >
+              <img
+                src={msg.avatar}
+                alt={msg.author}
+                className="w-9 h-9 rounded-xl object-cover ring-1 ring-purple-500/40 flex-shrink-0"
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white">{msg.author}</span>
+                    <span className="text-[10px] text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded font-semibold">
+                      {msg.level}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">{msg.time}</span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-medium">
+                  {msg.content}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Input Message Form */}

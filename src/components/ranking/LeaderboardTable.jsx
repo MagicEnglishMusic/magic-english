@@ -35,8 +35,20 @@ export default function LeaderboardTable({
         </span>
       </div>
 
-      {/* Top 3 Visual Podium Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+      {leaderboard.length === 0 ? (
+        <div className="py-12 px-4 text-center space-y-3 bg-[#0d0f1a] rounded-2xl border border-dashed border-slate-800">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <Trophy className="w-6 h-6" />
+          </div>
+          <h4 className="text-sm font-bold text-white">Nenhum aluno classificado ainda</h4>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            Seja o primeiro a completar aulas em vídeo e práticas musicais para liderar o ranking!
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Top 3 Visual Podium Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
         {top3.map((user, idx) => {
           const medal = getRankMedal(user.rank);
           const isGold = user.rank === 1;
@@ -201,6 +213,8 @@ export default function LeaderboardTable({
           );
         })}
       </div>
+      </>
+      )}
 
     </div>
   );

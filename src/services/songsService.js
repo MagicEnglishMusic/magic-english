@@ -6,7 +6,7 @@ export const songsService = {
   // Fetch all songs
   async getSongs() {
     if (!isSupabaseConfigured) {
-      return { data: magicSongsList, error: null };
+      return { data: [], error: null };
     }
 
     try {
@@ -26,8 +26,7 @@ export const songsService = {
   // Get single song by ID
   async getSongById(id) {
     if (!isSupabaseConfigured) {
-      const found = magicSongsList.find((s) => s.id === id) || defaultSongLesson;
-      return { data: found, error: null };
+      return { data: null, error: 'Supabase não configurado' };
     }
 
     try {
@@ -38,9 +37,9 @@ export const songsService = {
         .single();
 
       if (error) throw error;
-      return { data: data || defaultSongLesson, error: null };
+      return { data: data || null, error: null };
     } catch (err) {
-      return { data: defaultSongLesson, error: null };
+      return { data: null, error: err.message };
     }
   },
 

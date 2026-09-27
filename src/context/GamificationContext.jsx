@@ -21,14 +21,13 @@ const GamificationContext = createContext(null);
 
 export function GamificationProvider({ children }) {
   const { user } = useAuth();
-  const isRealUser = Boolean(user && user.id !== 'std-1');
 
-  const [xp, setXp] = useState(() => (isRealUser ? (user?.xp || 0) : (user?.xp ?? INITIAL_USER_GAMIFICATION.xp)));
-  const [streak, setStreak] = useState(() => (isRealUser ? (user?.streak || 0) : (user?.streak ?? INITIAL_USER_GAMIFICATION.streak)));
-  const [weeklyDays, setWeeklyDays] = useState(() => (isRealUser ? CLEAN_USER_GAMIFICATION.weeklyDays : INITIAL_USER_GAMIFICATION.weeklyDays));
-  const [badges, setBadges] = useState(() => (isRealUser ? CLEAN_BADGES : INITIAL_BADGES));
-  const [dailyChallenges, setDailyChallenges] = useState(() => (isRealUser ? CLEAN_DAILY_CHALLENGES : INITIAL_DAILY_CHALLENGES));
-  const [songMasteryList, setSongMasteryList] = useState(() => (isRealUser ? CLEAN_SONG_MASTERY : INITIAL_SONG_MASTERY));
+  const [xp, setXp] = useState(() => user?.xp || 0);
+  const [streak, setStreak] = useState(() => user?.streak || 0);
+  const [weeklyDays, setWeeklyDays] = useState(CLEAN_USER_GAMIFICATION.weeklyDays);
+  const [badges, setBadges] = useState(CLEAN_BADGES);
+  const [dailyChallenges, setDailyChallenges] = useState(CLEAN_DAILY_CHALLENGES);
+  const [songMasteryList, setSongMasteryList] = useState(CLEAN_SONG_MASTERY);
 
   // Sync with Auth user when user profile changes
   useEffect(() => {
@@ -42,24 +41,15 @@ export function GamificationProvider({ children }) {
       return;
     }
 
-    if (user.id === 'std-1') {
-      // Demo mode
-      setXp(user.xp ?? INITIAL_USER_GAMIFICATION.xp);
-      setStreak(user.streak ?? INITIAL_USER_GAMIFICATION.streak);
-      setBadges(INITIAL_BADGES);
-      setSongMasteryList(INITIAL_SONG_MASTERY);
-      setDailyChallenges(INITIAL_DAILY_CHALLENGES);
-      setWeeklyDays(INITIAL_USER_GAMIFICATION.weeklyDays);
-    } else {
-      // Real authenticated user - start clean and sync with Supabase
-      setXp(user.xp || 0);
-      setStreak(user.streak || 0);
-      setBadges(CLEAN_BADGES);
-      setSongMasteryList(CLEAN_SONG_MASTERY);
-      setDailyChallenges(CLEAN_DAILY_CHALLENGES);
-      setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
+    // Real authenticated user - start clean and sync with Supabase
+    setXp(user.xp || 0);
+    setStreak(user.streak || 0);
+    setBadges(CLEAN_BADGES);
+    setSongMasteryList(CLEAN_SONG_MASTERY);
+    setDailyChallenges(CLEAN_DAILY_CHALLENGES);
+    setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
 
-      if (isSupabaseConfigured && user.id) {
+    if (isSupabaseConfigured && user.id) {
         // Fetch unlocked rewards
         supabase
           .from('rewards')
@@ -107,7 +97,6 @@ export function GamificationProvider({ children }) {
             }
           });
       }
-    }
   }, [user?.id, user?.xp, user?.streak]);
 
   // Celebratory Reward Modal State

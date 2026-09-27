@@ -5,24 +5,24 @@ const AuthContext = createContext(null);
 
 export const DEFAULT_STUDENT = {
   id: 'std-1',
-  name: 'João Silva',
-  email: 'joao.silva@magicenglish.com',
+  name: 'Novo Aluno',
+  email: 'aluno@magicenglish.com',
   role: 'student',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-  level: 'Nível 2 • Music Learner',
-  levelNumber: 2,
-  xp: 2450,
-  streak: 12,
+  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+  level: 'Nível 1 • First Steps',
+  levelNumber: 1,
+  xp: 0,
+  streak: 0,
   plan: 'VIP Pro',
-  objective: '🗣 Conversação',
+  objective: '✈️ Viajar',
   currentSkillLevel: '🌱 Iniciante',
   dailyStudyTime: '20 minutos',
-  achievementsCount: 6,
-  progressPercent: 42,
+  achievementsCount: 0,
+  progressPercent: 0,
   // Kiwify integration readiness
   kiwifyData: {
-    orderId: 'KW-984217',
-    product: 'Magic English Complete Pass',
+    orderId: 'KW-NEW',
+    product: 'Magic English VIP',
     accessStatus: 'active',
     checkoutProvider: 'Kiwify Webhook Engine'
   }

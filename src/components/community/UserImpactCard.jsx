@@ -64,35 +64,44 @@ export default function UserImpactCard({ impact, weeklyHighlights }) {
         </div>
 
         <div className="space-y-3">
-          {weeklyHighlights.map((item, idx) => (
-            <div
-              key={idx}
-              className="p-3 rounded-2xl bg-[#14172a] border border-slate-800 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <img
-                  src={item.avatar}
-                  alt={item.name}
-                  className="w-10 h-10 rounded-xl object-cover ring-1 ring-amber-400/40 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
-                    {item.category}
-                  </span>
-                  <h4 className="text-xs font-bold text-white truncate">
-                    {item.name}
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    {item.stat}
-                  </p>
-                </div>
-              </div>
-
-              <span className="text-[10px] text-purple-200 font-bold bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30 whitespace-nowrap">
-                {item.badge}
-              </span>
+          {(!weeklyHighlights || weeklyHighlights.length === 0) ? (
+            <div className="p-4 rounded-2xl bg-[#14172a] border border-dashed border-slate-800 text-center space-y-1">
+              <p className="text-xs font-bold text-slate-300">Nenhum destaque registrado ainda</p>
+              <p className="text-[11px] text-slate-500">
+                Pratique músicas e complete aulas hoje para aparecer no topo dos destaques!
+              </p>
             </div>
-          ))}
+          ) : (
+            weeklyHighlights.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3 rounded-2xl bg-[#14172a] border border-slate-800 flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={item.avatar}
+                    alt={item.name}
+                    className="w-10 h-10 rounded-xl object-cover ring-1 ring-amber-400/40 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                      {item.category}
+                    </span>
+                    <h4 className="text-xs font-bold text-white truncate">
+                      {item.name}
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      {item.stat}
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] text-purple-200 font-bold bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30 whitespace-nowrap">
+                  {item.badge}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

@@ -56,7 +56,7 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Continue sua jornada</span>
+                    <span>{currentOngoingLesson.progress > 0 ? "Continue sua jornada" : "Inicie sua jornada"}</span>
                   </span>
                   <span className="text-xs text-slate-400">
                     Você está no <strong className="text-white">{currentOngoingLesson.moduleName} ({currentOngoingLesson.moduleTitle})</strong>
@@ -76,7 +76,7 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
                 </div>
               </div>
 
-              {/* Action Button: Continuar Aula */}
+              {/* Action Button: Iniciar / Continuar Aula */}
               <div className="flex-shrink-0">
                 <button
                   onClick={() => {
@@ -89,7 +89,7 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
                   <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
                     <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
                   </div>
-                  <span>▶ Continuar aula</span>
+                  <span>{currentOngoingLesson.progress > 0 ? "▶ Continuar aula" : "▶ Começar primeira aula"}</span>
                 </button>
               </div>
             </div>

@@ -89,15 +89,15 @@ export const LEVELS_CONFIG = [
 ];
 
 export const INITIAL_USER_GAMIFICATION = {
-  xp: 2450,
-  streak: 12,
-  nextGoalHint: "Complete mais uma música para subir de nível.",
+  xp: 0,
+  streak: 0,
+  nextGoalHint: "Assista à primeira aula para começar sua evolução.",
   weeklyDays: [
-    { day: "Seg", date: "22/09", completed: true },
-    { day: "Ter", date: "23/09", completed: true },
-    { day: "Qua", date: "24/09", completed: true },
-    { day: "Qui", date: "25/09", completed: true },
-    { day: "Sex", date: "26/09", completed: true, isToday: true },
+    { day: "Seg", date: "22/09", completed: false },
+    { day: "Ter", date: "23/09", completed: false },
+    { day: "Qua", date: "24/09", completed: false },
+    { day: "Qui", date: "25/09", completed: false },
+    { day: "Sex", date: "26/09", completed: false, isToday: true },
     { day: "Sáb", date: "27/09", completed: false },
     { day: "Dom", date: "28/09", completed: false }
   ]
@@ -111,9 +111,9 @@ export const INITIAL_BADGES = [
     condition: "Completar primeira Magic Song.",
     rewardXp: 50,
     category: "Música",
-    unlocked: true,
-    unlockedAt: "Ontem",
-    progress: { current: 1, total: 1 }
+    unlocked: false,
+    unlockedAt: null,
+    progress: { current: 0, total: 1 }
   },
   {
     id: "badge-first-step",
@@ -122,9 +122,9 @@ export const INITIAL_BADGES = [
     condition: "Assistir primeira aula.",
     rewardXp: 30,
     category: "Aulas",
-    unlocked: true,
-    unlockedAt: "3 dias atrás",
-    progress: { current: 1, total: 1 }
+    unlocked: false,
+    unlockedAt: null,
+    progress: { current: 0, total: 1 }
   },
   {
     id: "badge-perfect-week",
@@ -133,9 +133,9 @@ export const INITIAL_BADGES = [
     condition: "Estudar 7 dias seguidos.",
     rewardXp: 100,
     category: "Foco",
-    unlocked: true,
-    unlockedAt: "Hoje",
-    progress: { current: 7, total: 7 }
+    unlocked: false,
+    unlockedAt: null,
+    progress: { current: 0, total: 7 }
   },
   {
     id: "badge-voice-evolution",
@@ -145,7 +145,8 @@ export const INITIAL_BADGES = [
     rewardXp: 150,
     category: "Pronúncia",
     unlocked: false,
-    progress: { current: 6, total: 10 }
+    unlockedAt: null,
+    progress: { current: 0, total: 10 }
   },
   {
     id: "badge-music-master",
@@ -155,7 +156,8 @@ export const INITIAL_BADGES = [
     rewardXp: 300,
     category: "Música",
     unlocked: false,
-    progress: { current: 3, total: 20 }
+    unlockedAt: null,
+    progress: { current: 0, total: 20 }
   },
   {
     id: "badge-module-complete",
@@ -164,9 +166,9 @@ export const INITIAL_BADGES = [
     condition: "Finalizar um módulo inteiro.",
     rewardXp: 200,
     category: "Módulos",
-    unlocked: true,
-    unlockedAt: "Semana passada",
-    progress: { current: 1, total: 1 }
+    unlocked: false,
+    unlockedAt: null,
+    progress: { current: 0, total: 1 }
   },
   {
     id: "badge-traveler-ready",
@@ -176,7 +178,8 @@ export const INITIAL_BADGES = [
     rewardXp: 500,
     category: "Trilhas",
     unlocked: false,
-    progress: { current: 2, total: 8 }
+    unlockedAt: null,
+    progress: { current: 0, total: 8 }
   }
 ];
 
@@ -186,9 +189,9 @@ export const INITIAL_DAILY_CHALLENGES = [
     title: "Assistir uma aula em vídeo",
     icon: "🎬",
     rewardXp: 30,
-    current: 1,
+    current: 0,
     target: 1,
-    completed: true,
+    completed: false,
     claimed: false
   },
   {
@@ -196,10 +199,10 @@ export const INITIAL_DAILY_CHALLENGES = [
     title: "Praticar uma Magic Song",
     icon: "🎵",
     rewardXp: 50,
-    current: 1,
+    current: 0,
     target: 1,
-    completed: true,
-    claimed: true
+    completed: false,
+    claimed: false
   },
   {
     id: "daily-3",
