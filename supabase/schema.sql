@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS public.rewards (
 CREATE TABLE IF NOT EXISTS public.ranking (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  league TEXT DEFAULT '💎 Liga Diamante',
+  league TEXT DEFAULT 'Liga Bronze',
   weekly_xp INTEGER DEFAULT 0,
   total_xp INTEGER DEFAULT 0,
   position INTEGER DEFAULT 1,
@@ -257,7 +257,7 @@ BEGIN
   );
 
   INSERT INTO public.ranking (user_id, league, weekly_xp, total_xp, position)
-  VALUES (NEW.id, '💎 Liga Diamante', 0, 0, 99);
+  VALUES (NEW.id, 'Liga Bronze', 0, 0, 99);
 
   RETURN NEW;
 END;

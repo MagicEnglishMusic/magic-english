@@ -522,11 +522,9 @@ function MainApp() {
                     {/* Progress Overview Stats */}
                     <ProgressStats />
 
-                    {/* "Continue sua aula" Section (Video Lessons in progress) */}
-                    <ContinueSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
-
-                    {/* "Próximos passos" Section (Next recommended video lessons) */}
-                    <NextStepsSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
+                    {/* [TEMPORARIAMENTE OCULTO] ContinueSection e NextStepsSection (aguardando persistência de progresso real do aluno) */}
+                    {/* <ContinueSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} /> */}
+                    {/* <NextStepsSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} /> */}
 
                     {/* "Reforce seu aprendizado com músicas" Section (Magic Songs Fixation) */}
                     <MagicSongsSection onSelectSong={(song) => handleOpenSongPlayer(song)} />

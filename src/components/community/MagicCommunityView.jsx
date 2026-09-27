@@ -1,4 +1,5 @@
 import React from 'react';
+import { Sparkles } from 'lucide-react';
 import CommunityHeader from './CommunityHeader';
 import WeeklyChallenge from './WeeklyChallenge';
 import SongChallenge from './SongChallenge';
@@ -48,9 +49,24 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
       {/* 3. Main Center Row: Feed de Evolução (7 Cols) & Conversation Room + Meu Impacto (5 Cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left Column: Feed de Evolução (7 Cols) */}
+        {/* Left Column: Feed de Evolução (Substituído por Em Breve até integração com banco) */}
         <div className="lg:col-span-7 space-y-6">
-          <CommunityFeed posts={initialCommunityFeed} />
+          <div className="p-8 sm:p-10 rounded-3xl bg-[#111425] border border-[#1e233b] text-center space-y-4 shadow-xl">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-purple-600/20 to-indigo-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 mx-auto shadow-inner">
+              <Sparkles className="w-8 h-8 text-purple-400 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <span className="inline-block text-[10px] font-extrabold uppercase tracking-widest text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20">
+                Em Breve
+              </span>
+              <h3 className="text-xl font-black text-white">
+                Feed da Comunidade Chegando!
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+                Estamos preparando um espaço exclusivo para você interagir com outros alunos, compartilhar suas vitórias, trocar dicas e praticar conversação.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Right Column: Conversation Room & Meu Impacto (5 Cols) */}
