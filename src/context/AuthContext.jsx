@@ -84,11 +84,16 @@ export function AuthProvider({ children }) {
       console.warn('Profile lookup warning:', err.message);
     }
 
-    const isProfileOnboarded = Boolean(profile?.is_onboarded);
-    const resolvedIsOnboarded = isProfileOnboarded || isMetadataOnboarded || isLocalOnboarded;
+    const rawRole = profile?.role || sessionUser.user_metadata?.role || 'student';
+    const resolvedRole = String(rawRole).trim().toLowerCase();
+    
+    // Admins always have active access and bypass academic student onboarding
+    const resolvedIsOnboarded = resolvedRole === 'admin' 
+      ? true 
+      : (isProfileOnboarded || isMetadataOnboarded || isLocalOnboarded);
 
     // Healing mechanism: if client/metadata has true, ensure profiles in database is synced to true
-    if (resolvedIsOnboarded) {
+    if (resolvedIsOnboarded && resolvedRole !== 'admin') {
       localStorage.setItem(localOnboardedKey, 'true');
       if (profile && !profile.is_onboarded) {
         supabase
@@ -99,9 +104,6 @@ export function AuthProvider({ children }) {
       }
     }
 
-    const rawRole = profile?.role || sessionUser.user_metadata?.role || 'student';
-    const resolvedRole = String(rawRole).trim().toLowerCase();
-    // Admins always have active access. Students respect profile.access_status or fallback to active.
     const resolvedAccessStatus = resolvedRole === 'admin' 
       ? 'active' 
       : String(profile?.access_status || 'active').trim().toLowerCase();
@@ -181,12 +183,14 @@ export function AuthProvider({ children }) {
                 ? 'admin'
                 : resolved.role;
 
+              const effectiveIsOnboarded = effectiveRole === 'admin' ? true : resolved.isOnboarded;
+
               return {
                 isAuthenticated: true,
                 user: resolved.user,
                 role: effectiveRole,
                 accessStatus: effectiveRole === 'admin' ? 'active' : resolved.accessStatus,
-                isOnboarded: resolved.isOnboarded,
+                isOnboarded: effectiveIsOnboarded,
                 isPasswordRecovery: Boolean(prev.isPasswordRecovery || isRecoveryUrl),
                 loading: false
               };

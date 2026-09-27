@@ -165,6 +165,14 @@ function MainApp() {
 
     const normalizedRole = role ? String(role).trim().toLowerCase() : null;
 
+    // ADMIN ISOLATION: Admin never executes student onboarding or student platform redirects
+    if (normalizedRole === 'admin') {
+      if (currentView !== 'admin' && currentView !== 'admin-login') {
+        navigateTo('admin', '/admin');
+      }
+      return;
+    }
+
     if (!isPublicAuthRoute) {
       if (!isAuthenticated) {
         navigateTo('login', '/login');
@@ -176,8 +184,6 @@ function MainApp() {
     } else if (isAuthenticated) {
       if (normalizedRole === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
         navigateTo('dashboard', '/dashboard');
-      } else if (normalizedRole === 'admin' && ['login', 'register'].includes(currentView)) {
-        navigateTo('admin', '/admin');
       }
     }
   }, [currentView, isAuthenticated, isOnboarded, isPasswordRecovery, loading, role]);
@@ -329,7 +335,7 @@ function MainApp() {
   // ROUTE 4: Protected Student Onboarding (/onboarding)
   if (currentView === 'onboarding') {
     return (
-      <ProtectedRoute requiredRole="student" onRedirect={(view) => navigateTo(view, '/login')}>
+      <ProtectedRoute requiredRole="student" onRedirect={(view) => navigateTo(view, view === 'admin' ? '/admin' : '/login')}>
         <Suspense fallback={<MagicLoadingScreen message="Personalizando sua jornada..." />}>
           <Onboarding
             onComplete={() => {
