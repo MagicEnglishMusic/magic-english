@@ -8,18 +8,33 @@ import MaterialManager from './MaterialManager';
 import PronunciationManager from './PronunciationManager';
 import GamificationManager from './GamificationManager';
 import StudentManager from './StudentManager';
-import { ArrowLeft, Bell, Search, ShieldCheck, Sparkles, User, ExternalLink } from 'lucide-react';
+import AdminProfileModal from './AdminProfileModal';
+import { ShieldCheck, User } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-export default function AdminLayout({ onReturnToPlatform }) {
+export default function AdminLayout({ onLogout }) {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      await logout();
+    }
+  };
+
+  const adminName = user?.name || 'Administrador Geral';
 
   return (
     <div className="min-h-screen bg-[#070810] text-slate-100 flex">
-      {/* 1. Admin Sidebar */}
+      {/* 1. Admin Sidebar with Conta Administrativa */}
       <AdminSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onReturnToPlatform={onReturnToPlatform}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* 2. Main Content Column */}
@@ -35,27 +50,22 @@ export default function AdminLayout({ onReturnToPlatform }) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* View Student Platform Button */}
+            {/* Admin Profile Trigger */}
             <button
-              onClick={onReturnToPlatform}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600 border border-purple-500/30 text-purple-200 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-sm group"
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-[#101322] hover:bg-[#181c33] border border-[#202640] hover:border-purple-500/40 transition-all cursor-pointer group"
+              title="Clique para ver seu perfil administrativo"
             >
-              <span>Ver Plataforma</span>
-              <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            {/* Admin Avatar */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-amber-500 p-[1.5px]">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-600 to-amber-500 p-[1.5px]">
                 <div className="w-full h-full bg-[#0d0f1b] rounded-full flex items-center justify-center text-xs font-bold text-amber-300">
                   AD
                 </div>
               </div>
               <div className="hidden sm:block text-left text-xs">
-                <p className="font-bold text-white">Admin Geral</p>
-                <p className="text-[10px] text-purple-300">Super Admin</p>
+                <p className="font-bold text-white group-hover:text-purple-300 transition-colors truncate max-w-[140px]">{adminName}</p>
+                <p className="text-[10px] text-amber-400 font-semibold">Super Admin</p>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -82,6 +92,12 @@ export default function AdminLayout({ onReturnToPlatform }) {
           )}
         </main>
       </div>
+
+      {/* Admin Profile Modal */}
+      <AdminProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
 
     </div>
   );

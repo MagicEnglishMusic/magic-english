@@ -385,9 +385,9 @@ function MainApp() {
       >
         <Suspense fallback={<MagicLoadingScreen message="Carregando Painel Administrativo..." />}>
           <AdminLayout
-            onReturnToPlatform={() => {
-              navigateTo('dashboard', '/dashboard');
-              setActiveTab('home');
+            onLogout={() => {
+              logout();
+              navigateTo('admin-login', '/admin/login');
             }}
           />
         </Suspense>

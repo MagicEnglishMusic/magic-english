@@ -11,7 +11,8 @@ import {
   Trophy, 
   Users, 
   Settings, 
-  ArrowLeft,
+  User,
+  LogOut,
   Sparkles,
   ShieldAlert
 } from 'lucide-react';
@@ -20,7 +21,8 @@ import { adminService } from '../../services/adminService';
 export default function AdminSidebar({
   activeTab = 'dashboard',
   setActiveTab,
-  onReturnToPlatform
+  onOpenProfile,
+  onLogout
 }) {
   const [stats, setStats] = useState({
     totalStudents: null,
@@ -104,7 +106,7 @@ export default function AdminSidebar({
         </div>
 
         {/* Menu Navigation */}
-        <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-220px)] pr-1">
+        <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-270px)] pr-1">
           <p className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
             Gestão de Conteúdo
           </p>
@@ -146,14 +148,28 @@ export default function AdminSidebar({
         </nav>
       </div>
 
-      {/* Bottom Action: Return to Student Platform */}
-      <div className="pt-3 border-t border-[#1a1e32]">
+      {/* Bottom Section: Conta Administrativa */}
+      <div className="pt-3 border-t border-[#1a1e32] space-y-1.5">
+        <p className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">
+          Conta Administrativa
+        </p>
+
+        {/* Meu Perfil */}
         <button
-          onClick={onReturnToPlatform}
-          className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl text-xs font-bold text-slate-200 bg-[#121526] hover:bg-purple-600 hover:text-white border border-[#222842] hover:border-purple-500/50 transition-all cursor-pointer shadow-lg group"
+          onClick={onOpenProfile}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl font-semibold text-xs text-slate-300 hover:text-white bg-[#101322] hover:bg-[#181c33] border border-[#202640] hover:border-purple-500/40 transition-all cursor-pointer group"
         >
-          <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:text-white group-hover:-translate-x-0.5 transition-transform" />
-          <span>Visão do Aluno (Plataforma)</span>
+          <User className="w-4 h-4 text-purple-400 group-hover:text-purple-300" />
+          <span>Meu Perfil</span>
+        </button>
+
+        {/* Sair */}
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl font-semibold text-xs text-rose-400 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 transition-all cursor-pointer group"
+        >
+          <LogOut className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
+          <span>Sair</span>
         </button>
       </div>
 
