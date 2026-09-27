@@ -1,0 +1,8 @@
+# ==============================================================================
+# MAGIC ENGLISH — SUPABASE CONFIGURATION
+# ==============================================================================
+
+project_id = "wrrtiewjritbhcfqzjhy"
+
+[functions.kiwify-webhook]
+verify_jwt = false
