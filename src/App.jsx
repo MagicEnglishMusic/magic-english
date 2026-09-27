@@ -32,6 +32,7 @@ const MagicCommunityView = lazy(() => import('./components/community/MagicCommun
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
 const RegisterStudent = lazy(() => import('./components/auth/RegisterStudent'));
 const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
 const Onboarding = lazy(() => import('./components/auth/Onboarding'));
 const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
 import { defaultSongLesson } from './data/songLessonData';
@@ -44,12 +45,16 @@ import { XP_REWARDS } from './data/gamificationData';
 function getInitialView() {
   if (typeof window === 'undefined') return 'dashboard';
   const path = window.location.pathname.toLowerCase();
+  const hash = window.location.hash || '';
   
   if (path.startsWith('/admin/login')) {
     return 'admin-login';
   }
   if (path.startsWith('/admin')) {
     return 'admin';
+  }
+  if (path.startsWith('/reset-password') || hash.includes('type=recovery')) {
+    return 'reset-password';
   }
   if (path.startsWith('/register')) {
     return 'register';
@@ -70,10 +75,10 @@ function getInitialView() {
 }
 
 function MainApp() {
-  const { isAuthenticated, role, isOnboarded, loading, logout } = useAuth();
+  const { isAuthenticated, role, isOnboarded, isPasswordRecovery, loading, logout } = useAuth();
 
   // Navigation State
-  // 'dashboard' | 'classroom' | 'my-lessons' | 'song-player' | 'tracks' | 'materials' | 'pronunciation' | 'musical-practice' | 'gamification' | 'profile' | 'ranking' | 'community' | 'login' | 'register' | 'forgot-password' | 'onboarding' | 'admin-login' | 'admin'
+  // 'dashboard' | 'classroom' | 'my-lessons' | 'song-player' | 'tracks' | 'materials' | 'pronunciation' | 'musical-practice' | 'gamification' | 'profile' | 'ranking' | 'community' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'onboarding' | 'admin-login' | 'admin'
   const [currentView, setCurrentView] = useState(getInitialView);
   const [activeTab, setActiveTab] = useState(getInitialView() === 'community' ? 'community' : 'home');
   const [activeSong, setActiveSong] = useState(defaultSongLesson);
@@ -103,6 +108,13 @@ function MainApp() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Password Recovery Session Listener
+  useEffect(() => {
+    if (isPasswordRecovery && currentView !== 'reset-password') {
+      navigateTo('reset-password', '/reset-password');
+    }
+  }, [isPasswordRecovery]);
+
   // Administrative Guard: /admin and /admin/login role enforcement
   useEffect(() => {
     if (loading) return;
@@ -127,7 +139,7 @@ function MainApp() {
   useEffect(() => {
     if (loading) return;
 
-    const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'admin-login'].includes(currentView);
+    const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'reset-password', 'admin-login'].includes(currentView);
     
     if (currentView === 'admin' || currentView === 'admin-login') {
       return;
@@ -269,6 +281,25 @@ function MainApp() {
     return (
       <Suspense fallback={<MagicLoadingScreen message="Carregando recuperação..." />}>
         <ForgotPassword
+          onGoToLogin={() => navigateTo('login', '/login')}
+        />
+      </Suspense>
+    );
+  }
+
+  // ROUTE 3.1: Password Reset & First Access (/reset-password)
+  if (currentView === 'reset-password') {
+    return (
+      <Suspense fallback={<MagicLoadingScreen message="Preparando redefinição de senha..." />}>
+        <ResetPassword
+          onSuccess={(hasOnboarded) => {
+            if (hasOnboarded) {
+              navigateTo('dashboard', '/dashboard');
+              setActiveTab('home');
+            } else {
+              navigateTo('onboarding', '/onboarding');
+            }
+          }}
           onGoToLogin={() => navigateTo('login', '/login')}
         />
       </Suspense>

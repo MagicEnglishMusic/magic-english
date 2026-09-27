@@ -298,6 +298,33 @@ Deno.serve(async (req: Request) => {
           } else {
             console.log("✅ Perfil do novo aluno salvo com sucesso!");
           }
+
+          // 7.1 Gera link de primeiro acesso / redefinição de senha para o novo aluno
+          try {
+            const siteUrl = Deno.env.get("SITE_URL") || "https://magicenglish.com.br";
+            const resetRedirectUrl = `${siteUrl.replace(/\/$/, "")}/reset-password`;
+            console.log(`📧 Gerando link de primeiro acesso para ${customerEmail} (Redirect: ${resetRedirectUrl})...`);
+
+            const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+              type: "recovery",
+              email: customerEmail,
+              options: {
+                redirectTo: resetRedirectUrl,
+              },
+            });
+
+            if (linkErr) {
+              console.warn("⚠️ Aviso ao gerar link de recovery no Auth:", linkErr.message);
+              // Fallback: Dispara reset de senha padrão Supabase
+              await supabase.auth.resetPasswordForEmail(customerEmail, {
+                redirectTo: resetRedirectUrl,
+              });
+            } else {
+              console.log(`🔗 Link de primeiro acesso gerado com sucesso:`, linkData?.properties?.action_link || "Link Criado");
+            }
+          } catch (linkEx: any) {
+            console.warn("⚠️ Exceção ao gerar link de primeiro acesso:", linkEx?.message);
+          }
         }
       }
     }

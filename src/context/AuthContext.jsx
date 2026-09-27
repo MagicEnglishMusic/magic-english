@@ -206,12 +206,26 @@ export function AuthProvider({ children }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      if (event === 'SIGNED_OUT' || !session) {
+      if (event === 'PASSWORD_RECOVERY') {
+        if (session?.user) {
+          const resolved = await resolveUserState(session.user);
+          setAuthState({
+            isAuthenticated: true,
+            user: resolved?.user || session.user,
+            role: resolved?.role || 'student',
+            accessStatus: resolved?.accessStatus || 'active',
+            isOnboarded: resolved?.isOnboarded || false,
+            isPasswordRecovery: true,
+            loading: false
+          });
+        }
+      } else if (event === 'SIGNED_OUT' || !session) {
         setAuthState({
           isAuthenticated: false,
           user: null,
           role: null,
           isOnboarded: false,
+          isPasswordRecovery: false,
           loading: false
         });
       } else if (session?.user) {
@@ -431,14 +445,55 @@ export function AuthProvider({ children }) {
   const resetPassword = async (email) => {
     if (isSupabaseConfigured) {
       try {
-        await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/login`,
+        const redirectTo = `${window.location.origin}/reset-password`;
+        const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo,
         });
+        if (error) throw error;
+        return { success: true, data, message: `Instruções enviadas para ${email}` };
       } catch (err) {
         console.warn('Supabase reset password:', err.message);
+        throw err;
       }
     }
     return { success: true, message: `Instruções enviadas para ${email}` };
+  };
+
+  // 4.1. Set / Update Password (First Access & Password Reset)
+  const updatePassword = async (newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('A senha deve conter no mínimo 6 caracteres.');
+    }
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        console.warn('Supabase updateUser password error:', error.message);
+        throw error;
+      }
+
+      if (data?.user) {
+        const resolved = await resolveUserState(data.user);
+        if (resolved) {
+          setAuthState({
+            isAuthenticated: true,
+            user: resolved.user,
+            role: resolved.role,
+            accessStatus: resolved.accessStatus,
+            isOnboarded: resolved.isOnboarded,
+            isPasswordRecovery: false,
+            loading: false,
+          });
+        }
+      }
+
+      return { success: true, user: data?.user };
+    }
+
+    return { success: true };
   };
 
   // 5. Admin Authentication (Real Supabase Auth + profiles.role === 'admin' check)
@@ -551,11 +606,13 @@ export function AuthProvider({ children }) {
     role: authState.role,
     accessStatus: authState.accessStatus || authState.user?.accessStatus || 'active',
     isOnboarded: authState.isOnboarded,
+    isPasswordRecovery: authState.isPasswordRecovery || false,
     loading: authState.loading,
     loginStudent,
     registerStudent,
     completeOnboarding,
     resetPassword,
+    updatePassword,
     loginAdmin,
     refreshSession,
     logout
