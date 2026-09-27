@@ -46,6 +46,8 @@ function getInitialView() {
   if (typeof window === 'undefined') return 'dashboard';
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  const href = window.location.href || '';
   
   if (path.startsWith('/admin/login')) {
     return 'admin-login';
@@ -53,7 +55,12 @@ function getInitialView() {
   if (path.startsWith('/admin')) {
     return 'admin';
   }
-  if (path.startsWith('/reset-password') || hash.includes('type=recovery')) {
+  if (
+    path.startsWith('/reset-password') || 
+    hash.includes('type=recovery') || 
+    search.includes('type=recovery') ||
+    href.includes('type=recovery')
+  ) {
     return 'reset-password';
   }
   if (path.startsWith('/register')) {
@@ -96,7 +103,7 @@ function MainApp() {
     }
   };
 
-  // Sync with browser back/forward buttons
+  // Sync with browser back/forward buttons and hash changes
   useEffect(() => {
     const handlePopState = () => {
       const view = getInitialView();
@@ -105,7 +112,11 @@ function MainApp() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   // Password Recovery Session Listener
@@ -113,7 +124,7 @@ function MainApp() {
     if (isPasswordRecovery && currentView !== 'reset-password') {
       navigateTo('reset-password', '/reset-password');
     }
-  }, [isPasswordRecovery]);
+  }, [isPasswordRecovery, currentView]);
 
   // Administrative Guard: /admin and /admin/login role enforcement
   useEffect(() => {
@@ -139,6 +150,11 @@ function MainApp() {
   useEffect(() => {
     if (loading) return;
 
+    // Do NOT redirect away from reset-password while resetting password
+    if (isPasswordRecovery || currentView === 'reset-password') {
+      return;
+    }
+
     const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'reset-password', 'admin-login'].includes(currentView);
     
     if (currentView === 'admin' || currentView === 'admin-login') {
@@ -160,7 +176,7 @@ function MainApp() {
         navigateTo('admin', '/admin');
       }
     }
-  }, [currentView, isAuthenticated, isOnboarded, loading, role]);
+  }, [currentView, isAuthenticated, isOnboarded, isPasswordRecovery, loading, role]);
 
   // Open Classroom Video Lesson View
   const handleOpenClassroom = (lessonData) => {

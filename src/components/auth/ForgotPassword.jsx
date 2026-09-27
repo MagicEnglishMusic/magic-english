@@ -23,9 +23,9 @@ export default function ForgotPassword({ onGoToLogin }) {
       await resetPassword(email);
       setIsLoading(false);
       setIsSent(true);
-    } catch {
+    } catch (err) {
       setIsLoading(false);
-      setError('Ocorreu um erro ao enviar o e-mail. Tente novamente.');
+      setError(err?.message || 'Ocorreu um erro ao enviar o e-mail. Tente novamente.');
     }
   };
 

@@ -166,17 +166,24 @@ export function AuthProvider({ children }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!isMounted) return;
 
+        const isRecoveryUrl = typeof window !== 'undefined' && (
+          window.location.hash?.includes('type=recovery') || 
+          window.location.search?.includes('type=recovery') ||
+          window.location.pathname?.toLowerCase().startsWith('/reset-password')
+        );
+
         if (session?.user) {
           const resolved = await resolveUserState(session.user);
           if (isMounted && resolved) {
-            setAuthState({
+            setAuthState((prev) => ({
               isAuthenticated: true,
               user: resolved.user,
               role: resolved.role,
               accessStatus: resolved.accessStatus,
               isOnboarded: resolved.isOnboarded,
+              isPasswordRecovery: Boolean(prev.isPasswordRecovery || isRecoveryUrl),
               loading: false
-            });
+            }));
           }
         } else {
           setAuthState({
@@ -185,6 +192,7 @@ export function AuthProvider({ children }) {
             role: null,
             accessStatus: 'pending_payment',
             isOnboarded: false,
+            isPasswordRecovery: isRecoveryUrl,
             loading: false
           });
         }
@@ -196,6 +204,7 @@ export function AuthProvider({ children }) {
             user: null,
             role: null,
             isOnboarded: false,
+            isPasswordRecovery: false,
             loading: false
           });
         }
@@ -218,6 +227,12 @@ export function AuthProvider({ children }) {
             isPasswordRecovery: true,
             loading: false
           });
+        } else {
+          setAuthState((prev) => ({
+            ...prev,
+            isPasswordRecovery: true,
+            loading: false
+          }));
         }
       } else if (event === 'SIGNED_OUT' || !session) {
         setAuthState({
