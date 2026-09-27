@@ -99,11 +99,12 @@ export function AuthProvider({ children }) {
       }
     }
 
-    const resolvedRole = profile?.role || sessionUser.user_metadata?.role || 'student';
+    const rawRole = profile?.role || sessionUser.user_metadata?.role || 'student';
+    const resolvedRole = String(rawRole).trim().toLowerCase();
     // Admins always have active access. Students respect profile.access_status or fallback to active.
     const resolvedAccessStatus = resolvedRole === 'admin' 
       ? 'active' 
-      : (profile?.access_status || 'active');
+      : String(profile?.access_status || 'active').trim().toLowerCase();
 
     const cleanUser = profile ? {
       id: profile.id,
@@ -175,15 +176,21 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           const resolved = await resolveUserState(session.user);
           if (isMounted && resolved) {
-            setAuthState((prev) => ({
-              isAuthenticated: true,
-              user: resolved.user,
-              role: resolved.role,
-              accessStatus: resolved.accessStatus,
-              isOnboarded: resolved.isOnboarded,
-              isPasswordRecovery: Boolean(prev.isPasswordRecovery || isRecoveryUrl),
-              loading: false
-            }));
+            setAuthState((prev) => {
+              const effectiveRole = (prev.role === 'admin' && prev.user?.id === session.user.id && resolved.role !== 'admin')
+                ? 'admin'
+                : resolved.role;
+
+              return {
+                isAuthenticated: true,
+                user: resolved.user,
+                role: effectiveRole,
+                accessStatus: effectiveRole === 'admin' ? 'active' : resolved.accessStatus,
+                isOnboarded: resolved.isOnboarded,
+                isPasswordRecovery: Boolean(prev.isPasswordRecovery || isRecoveryUrl),
+                loading: false
+              };
+            });
           }
         } else {
           setAuthState({
@@ -528,8 +535,9 @@ export function AuthProvider({ children }) {
 
         if (data?.user) {
           const resolved = await resolveUserState(data.user);
+          const normalizedRole = String(resolved?.role || '').trim().toLowerCase();
 
-          if (!resolved || resolved.role !== 'admin') {
+          if (!resolved || normalizedRole !== 'admin') {
             // Sign out immediately if the user is a student
             await supabase.auth.signOut();
             throw new Error('Acesso negado. Esta conta não possui privilégios de administrador.');

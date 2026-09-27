@@ -128,14 +128,16 @@ function MainApp() {
 
   // Administrative Guard: /admin and /admin/login role enforcement
   useEffect(() => {
-    if (loading) return;
+    if (loading || (isAuthenticated && !role)) return;
+
+    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
 
     if (currentView === 'admin' || currentView === 'admin-login') {
       if (isAuthenticated) {
-        if (role === 'student') {
+        if (normalizedRole === 'student') {
           // Student attempting to access admin route is immediately redirected to /dashboard
           navigateTo('dashboard', '/dashboard');
-        } else if (role === 'admin' && currentView === 'admin-login') {
+        } else if (normalizedRole === 'admin' && currentView === 'admin-login') {
           // Authenticated admin on /admin/login is redirected to /admin
           navigateTo('admin', '/admin');
         }
@@ -148,7 +150,7 @@ function MainApp() {
 
   // Student Authentication Guard for student-protected and onboarding pages
   useEffect(() => {
-    if (loading) return;
+    if (loading || (isAuthenticated && !role)) return;
 
     // Do NOT redirect away from reset-password while resetting password
     if (isPasswordRecovery || currentView === 'reset-password') {
@@ -161,6 +163,8 @@ function MainApp() {
       return;
     }
 
+    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
+
     if (!isPublicAuthRoute) {
       if (!isAuthenticated) {
         navigateTo('login', '/login');
@@ -170,9 +174,9 @@ function MainApp() {
         navigateTo('dashboard', '/dashboard');
       }
     } else if (isAuthenticated) {
-      if (role === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
+      if (normalizedRole === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
         navigateTo('dashboard', '/dashboard');
-      } else if (role === 'admin' && ['login', 'register'].includes(currentView)) {
+      } else if (normalizedRole === 'admin' && ['login', 'register'].includes(currentView)) {
         navigateTo('admin', '/admin');
       }
     }
@@ -384,7 +388,16 @@ function MainApp() {
   // 3. PROTECTED STUDENT PLATFORM (/dashboard & tabs)
   // ==========================================
   return (
-    <ProtectedRoute requiredRole="student" onRedirect={(view) => navigateTo(view, '/login')}>
+    <ProtectedRoute 
+      requiredRole="student" 
+      onRedirect={(view) => {
+        if (view === 'admin') {
+          navigateTo('admin', '/admin');
+        } else {
+          navigateTo(view, view === 'admin-login' ? '/admin/login' : '/login');
+        }
+      }}
+    >
       <div className="min-h-screen bg-[#08090e] text-slate-100 flex">
         {/* 1. Fixed Dark Student Sidebar */}
         <Sidebar

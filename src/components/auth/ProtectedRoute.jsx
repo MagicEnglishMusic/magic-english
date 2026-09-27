@@ -1,39 +1,53 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import AccessBlockedView from './AccessBlockedView';
+import MagicLoadingScreen from '../ui/MagicLoadingScreen';
 
 export default function ProtectedRoute({ children, requiredRole = 'student', onRedirect }) {
-  const { isAuthenticated, role, accessStatus, logout, refreshSession } = useAuth();
+  const { isAuthenticated, role, accessStatus, loading, logout, refreshSession } = useAuth();
+
+  // Aguarda o AuthContext terminar de resolver sessão/profile antes de decidir.
+  if (loading) {
+    return <MagicLoadingScreen message="Verificando permissões..." />;
+  }
+
+  // Se autenticado mas o role ainda não foi resolvido, também espera.
+  if (isAuthenticated && !role) {
+    return <MagicLoadingScreen message="Carregando seu perfil..." />;
+  }
 
   // 1. Verificação de Autenticação
+  const normalizedRole = role ? String(role).trim().toLowerCase() : null;
+  const normalizedRequiredRole = requiredRole ? String(requiredRole).trim().toLowerCase() : null;
+
   if (!isAuthenticated) {
     if (onRedirect) {
-      onRedirect(requiredRole === 'admin' ? 'admin-login' : 'login');
+      onRedirect(normalizedRequiredRole === 'admin' ? 'admin-login' : 'login');
     }
     return null;
   }
 
   // 2. Verificação de Papel (Role)
-  if (requiredRole && role !== requiredRole) {
+  if (normalizedRequiredRole && normalizedRole !== normalizedRequiredRole) {
     if (onRedirect) {
-      if (role === 'student' && requiredRole === 'admin') {
+      if (normalizedRole === 'student' && normalizedRequiredRole === 'admin') {
         onRedirect('dashboard');
-      } else if (role === 'admin' && requiredRole === 'student') {
+      } else if (normalizedRole === 'admin' && normalizedRequiredRole === 'student') {
         onRedirect('admin');
       } else {
-        onRedirect(requiredRole === 'admin' ? 'admin-login' : 'login');
+        onRedirect(normalizedRequiredRole === 'admin' ? 'admin-login' : 'login');
       }
     }
     return null;
   }
 
   // 3. Administradores têm acesso irrestrito garantido
-  if (role === 'admin') {
+  if (normalizedRole === 'admin') {
     return <>{children}</>;
   }
 
   // 4. Verificação de Status Comercial (Kiwify) para Alunos
-  if (role === 'student' && accessStatus && accessStatus !== 'active') {
+  if (normalizedRole === 'student' && accessStatus && accessStatus !== 'active') {
     return (
       <AccessBlockedView 
         status={accessStatus}
@@ -45,4 +59,3 @@ export default function ProtectedRoute({ children, requiredRole = 'student', onR
 
   return <>{children}</>;
 }
-
