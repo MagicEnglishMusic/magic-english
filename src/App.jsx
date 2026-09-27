@@ -135,14 +135,14 @@ function MainApp() {
     if (currentView === 'admin' || currentView === 'admin-login') {
       if (isAuthenticated) {
         if (normalizedRole === 'student') {
-          // Student attempting to access admin route is immediately redirected to /dashboard
+          console.log('[DEBUG APP] Admin Guard redirecting student to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
           navigateTo('dashboard', '/dashboard');
         } else if (normalizedRole === 'admin' && currentView === 'admin-login') {
-          // Authenticated admin on /admin/login is redirected to /admin
+          console.log('[DEBUG APP] Admin Guard redirecting admin to /admin:', { currentView, role, isAuthenticated, isOnboarded, loading });
           navigateTo('admin', '/admin');
         }
       } else if (currentView === 'admin') {
-        // Unauthenticated visitor attempting /admin goes to /admin/login
+        console.log('[DEBUG APP] Admin Guard redirecting unauthenticated to /admin/login:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('admin-login', '/admin/login');
       }
     }
@@ -168,6 +168,7 @@ function MainApp() {
     // ADMIN ISOLATION: Admin never executes student onboarding or student platform redirects
     if (normalizedRole === 'admin') {
       if (currentView !== 'admin' && currentView !== 'admin-login') {
+        console.log('[DEBUG APP] Admin Isolation redirecting admin to /admin:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('admin', '/admin');
       }
       return;
@@ -175,14 +176,18 @@ function MainApp() {
 
     if (!isPublicAuthRoute) {
       if (!isAuthenticated) {
+        console.log('[DEBUG APP] Student Guard redirecting unauthenticated to /login:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('login', '/login');
       } else if (!isOnboarded && currentView !== 'onboarding') {
+        console.log('[DEBUG APP] Student Guard redirecting non-onboarded to /onboarding:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('onboarding', '/onboarding');
       } else if (isOnboarded && currentView === 'onboarding') {
+        console.log('[DEBUG APP] Student Guard redirecting onboarded to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('dashboard', '/dashboard');
       }
     } else if (isAuthenticated) {
       if (normalizedRole === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
+        console.log('[DEBUG APP] Student Guard redirecting authenticated student to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
         navigateTo('dashboard', '/dashboard');
       }
     }
