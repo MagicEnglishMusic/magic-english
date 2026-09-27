@@ -90,7 +90,7 @@ export function AuthProvider({ children }) {
     // Admins always have active access and bypass academic student onboarding
     const resolvedIsOnboarded = resolvedRole === 'admin' 
       ? true 
-      : (isProfileOnboarded || isMetadataOnboarded || isLocalOnboarded);
+      : Boolean(profile?.is_onboarded || isMetadataOnboarded || isLocalOnboarded);
 
     // Healing mechanism: if client/metadata has true, ensure profiles in database is synced to true
     if (resolvedIsOnboarded && resolvedRole !== 'admin') {
