@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, Eye, EyeOff, ArrowRight, Sparkles, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLogin({ onLoginSuccess, onGoToStudentLogin }) {
   const { loginAdmin } = useAuth();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     
-    if (!username.trim()) {
-      setErrorMessage('Por favor, preencha o campo de usuário.');
+    if (!email.trim()) {
+      setErrorMessage('Por favor, informe seu e-mail institucional de administrador.');
       return;
     }
     if (!password.trim()) {
@@ -25,21 +25,16 @@ export default function AdminLogin({ onLoginSuccess, onGoToStudentLogin }) {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      loginAdmin(username, password);
-      setIsLoading(false);
+    try {
+      await loginAdmin(email, password);
       if (onLoginSuccess) {
         onLoginSuccess();
       }
-    }, 400);
-  };
-
-  const handleQuickDemoAdmin = () => {
-    setUsername('admin');
-    setPassword('admin123');
-    loginAdmin('admin', 'admin123');
-    if (onLoginSuccess) {
-      onLoginSuccess();
+    } catch (err) {
+      console.warn('Admin authentication failure:', err.message);
+      setErrorMessage(err.message || 'Falha ao autenticar administrador. Verifique as credenciais.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,19 +104,19 @@ export default function AdminLogin({ onLoginSuccess, onGoToStudentLogin }) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Usuário Administrador */}
+            {/* E-mail Administrador */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Usuário:
+                E-mail Administrador:
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@magicenglish.com"
                   className="w-full bg-[#14172a] border border-[#202540] text-white text-sm rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all font-mono"
                 />
               </div>
@@ -158,23 +153,15 @@ export default function AdminLogin({ onLoginSuccess, onGoToStudentLogin }) {
               disabled={isLoading}
               className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-purple-600 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>{isLoading ? 'Autenticando...' : 'Entrar'}</span>
+              <span>{isLoading ? 'Autenticando...' : 'Entrar como Admin'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
-          {/* Quick Demo Admin Button */}
-          <div className="pt-2 border-t border-[#1a1f33] text-center space-y-3">
-            <button
-              onClick={handleQuickDemoAdmin}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#121526] hover:bg-[#181c34] border border-amber-500/30 text-amber-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Entrar com Credenciais Super Admin</span>
-            </button>
-
+          {/* Rodapé de Informação de Segurança */}
+          <div className="pt-2 border-t border-[#1a1f33] text-center">
             <p className="text-[11px] text-slate-500">
-              Ambiente protegido. O acesso direto à rota <code className="text-amber-400">/admin</code> exige autenticação de administrador.
+              🔒 Ambiente restrito. O acesso à rota <code className="text-amber-400">/admin</code> exige autenticação com perfil de administrador no Supabase.
             </p>
           </div>
 

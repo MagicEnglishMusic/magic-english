@@ -103,12 +103,21 @@ function MainApp() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Administrative Guard: /admin requires admin authentication
+  // Administrative Guard: /admin and /admin/login role enforcement
   useEffect(() => {
     if (loading) return;
-    if (currentView === 'admin') {
-      const isAdminUser = isAuthenticated && role === 'admin';
-      if (!isAdminUser) {
+
+    if (currentView === 'admin' || currentView === 'admin-login') {
+      if (isAuthenticated) {
+        if (role === 'student') {
+          // Student attempting to access admin route is immediately redirected to /dashboard
+          navigateTo('dashboard', '/dashboard');
+        } else if (role === 'admin' && currentView === 'admin-login') {
+          // Authenticated admin on /admin/login is redirected to /admin
+          navigateTo('admin', '/admin');
+        }
+      } else if (currentView === 'admin') {
+        // Unauthenticated visitor attempting /admin goes to /admin/login
         navigateTo('admin-login', '/admin/login');
       }
     }
@@ -120,7 +129,11 @@ function MainApp() {
 
     const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'admin-login'].includes(currentView);
     
-    if (!isPublicAuthRoute && currentView !== 'admin') {
+    if (currentView === 'admin' || currentView === 'admin-login') {
+      return;
+    }
+
+    if (!isPublicAuthRoute) {
       if (!isAuthenticated) {
         navigateTo('login', '/login');
       } else if (!isOnboarded && currentView !== 'onboarding') {
@@ -128,8 +141,12 @@ function MainApp() {
       } else if (isOnboarded && currentView === 'onboarding') {
         navigateTo('dashboard', '/dashboard');
       }
-    } else if (isAuthenticated && role === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
-      navigateTo('dashboard', '/dashboard');
+    } else if (isAuthenticated) {
+      if (role === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
+        navigateTo('dashboard', '/dashboard');
+      } else if (role === 'admin' && ['login', 'register'].includes(currentView)) {
+        navigateTo('admin', '/admin');
+      }
     }
   }, [currentView, isAuthenticated, isOnboarded, loading, role]);
 
@@ -294,7 +311,16 @@ function MainApp() {
   // ==========================================
   if (currentView === 'admin') {
     return (
-      <ProtectedRoute requiredRole="admin" onRedirect={(view) => navigateTo(view, `/${view === 'admin-login' ? 'admin/login' : 'login'}`)}>
+      <ProtectedRoute 
+        requiredRole="admin" 
+        onRedirect={(view) => {
+          if (view === 'dashboard') {
+            navigateTo('dashboard', '/dashboard');
+          } else {
+            navigateTo('admin-login', '/admin/login');
+          }
+        }}
+      >
         <Suspense fallback={<MagicLoadingScreen message="Carregando Painel Administrativo..." />}>
           <AdminLayout
             onReturnToPlatform={() => {

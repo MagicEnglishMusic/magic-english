@@ -441,20 +441,65 @@ export function AuthProvider({ children }) {
     return { success: true, message: `Instruções enviadas para ${email}` };
   };
 
-  // 5. Admin Authentication
-  const loginAdmin = async (username, password) => {
-    const adminUser = {
-      ...DEFAULT_ADMIN,
-      username: username || DEFAULT_ADMIN.username
-    };
-    setAuthState({
-      isAuthenticated: true,
-      user: adminUser,
-      role: 'admin',
-      isOnboarded: true,
-      loading: false
-    });
-    return { success: true, user: adminUser };
+  // 5. Admin Authentication (Real Supabase Auth + profiles.role === 'admin' check)
+  const loginAdmin = async (email, password) => {
+    if (!email || !password) {
+      throw new Error('Por favor, preencha o e-mail e a senha de administrador.');
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password: password
+        });
+
+        if (error) throw error;
+
+        if (data?.user) {
+          const resolved = await resolveUserState(data.user);
+
+          if (!resolved || resolved.role !== 'admin') {
+            // Sign out immediately if the user is a student
+            await supabase.auth.signOut();
+            throw new Error('Acesso negado. Esta conta não possui privilégios de administrador.');
+          }
+
+          setAuthState({
+            isAuthenticated: true,
+            user: resolved.user,
+            role: 'admin',
+            accessStatus: 'active',
+            isOnboarded: true,
+            loading: false
+          });
+
+          return { success: true, user: resolved.user };
+        }
+      } catch (err) {
+        console.warn('Supabase admin login error:', err.message);
+        throw err;
+      }
+    }
+
+    // Fallback offline only when Supabase is not configured
+    if (email === 'admin@magicenglish.com' || email === 'admin') {
+      const adminUser = {
+        ...DEFAULT_ADMIN,
+        email: 'admin@magicenglish.com'
+      };
+      setAuthState({
+        isAuthenticated: true,
+        user: adminUser,
+        role: 'admin',
+        accessStatus: 'active',
+        isOnboarded: true,
+        loading: false
+      });
+      return { success: true, user: adminUser };
+    }
+
+    throw new Error('Credenciais de administrador inválidas.');
   };
 
   // 6. Logout

@@ -16,7 +16,13 @@ export default function ProtectedRoute({ children, requiredRole = 'student', onR
   // 2. Verificação de Papel (Role)
   if (requiredRole && role !== requiredRole) {
     if (onRedirect) {
-      onRedirect(requiredRole === 'admin' ? 'admin-login' : 'login');
+      if (role === 'student' && requiredRole === 'admin') {
+        onRedirect('dashboard');
+      } else if (role === 'admin' && requiredRole === 'student') {
+        onRedirect('admin');
+      } else {
+        onRedirect(requiredRole === 'admin' ? 'admin-login' : 'login');
+      }
     }
     return null;
   }
