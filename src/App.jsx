@@ -14,6 +14,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import RewardModal from './components/gamification/RewardModal';
 import ItemModal from './components/ui/ItemModal';
 import MagicLoadingScreen from './components/ui/MagicLoadingScreen';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { GamificationProvider, useGamification } from './context/GamificationContext';
 
@@ -426,112 +427,114 @@ function MainApp() {
             onOpenGamification={() => handleSidebarTabChange('ranking')}
           />
 
-          {/* Dynamic Views Router with Lazy Loading Suspense */}
-          <Suspense fallback={<MagicLoadingScreen />}>
-            {currentView === 'classroom' ? (
-              <MagicClassroomView
-                lesson={activeLesson}
-                onBack={() => handleSidebarTabChange('classes')}
-                onOpenMusicPlayer={() => handleOpenMusicalPractice()}
-                onNextLesson={() => {
-                  handleOpenClassroom({
-                    lessonNumber: "Aula 02",
-                    title: "Numbers — Aprenda os números em inglês",
-                    duration: "18 minutos"
-                  });
-                }}
-                onGainXp={(amount) => {
-                  addXp(amount, 'Aula em Vídeo', { showModal: true });
-                }}
-              />
-            ) : currentView === 'musical-practice' ? (
-              <MusicalPracticeView
-                data={travelSongMethodData}
-                onBack={() => handleSidebarTabChange('classes')}
-                onGainXp={(amount) => {
-                  addXp(amount, 'Prática Musical Completa', { showModal: true });
-                }}
-              />
-            ) : currentView === 'my-lessons' ? (
-              <MyModulesView
-                onOpenClassroomLesson={(lesson) => handleOpenClassroom(lesson)}
-                onOpenMusicalPractice={() => handleOpenMusicalPractice()}
-              />
-            ) : currentView === 'materials' ? (
-              <MaterialsView />
-            ) : currentView === 'pronunciation' ? (
-              <PronunciationLabView />
-            ) : currentView === 'ranking' ? (
-              <MagicRankingView
-                onContinueStudy={() => handleSidebarTabChange('classes')}
-              />
-            ) : currentView === 'community' ? (
-              <MagicCommunityView
-                onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
-                onOpenMusicalPractice={() => handleOpenMusicalPractice()}
-              />
-            ) : currentView === 'profile' ? (
-              <StudentProfileView
-                onOpenSong={(song) => handleOpenSongPlayer(song)}
-                onOpenModule={() => handleSidebarTabChange('classes')}
-                onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
-              />
-            ) : currentView === 'gamification' ? (
-              <GamificationHubView 
-                onOpenLesson={(lesson) => handleOpenClassroom(lesson)}
-                onOpenSong={(song) => handleOpenSongPlayer(song)}
-              />
-            ) : currentView === 'song-player' ? (
-              <MagicSongView
-                song={activeSong}
-                onBack={handleReturnToDashboard}
-                onGainXp={(amount) => {
-                  addXp(amount, 'Magic Song Tocada', { showModal: true });
-                }}
-              />
-            ) : currentView === 'tracks' ? (
-              <LearningTracksPage
-                onOpenLesson={(lesson) => {
-                  handleOpenClassroom({
-                    lessonNumber: `Aula ${lesson.number}`,
-                    title: lesson.title,
-                    duration: lesson.duration
-                  });
-                }}
-              />
-            ) : (
-              <main className="flex-1 w-full flex flex-col">
-                {/* 1. Full Width Edge-to-Edge Hero Banner (Kiwify / Streaming Style) */}
-                <HeroBanner
-                  onContinue={() => handleOpenClassroom(continueLessonsList[0])}
-                  onExplore={() => handleSidebarTabChange('classes')}
+          {/* Dynamic Views Router with Lazy Loading Suspense & Global Error Boundary */}
+          <ErrorBoundary>
+            <Suspense fallback={<MagicLoadingScreen />}>
+              {currentView === 'classroom' ? (
+                <MagicClassroomView
+                  lesson={activeLesson}
+                  onBack={() => handleSidebarTabChange('classes')}
+                  onOpenMusicPlayer={() => handleOpenMusicalPractice()}
+                  onNextLesson={() => {
+                    handleOpenClassroom({
+                      lessonNumber: "Aula 02",
+                      title: "Numbers — Aprenda os números em inglês",
+                      duration: "18 minutos"
+                    });
+                  }}
+                  onGainXp={(amount) => {
+                    addXp(amount, 'Aula em Vídeo', { showModal: true });
+                  }}
                 />
-
-                {/* 2. Dashboard Body Sections with Standard Layout Container */}
-                <div className="p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto pb-16">
-                  {/* Minha Evolução Card (Level, XP Bar, Streak & Next Goal) */}
-                  <MyEvolutionCard
-                    onOpenEvolutionHub={() => handleSidebarTabChange('ranking')}
+              ) : currentView === 'musical-practice' ? (
+                <MusicalPracticeView
+                  data={travelSongMethodData}
+                  onBack={() => handleSidebarTabChange('classes')}
+                  onGainXp={(amount) => {
+                    addXp(amount, 'Prática Musical Completa', { showModal: true });
+                  }}
+                />
+              ) : currentView === 'my-lessons' ? (
+                <MyModulesView
+                  onOpenClassroomLesson={(lesson) => handleOpenClassroom(lesson)}
+                  onOpenMusicalPractice={() => handleOpenMusicalPractice()}
+                />
+              ) : currentView === 'materials' ? (
+                <MaterialsView />
+              ) : currentView === 'pronunciation' ? (
+                <PronunciationLabView />
+              ) : currentView === 'ranking' ? (
+                <MagicRankingView
+                  onContinueStudy={() => handleSidebarTabChange('classes')}
+                />
+              ) : currentView === 'community' ? (
+                <MagicCommunityView
+                  onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
+                  onOpenMusicalPractice={() => handleOpenMusicalPractice()}
+                />
+              ) : currentView === 'profile' ? (
+                <StudentProfileView
+                  onOpenSong={(song) => handleOpenSongPlayer(song)}
+                  onOpenModule={() => handleSidebarTabChange('classes')}
+                  onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
+                />
+              ) : currentView === 'gamification' ? (
+                <GamificationHubView 
+                  onOpenLesson={(lesson) => handleOpenClassroom(lesson)}
+                  onOpenSong={(song) => handleOpenSongPlayer(song)}
+                />
+              ) : currentView === 'song-player' ? (
+                <MagicSongView
+                  song={activeSong}
+                  onBack={handleReturnToDashboard}
+                  onGainXp={(amount) => {
+                    addXp(amount, 'Magic Song Tocada', { showModal: true });
+                  }}
+                />
+              ) : currentView === 'tracks' ? (
+                <LearningTracksPage
+                  onOpenLesson={(lesson) => {
+                    handleOpenClassroom({
+                      lessonNumber: `Aula ${lesson.number}`,
+                      title: lesson.title,
+                      duration: lesson.duration
+                    });
+                  }}
+                />
+              ) : (
+                <main className="flex-1 w-full flex flex-col">
+                  {/* 1. Full Width Edge-to-Edge Hero Banner (Kiwify / Streaming Style) */}
+                  <HeroBanner
+                    onContinue={() => handleOpenClassroom(continueLessonsList[0])}
+                    onExplore={() => handleSidebarTabChange('classes')}
                   />
 
-                  {/* Progress Overview Stats */}
-                  <ProgressStats />
+                  {/* 2. Dashboard Body Sections with Standard Layout Container */}
+                  <div className="p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto pb-16">
+                    {/* Minha Evolução Card (Level, XP Bar, Streak & Next Goal) */}
+                    <MyEvolutionCard
+                      onOpenEvolutionHub={() => handleSidebarTabChange('ranking')}
+                    />
 
-                  {/* "Continue sua aula" Section (Video Lessons in progress) */}
-                  <ContinueSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
+                    {/* Progress Overview Stats */}
+                    <ProgressStats />
 
-                  {/* "Próximos passos" Section (Next recommended video lessons) */}
-                  <NextStepsSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
+                    {/* "Continue sua aula" Section (Video Lessons in progress) */}
+                    <ContinueSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
 
-                  {/* "Reforce seu aprendizado com músicas" Section (Magic Songs Fixation) */}
-                  <MagicSongsSection onSelectSong={(song) => handleOpenSongPlayer(song)} />
+                    {/* "Próximos passos" Section (Next recommended video lessons) */}
+                    <NextStepsSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} />
 
-                  {/* "Trilhas de Aprendizado" Section */}
-                  <LearningTracksSection onSelectTrack={() => handleOpenTracksPage()} />
-                </div>
-              </main>
-            )}
-          </Suspense>
+                    {/* "Reforce seu aprendizado com músicas" Section (Magic Songs Fixation) */}
+                    <MagicSongsSection onSelectSong={(song) => handleOpenSongPlayer(song)} />
+
+                    {/* "Trilhas de Aprendizado" Section */}
+                    <LearningTracksSection onSelectTrack={() => handleOpenTracksPage()} />
+                  </div>
+                </main>
+              )}
+            </Suspense>
+          </ErrorBoundary>
         </div>
 
         {/* 3. Fixed Right Panel */}

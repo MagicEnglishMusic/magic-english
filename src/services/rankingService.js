@@ -21,17 +21,28 @@ export const rankingService = {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        const formatted = data.map((item, index) => ({
-          id: item.id,
-          userId: item.user_id,
-          name: item.profiles?.name || 'Aluno Magic',
-          avatar: item.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-          level: item.profiles?.level || 'Nível 1',
-          weeklyXp: item.weekly_xp || 0,
-          totalXp: item.total_xp || 0,
-          rank: index + 1,
-          league: item.league || '💎 Liga Diamante'
-        }));
+        const formatted = data.map((item, index) => {
+          const weeklyXp = Number(item.weekly_xp) || 0;
+          const totalXp = Number(item.total_xp) || 0;
+          const displayXp = weeklyXp || totalXp || 0;
+
+          return {
+            id: item.id || `rank-${index}`,
+            userId: item.user_id,
+            name: item.profiles?.name || 'Aluno Magic',
+            avatar: item.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+            level: item.profiles?.level || 'Nível 1',
+            weeklyXp: weeklyXp,
+            totalXp: totalXp,
+            xp: displayXp,
+            streak: Number(item.streak ?? item.profiles?.streak) || 0,
+            rank: index + 1,
+            league: item.league || 'Liga Bronze',
+            leagueIcon: item.league_icon || '🌱',
+            trend: item.trend || 'stable',
+            tag: item.tag || (index === 0 ? '🥇 1º Lugar' : index === 1 ? '🥈 2º Lugar' : index === 2 ? '🥉 3º Lugar' : null)
+          };
+        });
         return { data: formatted, error: null };
       }
 
