@@ -2,8 +2,9 @@ import React from 'react';
 import { Target, CheckCircle2, Circle, Sparkles, Award, Users, ArrowRight } from 'lucide-react';
 
 export default function WeeklyChallenge({ challenge, onStartChallenge }) {
-  const completedCount = challenge.objectives.filter((o) => o.completed).length;
-  const progressPercent = Math.round((completedCount / challenge.objectives.length) * 100);
+  const objectives = challenge?.objectives || [];
+  const completedCount = objectives.filter((o) => o.completed).length;
+  const progressPercent = objectives.length > 0 ? Math.round((completedCount / objectives.length) * 100) : 0;
 
   return (
     <div className="relative overflow-hidden p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-[#17142e] via-[#101224] to-[#0c1328] border border-purple-500/40 shadow-2xl space-y-5 group">
@@ -17,30 +18,30 @@ export default function WeeklyChallenge({ challenge, onStartChallenge }) {
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
               <Target className="w-3.5 h-3.5 text-amber-400" />
-              <span>{challenge.category}</span>
+              <span>{challenge?.category || 'Desafio'}</span>
             </span>
-            <span className="text-xs text-slate-400">Termina em {challenge.daysLeft} dias</span>
+            <span className="text-xs text-slate-400">Termina em {challenge?.daysLeft ?? 0} dias</span>
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
-            "{challenge.title}"
+            "{challenge?.title || ''}"
           </h2>
         </div>
 
         {/* Reward Pill */}
         <div className="flex items-center gap-2 self-start sm:self-auto px-3.5 py-1.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-black shadow-sm">
           <Award className="w-4 h-4 text-amber-400" />
-          <span>+{challenge.xpReward} XP & {challenge.badge}</span>
+          <span>+{challenge?.xpReward ?? 0} XP & {challenge?.badge || ''}</span>
         </div>
       </div>
 
       <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-        {challenge.description}
+        {challenge?.description || ''}
       </p>
 
       {/* Objectives List */}
       <div className="space-y-2.5 pt-1">
-        {challenge.objectives.map((obj) => (
+        {objectives.map((obj) => (
           <div
             key={obj.id}
             className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
@@ -73,7 +74,7 @@ export default function WeeklyChallenge({ challenge, onStartChallenge }) {
       <div className="pt-3 border-t border-[#1d223a] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <Users className="w-4 h-4 text-purple-400" />
-          <span><strong className="text-white">{challenge.participatingCount.toLocaleString('pt-BR')}</strong> alunos participando agora</span>
+          <span><strong className="text-white">{(Number(challenge?.participatingCount) || 0).toLocaleString('pt-BR')}</strong> alunos participando agora</span>
         </div>
 
         <button

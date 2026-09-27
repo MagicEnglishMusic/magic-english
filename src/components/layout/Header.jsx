@@ -59,7 +59,7 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-indigo-500/15 border border-amber-500/30 text-amber-300 text-xs font-black shadow-sm hover:border-amber-400 transition-all cursor-pointer group"
         >
           <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform animate-pulse" />
-          <span>{xp.toLocaleString('pt-BR')} XP</span>
+          <span>{(Number(xp) || 0).toLocaleString('pt-BR')} XP</span>
         </button>
 
         {/* 🔥 Streak Quick Indicator */}
@@ -69,7 +69,7 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
           className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 text-amber-400 text-xs font-extrabold shadow-sm hover:border-amber-400 transition-all cursor-pointer"
         >
           <Flame className="w-4 h-4 text-amber-400 fill-amber-400 animate-bounce" />
-          <span>{streak} Dias</span>
+          <span>{Number(streak) || 0} Dias</span>
         </button>
 
         {/* Notification Bell */}

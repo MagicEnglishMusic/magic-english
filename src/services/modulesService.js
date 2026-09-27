@@ -5,7 +5,7 @@ export const modulesService = {
   // Fetch all modules ordered
   async getModules() {
     if (!isSupabaseConfigured) {
-      return { data: learningTracksList, error: null };
+      return { data: [], error: null };
     }
 
     try {

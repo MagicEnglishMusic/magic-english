@@ -3,7 +3,15 @@ import { Flame, TrendingUp, Zap, Award } from 'lucide-react';
 import { useGamification } from '../../context/GamificationContext';
 
 export default function ProgressStats() {
-  const { streak, xp, currentLevel, levelProgress, xpToNextLevel } = useGamification();
+  const { streak = 0, xp = 0, currentLevel = {}, levelProgress = 0, xpToNextLevel = 0 } = useGamification();
+
+  const safeStreak = Number(streak) || 0;
+  const safeXp = Number(xp) || 0;
+  const safeLevel = currentLevel?.level ?? 1;
+  const safeIcon = currentLevel?.icon || '🌱';
+  const safeTitle = currentLevel?.title || 'Iniciante';
+  const safeProgress = Number.isFinite(levelProgress) ? Math.min(100, Math.max(0, levelProgress)) : 0;
+  const safeXpToNext = Number(xpToNextLevel) || 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -20,7 +28,7 @@ export default function ProgressStats() {
         </div>
 
         <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-3xl font-extrabold text-white">{streak}</span>
+          <span className="text-3xl font-extrabold text-white">{safeStreak}</span>
           <span className="text-xs font-medium text-amber-400">dias consecutivos 🔥</span>
         </div>
 
@@ -37,20 +45,20 @@ export default function ProgressStats() {
             Nível Atual
           </span>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-sm text-lg">
-            {currentLevel.icon}
+            {safeIcon}
           </div>
         </div>
 
         <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-2xl sm:text-3xl font-extrabold text-white">Nível {currentLevel.level}</span>
-          <span className="text-xs font-medium text-purple-400">{currentLevel.title}</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-white">Nível {safeLevel}</span>
+          <span className="text-xs font-medium text-purple-400">{safeTitle}</span>
         </div>
 
         {/* Progress Bar */}
         <div className="mt-3 w-full bg-[#1c2033] h-2 rounded-full overflow-hidden p-[1px]">
           <div
             className="bg-gradient-to-r from-purple-500 via-fuchsia-500 to-blue-500 h-full rounded-full transition-all duration-1000 shadow-sm shadow-purple-500"
-            style={{ width: `${levelProgress}%` }}
+            style={{ width: `${safeProgress}%` }}
           ></div>
         </div>
       </div>
@@ -68,13 +76,13 @@ export default function ProgressStats() {
         </div>
 
         <div className="mt-4 flex items-baseline gap-2">
-          <span className="text-2xl sm:text-3xl font-extrabold text-white">{xp.toLocaleString('pt-BR')}</span>
+          <span className="text-2xl sm:text-3xl font-extrabold text-white">{safeXp.toLocaleString('pt-BR')}</span>
           <span className="text-xs font-semibold text-amber-400">XP</span>
         </div>
 
         <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-          <span className="text-slate-300 font-medium">{levelProgress}% concluído</span>
-          <span className="text-[11px] text-slate-500">Próximo: +{xpToNextLevel} XP</span>
+          <span className="text-slate-300 font-medium">{safeProgress}% concluído</span>
+          <span className="text-[11px] text-slate-500">Próximo: +{safeXpToNext} XP</span>
         </div>
       </div>
     </div>

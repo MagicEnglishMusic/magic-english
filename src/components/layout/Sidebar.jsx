@@ -24,8 +24,8 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
     { id: 'materials', label: 'Materiais', icon: BookOpen, badge: null },
     { id: 'pronunciation', label: 'Pronúncia', icon: Mic, badge: 'IA' },
     { id: 'achievements', label: 'Conquistas', icon: Award, badge: null },
-    { id: 'ranking', label: 'Ranking', icon: Trophy, badge: 'Top 5%' },
-    { id: 'community', label: 'Comunidade', icon: Users, badge: '12.5k' },
+    { id: 'ranking', label: 'Ranking', icon: Trophy, badge: null },
+    { id: 'community', label: 'Comunidade', icon: Users, badge: null },
   ];
 
   const bottomMenuItems = [

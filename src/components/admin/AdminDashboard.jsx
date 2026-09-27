@@ -48,12 +48,18 @@ export default function AdminDashboard({
     loadDashboardData();
   }, []);
 
+  const totalStudents = Number(stats?.totalStudents) || 0;
+  const totalModules = Number(stats?.totalModules) || 0;
+  const totalLessons = Number(stats?.totalLessons) || 0;
+  const totalSongs = Number(stats?.totalSongs) || 0;
+  const totalContentTime = stats?.totalContentTime || '0h';
+
   const statCards = [
     {
       id: "students",
       label: "Total de Alunos",
-      value: stats.totalStudents.toLocaleString('pt-BR'),
-      sub: stats.totalStudents > 0 ? "Alunos cadastrados" : "Nenhum aluno cadastrado",
+      value: totalStudents.toLocaleString('pt-BR'),
+      sub: totalStudents > 0 ? "Alunos cadastrados" : "Nenhum aluno cadastrado",
       icon: Users,
       color: "text-purple-400",
       bg: "bg-purple-500/10",
@@ -63,8 +69,8 @@ export default function AdminDashboard({
     {
       id: "modules",
       label: "Total de Módulos",
-      value: stats.totalModules,
-      sub: stats.totalModules > 0 ? `${stats.totalModules} módulos ativos` : "Nenhum módulo criado",
+      value: totalModules,
+      sub: totalModules > 0 ? `${totalModules} módulos ativos` : "Nenhum módulo criado",
       icon: Layers,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
@@ -74,8 +80,8 @@ export default function AdminDashboard({
     {
       id: "lessons",
       label: "Total de Aulas",
-      value: stats.totalLessons,
-      sub: stats.totalLessons > 0 ? `${stats.totalLessons} aulas cadastradas` : "Nenhuma aula cadastrada",
+      value: totalLessons,
+      sub: totalLessons > 0 ? `${totalLessons} aulas cadastradas` : "Nenhuma aula cadastrada",
       icon: Tv,
       color: "text-cyan-400",
       bg: "bg-cyan-500/10",
@@ -85,8 +91,8 @@ export default function AdminDashboard({
     {
       id: "songs",
       label: "Magic Songs",
-      value: stats.totalSongs,
-      sub: stats.totalSongs > 0 ? "Com distribuição SSOT" : "Nenhuma música cadastrada",
+      value: totalSongs,
+      sub: totalSongs > 0 ? "Com distribuição SSOT" : "Nenhuma música cadastrada",
       icon: Music,
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
@@ -96,7 +102,7 @@ export default function AdminDashboard({
     {
       id: "time",
       label: "Tempo de Conteúdo",
-      value: stats.totalContentTime,
+      value: totalContentTime,
       sub: "Aulas em vídeo e áudio",
       icon: Clock,
       color: "text-amber-400",

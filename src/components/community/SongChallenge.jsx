@@ -11,19 +11,19 @@ export default function SongChallenge({ song, onPlaySong }) {
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-300 bg-cyan-500/15 px-2.5 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
           <Music className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{song.category}</span>
+          <span>{song?.category || '🎵 Magic Song da Semana'}</span>
         </span>
 
         <span className="text-xs text-slate-400 font-mono font-bold">
-          {song.bpm}
+          {song?.bpm || '108 BPM'}
         </span>
       </div>
 
       <div className="flex items-center gap-4">
         <div className="relative w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg border border-cyan-500/40 group-hover:scale-105 transition-transform">
           <img
-            src={song.cover}
-            alt={song.title}
+            src={song?.cover || 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=600&auto=format&fit=crop&q=80'}
+            alt={song?.title || 'Música'}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
@@ -33,14 +33,14 @@ export default function SongChallenge({ song, onPlaySong }) {
 
         <div className="space-y-1 min-w-0 flex-1">
           <h3 className="text-base sm:text-lg font-black text-white truncate">
-            {song.title}
+            {song?.title || 'Música da Semana'}
           </h3>
           <p className="text-xs text-slate-400">
-            {song.subtitle}
+            {song?.subtitle || 'Música oficial de fixação da semana'}
           </p>
           <div className="flex items-center gap-2 text-xs text-slate-400 pt-0.5">
             <span className="text-cyan-300 font-bold flex items-center gap-1">
-              <Users className="w-3 h-3" /> {song.practicingCount.toLocaleString('pt-BR')} praticando
+              <Users className="w-3 h-3" /> {(Number(song?.practicingCount) || 0).toLocaleString('pt-BR')} praticando
             </span>
           </div>
         </div>

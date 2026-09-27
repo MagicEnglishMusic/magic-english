@@ -5,7 +5,7 @@ export const materialsService = {
   // Fetch materials (optionally filter by lessonId)
   async getMaterials(lessonId = null) {
     if (!isSupabaseConfigured) {
-      return { data: materialsList, error: null };
+      return { data: [], error: null };
     }
 
     try {

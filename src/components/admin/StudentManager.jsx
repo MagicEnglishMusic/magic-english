@@ -22,10 +22,10 @@ export default function StudentManager() {
     loadStudents();
   }, []);
 
-  const filtered = students.filter(
+  const filtered = (students || []).filter(
     (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.email.toLowerCase().includes(search.toLowerCase())
+      (s?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (s?.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -39,7 +39,7 @@ export default function StudentManager() {
           </span>
           <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
             <Users className="w-6 h-6 text-purple-400" />
-            <span>Gestão de Alunos ({students.length} cadastrados)</span>
+            <span>Gestão de Alunos ({(students || []).length} cadastrados)</span>
           </h2>
         </div>
 
@@ -70,22 +70,22 @@ export default function StudentManager() {
 
             {filtered.map((std) => (
               <div
-                key={std.id}
+                key={std?.id}
                 className="p-4 rounded-2xl bg-[#141728] border border-slate-800/80 hover:border-purple-500/40 transition-all flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 items-start sm:items-center"
               >
                 {/* Name & Avatar */}
                 <div className="col-span-4 flex items-center gap-3 min-w-0">
                   <img
-                    src={std.avatar}
-                    alt={std.name}
+                    src={std?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+                    alt={std?.name || 'Aluno'}
                     className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/40 flex-shrink-0"
                   />
                   <div className="min-w-0">
                     <h4 className="text-xs sm:text-sm font-black text-white truncate">
-                      {std.name}
+                      {std?.name || 'Aluno'}
                     </h4>
                     <p className="text-[11px] text-slate-400 truncate">
-                      {std.email}
+                      {std?.email || ''}
                     </p>
                   </div>
                 </div>
@@ -93,30 +93,30 @@ export default function StudentManager() {
                 {/* Level & XP */}
                 <div className="col-span-3 min-w-0">
                   <span className="text-xs font-bold text-purple-300 block truncate">
-                    {std.level}
+                    {std?.level || 'Nível 1'}
                   </span>
                   <span className="text-xs font-black text-amber-400 flex items-center gap-1">
                     <Zap className="w-3 h-3 fill-amber-400" />
-                    {std.xp.toLocaleString('pt-BR')} XP
+                    {(Number(std?.xp) || 0).toLocaleString('pt-BR')} XP
                   </span>
                 </div>
 
                 {/* Streak */}
                 <div className="col-span-2 hidden sm:flex items-center justify-center gap-1 text-xs text-amber-400 font-bold">
                   <Flame className="w-3.5 h-3.5 fill-amber-400" />
-                  <span>{std.streak} dias</span>
+                  <span>{std?.streak ?? 0} dias</span>
                 </div>
 
                 {/* Last Access */}
                 <div className="col-span-2 hidden sm:block text-center text-xs text-slate-400">
-                  {std.lastAccess}
+                  {std?.lastAccess || 'Recente'}
                 </div>
 
                 {/* Status */}
                 <div className="col-span-1 flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                   <span className="sm:hidden text-xs text-slate-400">Status:</span>
                   <span className="text-[10px] font-black uppercase text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30 whitespace-nowrap">
-                    {std.status}
+                    {std?.status || 'Ativo'}
                   </span>
                 </div>
               </div>

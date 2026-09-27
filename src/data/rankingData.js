@@ -48,7 +48,7 @@ export const LEAGUES_LIST = [
     color: "from-cyan-500/20 to-blue-600/20",
     border: "border-cyan-500/50",
     textColor: "text-cyan-300",
-    isCurrent: true
+    isCurrent: false
   },
   {
     id: "league-magic",

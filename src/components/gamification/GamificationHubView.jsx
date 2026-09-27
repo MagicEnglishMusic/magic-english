@@ -18,8 +18,8 @@ import {
   BookOpen
 } from 'lucide-react';
 import { useGamification } from '../../context/GamificationContext';
+import { useAuth } from '../../context/AuthContext';
 import { LEVELS_CONFIG } from '../../data/gamificationData';
-import { userData } from '../../data/mockData';
 import XPBar from './XPBar';
 import LevelBadge from './LevelBadge';
 import AchievementCard from './AchievementCard';
@@ -29,6 +29,7 @@ import SongMasteryWidget from './SongMasteryWidget';
 import SongMasteryBadge from './SongMasteryBadge';
 
 export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
+  const { user } = useAuth();
   const {
     xp,
     streak,
@@ -47,12 +48,15 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
   const [activeTab, setActiveTab] = useState('badges'); // 'badges' | 'levels' | 'mastery' | 'daily'
   const [badgeCategory, setBadgeCategory] = useState('all'); // 'all' | 'Música' | 'Aulas' | 'Foco' | 'Trilhas'
 
-  const filteredBadges = badgeCategory === 'all' 
-    ? badges 
-    : badges.filter((b) => b.category.toLowerCase() === badgeCategory.toLowerCase());
+  const studentName = user?.name || 'Aluno Magic';
+  const studentAvatar = user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
 
-  const masteredSongsCount = songMasteryList.filter((s) => s.status === 'mastered').length;
-  const unlockedBadgesCount = badges.filter((b) => b.unlocked).length;
+  const filteredBadges = badgeCategory === 'all' 
+    ? (badges || [])
+    : (badges || []).filter((b) => (b?.category || '').toLowerCase() === (badgeCategory || '').toLowerCase());
+
+  const masteredSongsCount = (songMasteryList || []).filter((s) => s?.status === 'mastered').length;
+  const unlockedBadgesCount = (badges || []).filter((b) => b?.unlocked).length;
 
   return (
     <div className="flex-1 p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
@@ -69,8 +73,8 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
           <div className="flex items-center gap-5">
             <div className="relative group">
               <img
-                src={userData.avatar}
-                alt={userData.name}
+                src={studentAvatar}
+                alt={studentName}
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover ring-4 ring-purple-500/40 shadow-xl group-hover:scale-105 transition-transform"
               />
               <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-purple-600 to-amber-500 text-white p-1.5 rounded-xl shadow-lg border-2 border-[#121526]">
@@ -81,7 +85,7 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
             <div className="space-y-1.5">
               <div className="flex items-center gap-2.5">
                 <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  {userData.name}
+                  {studentName}
                 </h1>
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
                   Aluno Pro
@@ -91,15 +95,15 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
               {/* Current Level Pill */}
               <div className="flex items-center gap-2 flex-wrap">
                 <LevelBadge
-                  level={currentLevel.level}
-                  title={currentLevel.title}
-                  icon={currentLevel.icon}
+                  level={currentLevel?.level || 1}
+                  title={currentLevel?.title || 'First Steps'}
+                  icon={currentLevel?.icon || '🌱'}
                   variant="avatar-tag"
                 />
 
                 <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                   <Flame className="w-3.5 h-3.5 fill-amber-400" />
-                  {streak} Dias Seguidos
+                  {Number(streak) || 0} Dias Seguidos
                 </span>
               </div>
 
@@ -112,25 +116,25 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
           {/* XP & Level Summary Card */}
           <div className="w-full lg:w-80 p-4 rounded-2xl bg-[#101322]/80 border border-[#202640] space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-semibold">Nível {currentLevel.level} • {currentLevel.title}</span>
+              <span className="text-slate-400 font-semibold">Nível {currentLevel?.level || 1} • {currentLevel?.title || 'First Steps'}</span>
               <span className="text-amber-400 font-extrabold flex items-center gap-1">
                 <Zap className="w-3 h-3 fill-amber-400" />
-                {xp} XP
+                {Number(xp) || 0} XP
               </span>
             </div>
 
             <XPBar
-              currentXp={xp}
-              minXp={currentLevel.minXp}
-              maxXp={currentLevel.maxXp}
-              progress={levelProgress}
+              currentXp={Number(xp) || 0}
+              minXp={currentLevel?.minXp || 0}
+              maxXp={currentLevel?.maxXp || 1000}
+              progress={levelProgress || 0}
               size="md"
               showLabels={false}
             />
 
             <div className="flex items-center justify-between text-[11px] text-slate-400">
-              <span>{levelProgress}% concluído</span>
-              <span>Faltam {xpToNextLevel} XP para Nível {nextLevel ? nextLevel.level : 'Max'}</span>
+              <span>{levelProgress || 0}% concluído</span>
+              <span>Faltam {xpToNextLevel || 0} XP para Nível {nextLevel ? nextLevel.level : 'Max'}</span>
             </div>
           </div>
         </div>
@@ -141,28 +145,28 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
               <Zap className="w-3 h-3 text-amber-400" /> Total XP
             </span>
-            <p className="text-lg font-black text-white mt-0.5">{xp.toLocaleString('pt-BR')}</p>
+            <p className="text-lg font-black text-white mt-0.5">{(Number(xp) || 0).toLocaleString('pt-BR')}</p>
           </div>
 
           <div className="p-3 rounded-xl bg-[#14172a] border border-[#232942]">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
               <Flame className="w-3 h-3 text-orange-400" /> Sequência
             </span>
-            <p className="text-lg font-black text-amber-400 mt-0.5">{streak} Dias</p>
+            <p className="text-lg font-black text-amber-400 mt-0.5">{Number(streak) || 0} Dias</p>
           </div>
 
           <div className="p-3 rounded-xl bg-[#14172a] border border-[#232942]">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
               <Award className="w-3 h-3 text-purple-400" /> Conquistas
             </span>
-            <p className="text-lg font-black text-purple-300 mt-0.5">{unlockedBadgesCount} / {badges.length}</p>
+            <p className="text-lg font-black text-purple-300 mt-0.5">{unlockedBadgesCount} / {(badges || []).length}</p>
           </div>
 
           <div className="p-3 rounded-xl bg-[#14172a] border border-[#232942]">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
               <Music className="w-3 h-3 text-emerald-400" /> Músicas Dominadas
             </span>
-            <p className="text-lg font-black text-emerald-400 mt-0.5">{masteredSongsCount} / {songMasteryList.length}</p>
+            <p className="text-lg font-black text-emerald-400 mt-0.5">{masteredSongsCount} / {(songMasteryList || []).length}</p>
           </div>
         </div>
       </div>
@@ -326,7 +330,7 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
                     <span className="text-slate-500 font-medium">XP Necessário:</span>
                     <span className="text-amber-400 font-extrabold flex items-center gap-1">
                       <Zap className="w-3 h-3 fill-amber-400" />
-                      {lvl.minXp.toLocaleString('pt-BR')} - {lvl.maxXp.toLocaleString('pt-BR')} XP
+                      {(Number(lvl?.minXp) || 0).toLocaleString('pt-BR')} - {(Number(lvl?.maxXp) || 0).toLocaleString('pt-BR')} XP
                     </span>
                   </div>
                 </div>

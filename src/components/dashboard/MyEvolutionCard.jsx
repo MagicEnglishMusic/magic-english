@@ -16,17 +16,22 @@ import LevelBadge from '../gamification/LevelBadge';
 
 export default function MyEvolutionCard({ onOpenEvolutionHub }) {
   const {
-    xp,
-    streak,
-    currentLevel,
+    xp = 0,
+    streak = 0,
+    currentLevel = {},
     nextLevel,
-    levelProgress,
-    xpToNextLevel,
-    dailyChallenges,
+    levelProgress = 0,
+    xpToNextLevel = 0,
+    dailyChallenges = [],
     claimDailyChallenge
   } = useGamification();
 
-  const claimableChallenge = dailyChallenges.find((c) => c.completed && !c.claimed);
+  const safeDailyChallenges = dailyChallenges || [];
+  const claimableChallenge = safeDailyChallenges.find((c) => c?.completed && !c?.claimed);
+
+  const safeCurrentXp = Number(xp) || 0;
+  const safeMaxXp = Number(currentLevel?.maxXp) || 100;
+  const safeMinXp = Number(currentLevel?.minXp) || 0;
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#161a2e] via-[#111322] to-[#0a0c16] border border-purple-500/30 p-6 sm:p-7 shadow-2xl group">
@@ -68,17 +73,17 @@ export default function MyEvolutionCard({ onOpenEvolutionHub }) {
         {/* 1. Nível Atual */}
         <div className="p-4 rounded-2xl bg-[#121524] border border-[#1f243b] flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-[#181c30] border border-purple-500/30 flex items-center justify-center text-2xl shadow-inner flex-shrink-0">
-            {currentLevel.icon}
+            {currentLevel?.icon || '🌱'}
           </div>
           <div className="min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
-              Nível {currentLevel.level}
+              Nível {currentLevel?.level ?? 1}
             </span>
             <h4 className="text-sm font-black text-white truncate">
-              {currentLevel.title}
+              {currentLevel?.title || 'Iniciante'}
             </h4>
             <p className="text-[11px] text-slate-400 truncate mt-0.5">
-              "{currentLevel.subtitle}"
+              "{currentLevel?.subtitle || ''}"
             </p>
           </div>
         </div>
@@ -91,15 +96,15 @@ export default function MyEvolutionCard({ onOpenEvolutionHub }) {
               Magic XP
             </span>
             <span className="text-white font-extrabold">
-              <span className="text-amber-400">{xp.toLocaleString('pt-BR')}</span>
-              <span className="text-slate-500"> / {currentLevel.maxXp.toLocaleString('pt-BR')} XP</span>
+              <span className="text-amber-400">{safeCurrentXp.toLocaleString('pt-BR')}</span>
+              <span className="text-slate-500"> / {safeMaxXp.toLocaleString('pt-BR')} XP</span>
             </span>
           </div>
 
           <XPBar
-            currentXp={xp}
-            minXp={currentLevel.minXp}
-            maxXp={currentLevel.maxXp}
+            currentXp={safeCurrentXp}
+            minXp={safeMinXp}
+            maxXp={safeMaxXp}
             progress={levelProgress}
             size="sm"
             showLabels={false}

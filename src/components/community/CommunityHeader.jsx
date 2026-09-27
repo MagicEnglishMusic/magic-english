@@ -20,7 +20,7 @@ export default function CommunityHeader({ stats }) {
 
             <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {stats.onlineNow} alunos estudando agora
+              {Number(stats?.onlineNow) || 1} alunos estudando agora
             </span>
           </div>
 
@@ -33,7 +33,7 @@ export default function CommunityHeader({ stats }) {
           </p>
 
           <div className="pt-1 flex items-center gap-2 text-xs text-slate-400">
-            <span>🔥 Desafio ativo da comunidade: <strong className="text-amber-300">{stats.activeChallenge}</strong></span>
+            <span>🔥 Desafio ativo da comunidade: <strong className="text-amber-300">{stats?.activeChallenge || 'Domine a Primeira Música'}</strong></span>
           </div>
         </div>
 
@@ -44,13 +44,13 @@ export default function CommunityHeader({ stats }) {
               Membros Ativos
             </p>
             <p className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-purple-300 via-white to-cyan-300 bg-clip-text text-transparent">
-              {stats.activeMembers.toLocaleString('pt-BR')}
+              {(Number(stats?.activeMembers) || 1).toLocaleString('pt-BR')}
             </p>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
             <Heart className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            <span>{stats.celebrationsToday} comemorações hoje</span>
+            <span>{Number(stats?.celebrationsToday) || 0} comemorações hoje</span>
           </div>
         </div>
 

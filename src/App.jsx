@@ -384,14 +384,16 @@ function MainApp() {
           }
         }}
       >
-        <Suspense fallback={<MagicLoadingScreen message="Carregando Painel Administrativo..." />}>
-          <AdminLayout
-            onLogout={() => {
-              logout();
-              navigateTo('admin-login', '/admin/login');
-            }}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<MagicLoadingScreen message="Carregando Painel Administrativo..." />}>
+            <AdminLayout
+              onLogout={() => {
+                logout();
+                navigateTo('admin-login', '/admin/login');
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </ProtectedRoute>
     );
   }
@@ -410,7 +412,8 @@ function MainApp() {
         }
       }}
     >
-      <div className="min-h-screen bg-[#08090e] text-slate-100 flex">
+      <ErrorBoundary>
+        <div className="min-h-screen bg-[#08090e] text-slate-100 flex">
         {/* 1. Fixed Dark Student Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -560,7 +563,8 @@ function MainApp() {
             onClose={() => setModalItem(null)}
           />
         )}
-      </div>
+        </div>
+      </ErrorBoundary>
     </ProtectedRoute>
   );
 }

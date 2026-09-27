@@ -6,7 +6,13 @@ export const adminService = {
   async getDashboardStats() {
     if (!isSupabaseConfigured) {
       return {
-        data: ADMIN_STATS,
+        data: {
+          totalStudents: 0,
+          totalModules: 0,
+          totalLessons: 0,
+          totalSongs: 0,
+          totalContentTime: '0h'
+        },
         error: null
       };
     }
@@ -72,7 +78,7 @@ export const adminService = {
   // Fetch real students from profiles table
   async getStudents() {
     if (!isSupabaseConfigured) {
-      return { data: INITIAL_ADMIN_STUDENTS, error: null };
+      return { data: [], error: null };
     }
 
     try {
@@ -110,11 +116,6 @@ export const adminService = {
 
   // Fetch recent system activities (clean in production when no activity logs)
   async getRecentActivities() {
-    if (!isSupabaseConfigured) {
-      return { data: RECENT_ACTIVITIES, error: null };
-    }
-
-    // When connected to real Supabase, start with clean empty list or real logs
     return { data: [], error: null };
   }
 };

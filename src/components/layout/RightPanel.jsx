@@ -31,7 +31,7 @@ export default function RightPanel({ onOpenGamification }) {
           </h3>
           <span className="text-xs text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
             <Flame className="w-3 h-3 fill-amber-400" />
-            {streak} Dias
+            {Number(streak) || 0} Dias
           </span>
         </div>
 
@@ -39,16 +39,17 @@ export default function RightPanel({ onOpenGamification }) {
         <div className="bg-[#121522] border border-[#20253b] rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-400">Meta Semanal de Prática</span>
-            <span className="text-white font-bold">{weeklyDays.filter((d) => d.completed).length}/7 dias</span>
+            <span className="text-white font-bold">{(weeklyDays || []).filter((d) => d?.completed).length}/7 dias</span>
           </div>
 
           <div className="grid grid-cols-7 gap-1.5 pt-1">
-            {weeklyDays.map((item, idx) => {
-              const isDone = item.completed;
-              const isToday = item.isToday;
+            {(weeklyDays || []).map((item, idx) => {
+              const isDone = Boolean(item?.completed);
+              const isToday = Boolean(item?.isToday);
+              const dayLetter = item?.day ? String(item.day).slice(0, 1) : '';
 
               return (
-                <div key={item.day || idx} className="flex flex-col items-center gap-1.5">
+                <div key={item?.day || idx} className="flex flex-col items-center gap-1.5">
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all ${
                       isDone
@@ -58,10 +59,10 @@ export default function RightPanel({ onOpenGamification }) {
                         : 'bg-[#181c2e] text-slate-500 border border-slate-800'
                     }`}
                   >
-                    {isDone ? '✓' : item.day.slice(0, 1)}
+                    {isDone ? '✓' : dayLetter}
                   </div>
                   <span className={`text-[10px] ${isDone ? 'text-slate-300 font-semibold' : 'text-slate-600'}`}>
-                    {item.day}
+                    {item?.day || ''}
                   </span>
                 </div>
               );
@@ -75,14 +76,14 @@ export default function RightPanel({ onOpenGamification }) {
                 <Clock className="w-3 h-3 text-cyan-400" />
                 Tempo de Prática
               </div>
-              <p className="text-sm font-bold text-white">{xp > 0 ? `${Math.round(xp / 10)} min` : '0 min'}</p>
+              <p className="text-sm font-bold text-white">{(Number(xp) || 0) > 0 ? `${Math.round((Number(xp) || 0) / 10)} min` : '0 min'}</p>
             </div>
             <div className="p-2.5 rounded-xl bg-[#171b2e] border border-slate-800/60">
               <div className="flex items-center gap-1.5 text-slate-400 text-[11px] mb-1">
                 <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
                 Magic XP
               </div>
-              <p className="text-sm font-bold text-amber-300">{xp} <span className="text-[10px] text-purple-400 font-normal">XP</span></p>
+              <p className="text-sm font-bold text-amber-300">{(Number(xp) || 0).toLocaleString('pt-BR')} <span className="text-[10px] text-purple-400 font-normal">XP</span></p>
             </div>
           </div>
         </div>
@@ -105,7 +106,7 @@ export default function RightPanel({ onOpenGamification }) {
         </div>
 
         <div className="space-y-2.5">
-          {badges.slice(0, 4).map((ach) => (
+          {(badges || []).slice(0, 4).map((ach) => (
             <div
               key={ach.id}
               onClick={onOpenGamification}

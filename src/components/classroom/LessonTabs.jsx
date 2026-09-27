@@ -47,7 +47,7 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
             <div className="p-6 sm:p-7 rounded-3xl bg-[#0e101f] border border-[#1e233b] space-y-4">
               <h3 className="text-lg font-bold text-white">Sobre esta Aula</h3>
               <p className="text-sm text-slate-300 leading-relaxed">
-                {lesson.description}
+                {lesson?.description || ''}
               </p>
 
               <div className="pt-2 border-t border-slate-800 space-y-2">
@@ -55,7 +55,7 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
                   ✓ O que você vai aprender:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {lesson.learningGoals.map((goal, idx) => (
+                  {(lesson?.learningGoals || []).map((goal, idx) => (
                     <div
                       key={idx}
                       className="p-3 rounded-xl bg-[#141728] border border-slate-800/80 text-xs sm:text-sm text-slate-200 flex items-center gap-2.5"
@@ -75,21 +75,21 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
                   <Clock className="w-4 h-4 text-purple-400" />
                   Capítulos do Vídeo
                 </h3>
-                <span className="text-xs text-slate-400">{lesson.videoChapters.length} tópicos</span>
+                <span className="text-xs text-slate-400">{(lesson?.videoChapters || []).length} tópicos</span>
               </div>
 
               <div className="space-y-2.5">
-                {lesson.videoChapters.map((ch, idx) => (
+                {(lesson?.videoChapters || []).map((ch, idx) => (
                   <div
                     key={idx}
                     className="p-3.5 rounded-2xl bg-[#131626] hover:bg-[#181c30] border border-slate-800/60 hover:border-purple-500/30 transition-all flex items-center justify-between gap-4 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-lg">
-                        {ch.time}
+                        {ch?.time || ''}
                       </span>
                       <p className="text-xs sm:text-sm font-semibold text-slate-300 group-hover:text-white transition-colors">
-                        {ch.title}
+                        {ch?.title || ''}
                       </p>
                     </div>
                     <span className="text-xs text-purple-400 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
@@ -105,7 +105,7 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
         {/* Tab 2: 🎵 Música (Karaokê Sincronizado) */}
         {activeTab === 'music' && (
           <MusicSection
-            song={lesson.relatedSong}
+            song={lesson?.relatedSong}
             onOpenFullPlayer={onOpenFullMusicPlayer}
           />
         )}
@@ -113,21 +113,21 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
         {/* Tab 3: 📖 Material (Biblioteca de PDFs para Download) */}
         {activeTab === 'material' && (
           <MaterialsTab
-            files={lesson.downloadableFiles}
+            files={lesson?.downloadableFiles || []}
           />
         )}
 
         {/* Tab 4: 🎤 Pronúncia (Extraída da Letra da Canção) */}
         {activeTab === 'pronunciation' && (
           <PronunciationPractice
-            items={lesson.extractedPronunciation || lesson.pronunciationList}
+            items={lesson?.extractedPronunciation || lesson?.pronunciationList || []}
           />
         )}
 
         {/* Tab 5: 🧠 Prática Musical (Tradução Reversa de TODAS as Frases) */}
         {activeTab === 'practice' && (
           <MusicalPracticeTab
-            lyrics={lesson.relatedSong?.lyricsTimestamps}
+            lyrics={lesson?.relatedSong?.lyricsTimestamps || []}
           />
         )}
       </div>

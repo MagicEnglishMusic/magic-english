@@ -22,6 +22,16 @@ export default function ProfileHeader({
     rankingInfo = { league: "Liga Bronze", tier: "Iniciante", currentRank: 99 }
   } = student || {};
 
+  const safeXp = Number(xp) || 0;
+  const safeStreak = Number(streak) || 0;
+  const safeLevel = currentLevel?.level ?? 1;
+  const safeTitle = currentLevel?.title || "First Steps";
+  const safeIcon = currentLevel?.icon || "🌱";
+  const safeMinXp = Number(currentLevel?.minXp) || 0;
+  const safeMaxXp = Number(currentLevel?.maxXp) || 1000;
+  const safeProgress = Number.isFinite(levelProgress) ? Math.min(100, Math.max(0, levelProgress)) : 0;
+  const safeXpToNext = Number(xpToNextLevel) || 0;
+
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#181c30] via-[#121526] to-[#0a0c16] border border-purple-500/35 p-6 sm:p-8 lg:p-10 shadow-2xl">
       {/* Background ambient lighting */}
@@ -57,22 +67,22 @@ export default function ProfileHeader({
               </span>
               <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-2.5 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
                 <Trophy className="w-3 h-3" />
-                {rankingInfo.league} • #{rankingInfo.currentRank}
+                {rankingInfo?.league || 'Liga Bronze'} • #{rankingInfo?.currentRank ?? 99}
               </span>
             </div>
 
             {/* Level & Streak Quick Badges */}
             <div className="flex items-center gap-2 flex-wrap">
               <LevelBadge
-                level={currentLevel.level}
-                title={currentLevel.title}
-                icon={currentLevel.icon}
+                level={safeLevel}
+                title={safeTitle}
+                icon={safeIcon}
                 variant="avatar-tag"
               />
 
               <span className="inline-flex items-center gap-1 text-xs text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
                 <Flame className="w-3.5 h-3.5 fill-amber-400" />
-                {streak} Dias Seguidos
+                {safeStreak} Dias Seguidos
               </span>
             </div>
 
@@ -87,28 +97,28 @@ export default function ProfileHeader({
         <div className="w-full lg:w-96 p-5 rounded-2xl bg-[#101322]/90 border border-[#222842] space-y-3.5 shadow-xl">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 font-bold text-slate-200">
-              <span className="text-base">{currentLevel.icon}</span>
-              <span>Nível {currentLevel.level} • {currentLevel.title}</span>
+              <span className="text-base">{safeIcon}</span>
+              <span>Nível {safeLevel} • {safeTitle}</span>
             </div>
             <span className="text-amber-400 font-black flex items-center gap-1">
               <Zap className="w-3.5 h-3.5 fill-amber-400" />
-              {xp.toLocaleString('pt-BR')} XP
+              {safeXp.toLocaleString('pt-BR')} XP
             </span>
           </div>
 
           <XPBar
-            currentXp={xp}
-            minXp={currentLevel.minXp}
-            maxXp={currentLevel.maxXp}
-            progress={levelProgress}
+            currentXp={safeXp}
+            minXp={safeMinXp}
+            maxXp={safeMaxXp}
+            progress={safeProgress}
             size="md"
             showLabels={false}
           />
 
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-            <span>{levelProgress}% concluído</span>
+            <span>{safeProgress}% concluído</span>
             <span className="text-purple-300 font-semibold">
-              Faltam +{xpToNextLevel} XP para Nível {nextLevel ? nextLevel.level : 'Max'}
+              Faltam +{safeXpToNext} XP para Nível {nextLevel ? nextLevel.level : 'Max'}
             </span>
           </div>
         </div>

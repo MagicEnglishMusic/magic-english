@@ -85,11 +85,11 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
           </div>
 
           <div className="space-y-3">
-            {song.lyrics.map((line, index) => {
+            {(song?.lyrics || []).map((line, index) => {
               const isSelected = currentLineIndex === index;
               return (
                 <div
-                  key={line.id}
+                  key={line?.id || index}
                   onClick={() => onSelectLine(index)}
                   className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 cursor-pointer flex items-start justify-between gap-4 group ${
                     isSelected
@@ -99,7 +99,7 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                 >
                   <div className="flex items-start gap-4">
                     <span className="text-xs font-mono font-bold text-slate-500 mt-1 px-2 py-0.5 rounded bg-[#181b2e]">
-                      {line.time}
+                      {line?.time || ''}
                     </span>
                     <div className="space-y-1">
                       <p
@@ -107,10 +107,10 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                           isSelected ? 'text-white' : 'text-slate-300 group-hover:text-white'
                         }`}
                       >
-                        {line.english}
+                        {line?.english || ''}
                       </p>
                       <p className="text-xs sm:text-sm text-slate-400">
-                        {line.portuguese}
+                        {line?.portuguese || ''}
                       </p>
                     </div>
                   </div>
@@ -119,7 +119,7 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        speakText(line.english);
+                        speakText(line?.english || '');
                       }}
                       className="p-2 rounded-xl bg-[#191d32] hover:bg-purple-600 hover:text-white text-purple-300 transition-colors"
                       title="Ouvir pronúncia da frase"
@@ -138,15 +138,15 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
       {activeTab === 'translation' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {song.lyrics.map((line) => (
+            {(song?.lyrics || []).map((line, index) => (
               <div
-                key={line.id}
+                key={line?.id || index}
                 className="p-5 rounded-2xl bg-[#111424] border border-[#1e2338] hover:border-purple-500/30 transition-all space-y-3"
               >
                 <div className="flex items-center justify-between pb-2 border-b border-[#1c2035]">
-                  <span className="text-xs font-mono text-purple-400 font-semibold">{line.time}</span>
+                  <span className="text-xs font-mono text-purple-400 font-semibold">{line?.time || ''}</span>
                   <button
-                    onClick={() => speakText(line.english)}
+                    onClick={() => speakText(line?.english || '')}
                     className="flex items-center gap-1.5 text-xs text-purple-300 hover:text-purple-200 bg-purple-500/10 px-2 py-1 rounded-lg"
                   >
                     <Volume2 className="w-3.5 h-3.5" />
@@ -159,21 +159,23 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                     <span className="text-[10px] font-bold uppercase bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">
                       EN
                     </span>
-                    <p className="text-sm sm:text-base font-bold text-white">{line.english}</p>
+                    <p className="text-sm sm:text-base font-bold text-white">{line?.english || ''}</p>
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
                     <span className="text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">
                       PT
                     </span>
-                    <p className="text-sm text-slate-300 font-medium">{line.portuguese}</p>
+                    <p className="text-sm text-slate-300 font-medium">{line?.portuguese || ''}</p>
                   </div>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[#161a2e] text-[11px] text-slate-400 border border-slate-800">
-                  <span className="font-semibold text-purple-300">💡 Dica de contexto: </span>
-                  {line.notes}
-                </div>
+                {line?.notes && (
+                  <div className="p-2.5 rounded-xl bg-[#161a2e] text-[11px] text-slate-400 border border-slate-800">
+                    <span className="font-semibold text-purple-300">💡 Dica de contexto: </span>
+                    {line.notes}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -194,7 +196,7 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {song.vocabulary.map((vocab, index) => (
+              {(song?.vocabulary || []).map((vocab, index) => (
                 <div
                   key={index}
                   className="p-4 rounded-2xl bg-gradient-to-b from-[#13172b] to-[#0e101f] border border-[#20263f] hover:border-purple-500/40 transition-all space-y-2 group"
@@ -202,12 +204,12 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                   <div className="flex items-start justify-between">
                     <div>
                       <h4 className="text-lg font-black text-white group-hover:text-purple-300 transition-colors">
-                        {vocab.word}
+                        {vocab?.word || ''}
                       </h4>
-                      <span className="text-xs font-mono text-purple-400">{vocab.phonetic}</span>
+                      <span className="text-xs font-mono text-purple-400">{vocab?.phonetic || ''}</span>
                     </div>
                     <button
-                      onClick={() => speakText(vocab.word)}
+                      onClick={() => speakText(vocab?.word || '')}
                       className="p-1.5 rounded-lg bg-[#191d32] hover:bg-purple-600 text-purple-300 hover:text-white transition-colors cursor-pointer"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
@@ -215,12 +217,12 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                   </div>
 
                   <div className="pt-1 border-t border-[#1c2138] space-y-1">
-                    <p className="text-xs font-bold text-slate-200">{vocab.meaning}</p>
+                    <p className="text-xs font-bold text-slate-200">{vocab?.meaning || ''}</p>
                     <span className="inline-block text-[10px] text-purple-300/80 bg-purple-500/10 px-1.5 py-0.5 rounded">
-                      {vocab.type}
+                      {vocab?.type || ''}
                     </span>
                     <p className="text-[11px] text-slate-400 italic pt-1">
-                      "{vocab.example}"
+                      "{vocab?.example || ''}"
                     </p>
                   </div>
                 </div>
@@ -238,7 +240,7 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {song.keyPhrases.map((phrase, index) => (
+              {(song?.keyPhrases || []).map((phrase, index) => (
                 <div
                   key={index}
                   className="p-5 rounded-2xl bg-[#121526] border border-[#1f253d] hover:border-cyan-500/40 transition-all flex flex-col justify-between space-y-3 group"
@@ -249,22 +251,22 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                         Expressão #{index + 1}
                       </span>
                       <button
-                        onClick={() => speakText(phrase.audioText)}
+                        onClick={() => speakText(phrase?.audioText || phrase?.phrase || '')}
                         className="p-1.5 rounded-lg bg-[#181c30] hover:bg-cyan-500 hover:text-black text-cyan-400 transition-colors"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <h4 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors">
-                      "{phrase.phrase}"
+                      "{phrase?.phrase || ''}"
                     </h4>
                     <p className="text-xs font-semibold text-purple-300">
-                      {phrase.translation}
+                      {phrase?.translation || ''}
                     </p>
                   </div>
 
                   <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800 leading-relaxed">
-                    {phrase.context}
+                    {phrase?.context || ''}
                   </p>
                 </div>
               ))}

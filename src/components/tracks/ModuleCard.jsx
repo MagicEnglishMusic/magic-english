@@ -3,9 +3,11 @@ import { BookOpen, CheckCircle2, Sparkles } from 'lucide-react';
 import LessonCard from './LessonCard';
 
 export default function ModuleCard({ module, onSelectLesson }) {
-  const completedCount = module.lessons.filter((l) => l.status === 'completed').length;
-  const totalCount = module.lessons.length;
-  const isAllCompleted = completedCount === totalCount;
+  const lessons = module?.lessons || [];
+  const totalCount = lessons.length;
+  const completedCount = lessons.filter((l) => l?.status === 'completed').length;
+  const isAllCompleted = totalCount > 0 && completedCount === totalCount;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
     <div className="p-6 sm:p-7 rounded-3xl bg-[#0d0f1c] border border-[#1e233b] space-y-5 shadow-xl">
@@ -20,8 +22,8 @@ export default function ModuleCard({ module, onSelectLesson }) {
               {completedCount} de {totalCount} aulas concluídas
             </span>
           </div>
-          <h3 className="text-xl font-bold text-white">{module.title}</h3>
-          <p className="text-xs sm:text-sm text-slate-400">{module.description}</p>
+          <h3 className="text-xl font-bold text-white">{module?.title || ''}</h3>
+          <p className="text-xs sm:text-sm text-slate-400">{module?.description || ''}</p>
         </div>
 
         {isAllCompleted ? (
@@ -33,7 +35,7 @@ export default function ModuleCard({ module, onSelectLesson }) {
           <div className="w-32 bg-[#171a2c] h-2 rounded-full overflow-hidden p-[1px]">
             <div
               className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full"
-              style={{ width: `${(completedCount / totalCount) * 100}%` }}
+              style={{ width: `${progressPercent}%` }}
             />
           </div>
         )}
@@ -41,9 +43,9 @@ export default function ModuleCard({ module, onSelectLesson }) {
 
       {/* Lesson Cards List */}
       <div className="space-y-3">
-        {module.lessons.map((lesson) => (
+        {lessons.map((lesson) => (
           <LessonCard
-            key={lesson.id}
+            key={lesson?.id}
             lesson={lesson}
             onSelectLesson={onSelectLesson}
           />

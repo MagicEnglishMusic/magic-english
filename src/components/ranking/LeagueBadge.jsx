@@ -23,14 +23,14 @@ export default function LeagueBadge({
         </div>
 
         <span className="text-xs text-purple-300 font-bold bg-purple-500/15 px-3 py-1 rounded-full border border-purple-500/30 self-start sm:self-auto">
-          Sua Liga: 💎 Liga Diamante
+          Sua Liga: {activeLeagueName}
         </span>
       </div>
 
       {/* 5 Leagues Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {leagues.map((league) => {
-          const isCurrent = league.name === activeLeagueName || league.isCurrent;
+          const isCurrent = league.name === activeLeagueName;
 
           return (
             <div
