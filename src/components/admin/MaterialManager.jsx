@@ -126,8 +126,15 @@ export default function MaterialManager() {
   };
 
   const handleDelete = async (id) => {
-    await materialsService.deleteMaterial(id);
-    setMaterials(materials.filter((m) => m.id !== id));
+    if (!window.confirm('Tem certeza que deseja excluir este material? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    const res = await materialsService.deleteMaterial(id);
+    if (res?.error) {
+      alert(`Erro ao excluir material: ${res.error}`);
+      return;
+    }
+    setMaterials((prev) => prev.filter((m) => m.id !== id));
   };
 
   return (

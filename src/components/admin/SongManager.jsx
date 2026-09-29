@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Music, 
   Plus, 
@@ -14,12 +14,22 @@ import {
   Volume2, 
   Trash2,
   ArrowRight,
-  HardDrive
+  HardDrive,
+  Edit2,
+  AlertTriangle,
+  Play,
+  Pause,
+  RotateCcw,
+  Clock,
+  Timer,
+  FastForward,
+  Sliders,
+  HelpCircle
 } from 'lucide-react';
 import { songsService } from '../../services/songsService';
 import { modulesService } from '../../services/modulesService';
 import { lessonsService } from '../../services/lessonsService';
-import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
+import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl, extractGoogleDriveId } from '../../utils/googleDriveHelper';
 
 export default function SongManager() {
   const [songs, setSongs] = useState([]);
@@ -29,6 +39,22 @@ export default function SongManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showAutoDistributeSuccess, setShowAutoDistributeSuccess] = useState(false);
+
+  // Sync Karaoke (Tap to Sync) States
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncingSong, setSyncingSong] = useState(null);
+  const [syncVerses, setSyncVerses] = useState([]);
+  const [currentSyncVerseIdx, setCurrentSyncVerseIdx] = useState(0);
+  const [reactionOffsetMs, setReactionOffsetMs] = useState(200);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [syncCurrentTime, setSyncCurrentTime] = useState(0);
+  const [syncDuration, setSyncDuration] = useState(0);
+  const [isSyncPlaying, setIsSyncPlaying] = useState(false);
+  const [isSavingSync, setIsSavingSync] = useState(false);
+  const syncAudioRef = useRef(null);
+
+  const [editingSongId, setEditingSongId] = useState(null);
+  const [lyricsError, setLyricsError] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -68,6 +94,7 @@ export default function SongManager() {
             bpm: s.bpm || '108 BPM',
             lyricsEn: s.lyrics_en || s.lyricsEn || '',
             lyricsPt: s.lyrics_pt || s.lyricsPt || '',
+            timestamps: Array.isArray(s.timestamps) ? s.timestamps : [],
             status: s.status || 'Publicado'
           }));
           setSongs(formatted);
@@ -106,33 +133,286 @@ export default function SongManager() {
     loadData();
   }, []);
 
+  // Format seconds to mm:ss.ms
+  const formatTime = (secs) => {
+    if (secs === null || secs === undefined || isNaN(secs)) return '--:--';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    const ms = Math.floor((secs % 1) * 100);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+  };
+
+  // Open Karaoke Sync (Tap to Sync) Modal
+  const handleOpenSyncModal = (song) => {
+    const targetSong = song || selectedSong;
+    if (!targetSong) return;
+
+    setSyncingSong(targetSong);
+    setReactionOffsetMs(200);
+    setPlaybackRate(1.0);
+    setCurrentSyncVerseIdx(0);
+    setIsSyncPlaying(false);
+    setSyncCurrentTime(0);
+
+    // If song already has timestamps in DB, parse and load them
+    if (Array.isArray(targetSong.timestamps) && targetSong.timestamps.length > 0) {
+      setSyncVerses(targetSong.timestamps.map((t, idx) => ({
+        id: t.id || idx + 1,
+        en: t.en || t.english || '',
+        pt: t.pt || t.portuguese || t.translation || '',
+        startTime: typeof t.startTime === 'number' ? t.startTime : null,
+        endTime: typeof t.endTime === 'number' ? t.endTime : null
+      })));
+    } else {
+      // Parse from lyrics_en & lyrics_pt
+      const enLines = (targetSong.lyricsEn || targetSong.lyrics_en || '').split('\n').map((l) => l.trim()).filter(Boolean);
+      const ptLines = (targetSong.lyricsPt || targetSong.lyrics_pt || '').split('\n').map((l) => l.trim()).filter(Boolean);
+      const verses = enLines.map((en, idx) => ({
+        id: idx + 1,
+        en,
+        pt: ptLines[idx] || '',
+        startTime: null,
+        endTime: null
+      }));
+      setSyncVerses(verses);
+    }
+
+    setIsSyncModalOpen(true);
+  };
+
+  // Tap-to-Sync Mark Verse Handler
+  const handleMarkVerse = () => {
+    if (!syncAudioRef.current) return;
+    const rawTime = syncAudioRef.current.currentTime;
+    const offsetSec = (Number(reactionOffsetMs) || 0) / 1000;
+    const adjustedTime = Math.max(0, Number((rawTime - offsetSec).toFixed(2)));
+
+    setSyncVerses((prev) => {
+      const updated = [...prev];
+      if (currentSyncVerseIdx < updated.length) {
+        updated[currentSyncVerseIdx] = {
+          ...updated[currentSyncVerseIdx],
+          startTime: adjustedTime
+        };
+
+        // Automatically close previous verse's endTime
+        if (currentSyncVerseIdx > 0 && updated[currentSyncVerseIdx - 1]) {
+          updated[currentSyncVerseIdx - 1] = {
+            ...updated[currentSyncVerseIdx - 1],
+            endTime: adjustedTime
+          };
+        }
+      }
+      return updated;
+    });
+
+    if (currentSyncVerseIdx < syncVerses.length - 1) {
+      setCurrentSyncVerseIdx((prev) => prev + 1);
+    }
+  };
+
+  // Redo specific verse mark
+  const handleRedoVerse = (idx) => {
+    setCurrentSyncVerseIdx(idx);
+    const target = syncVerses[idx];
+    if (syncAudioRef.current) {
+      const seekTime = target?.startTime !== null ? Math.max(0, target.startTime - 2) : syncAudioRef.current.currentTime;
+      syncAudioRef.current.currentTime = seekTime;
+      if (!isSyncPlaying) {
+        syncAudioRef.current.play().then(() => setIsSyncPlaying(true)).catch(() => {});
+      }
+    }
+  };
+
+  // Reset all sync marks
+  const handleResetAllSync = () => {
+    if (window.confirm('Deseja reiniciar todas as marcações de tempo deste karaokê?')) {
+      setSyncVerses((prev) => prev.map((v) => ({ ...v, startTime: null, endTime: null })));
+      setCurrentSyncVerseIdx(0);
+      if (syncAudioRef.current) {
+        syncAudioRef.current.currentTime = 0;
+      }
+    }
+  };
+
+  // Save Synchronized Timestamps to Supabase
+  const handleSaveSyncTimestamps = async () => {
+    if (!syncingSong?.id) return;
+    setIsSavingSync(true);
+
+    try {
+      const finalTimestamps = syncVerses.map((v, idx) => {
+        const next = syncVerses[idx + 1];
+        const defaultEnd = next?.startTime !== null && next?.startTime !== undefined
+          ? next.startTime
+          : v.startTime !== null ? Number((v.startTime + 3.5).toFixed(2)) : null;
+
+        return {
+          id: v.id || idx + 1,
+          startTime: v.startTime,
+          endTime: v.endTime || defaultEnd,
+          en: v.en,
+          pt: v.pt
+        };
+      });
+
+      const res = await songsService.updateSong(syncingSong.id, {
+        timestamps: finalTimestamps
+      });
+
+      if (res?.error || !res?.data) {
+        const errorMsg = res?.error || 'Nenhuma linha foi atualizada no banco de dados (0 linhas afetadas). Verifique as permissões ou se o registro existe.';
+        alert(`Erro ao salvar sincronização: ${errorMsg}`);
+        return;
+      }
+
+      // Update local state
+      const updatedSongs = songs.map((s) => (s.id === syncingSong.id ? { ...s, timestamps: finalTimestamps } : s));
+      setSongs(updatedSongs);
+      if (selectedSong?.id === syncingSong.id) {
+        setSelectedSong((prev) => ({ ...prev, timestamps: finalTimestamps }));
+      }
+
+      setIsSyncModalOpen(false);
+      setShowAutoDistributeSuccess(true);
+      setTimeout(() => setShowAutoDistributeSuccess(false), 5000);
+    } catch (err) {
+      console.error('Error saving sync timestamps:', err);
+      alert('Erro ao salvar sincronização.');
+    } finally {
+      setIsSavingSync(false);
+    }
+  };
+
+  // Keyboard shortcut listener: Space to Mark Verse
+  useEffect(() => {
+    if (!isSyncModalOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleMarkVerse();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSyncModalOpen, currentSyncVerseIdx, syncVerses, reactionOffsetMs]);
+
+  const handleOpenCreateModal = () => {
+    setEditingSongId(null);
+    setLyricsError(null);
+    setFormData({
+      title: '',
+      subtitle: 'Fixação da Aula Oficial',
+      image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+      audioUrl: '',
+      moduleId: modulesList[0]?.id || '',
+      module: modulesList[0]?.title || '',
+      lessonId: lessonsList[0]?.id || '',
+      lesson: lessonsList[0]?.title || '',
+      duration: '3:20',
+      bpm: '108 BPM',
+      lyricsEn: '',
+      lyricsPt: ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleEditSong = (song) => {
+    setEditingSongId(song.id);
+    setLyricsError(null);
+    setFormData({
+      title: song.title || '',
+      subtitle: song.subtitle || 'Fixação da Aula Oficial',
+      image: song.image || '',
+      audioUrl: song.audioUrl || '',
+      moduleId: song.moduleId || '',
+      module: song.module || '',
+      lessonId: song.lessonId || '',
+      lesson: song.lesson || '',
+      duration: song.duration || '3:20',
+      bpm: song.bpm || '108 BPM',
+      lyricsEn: song.lyricsEn || '',
+      lyricsPt: song.lyricsPt || ''
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSaveSong = async (e) => {
     e.preventDefault();
     if (!formData.title) return;
 
-    const formattedAudio = isGoogleDriveUrl(formData.audioUrl) ? getDriveAudioUrl(formData.audioUrl) : formData.audioUrl;
-    const formattedCover = isGoogleDriveUrl(formData.image) ? getDriveImageUrl(formData.image) : formData.image;
+    // Strict Validation: Verse-by-verse line count alignment
+    const enLines = (formData.lyricsEn || '').split('\n').map((l) => l.trim()).filter(Boolean);
+    const ptLines = (formData.lyricsPt || '').split('\n').map((l) => l.trim()).filter(Boolean);
+
+    if (enLines.length !== ptLines.length) {
+      const minCount = Math.min(enLines.length, ptLines.length);
+      const diffLine = minCount + 1;
+      const isEnglishLonger = enLines.length > ptLines.length;
+      const missingSide = isEnglishLonger ? 'Tradução em Português' : 'Letra em Inglês';
+      const referenceVerse = isEnglishLonger ? enLines[minCount] : ptLines[minCount];
+
+      setLyricsError({
+        enCount: enLines.length,
+        ptCount: ptLines.length,
+        diffLine,
+        missingSide,
+        referenceVerse
+      });
+      return;
+    }
+    setLyricsError(null);
+
+    // Clean canonical Google Drive URL or direct link (never store environment-dependent paths in DB)
+    const driveAudioId = extractGoogleDriveId(formData.audioUrl);
+    const canonicalAudio = driveAudioId ? `https://drive.google.com/file/d/${driveAudioId}/view` : (formData.audioUrl || '').trim();
+
+    const driveCoverId = extractGoogleDriveId(formData.image);
+    const canonicalCover = driveCoverId ? `https://drive.google.com/thumbnail?id=${driveCoverId}&sz=w1200` : (formData.image || '').trim();
+
+    // Automatic extraction of phonetic keywords directly from lyricsEn
+    const words = Array.from(
+      new Set(
+        (formData.lyricsEn || '')
+          .replace(/[^a-zA-Z\s]/g, '')
+          .split(/\s+/)
+          .filter((w) => w.length > 3)
+      )
+    );
+
+    const pronunciationGuide = words.slice(0, 8).map((word) => ({
+      word: word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+      phonetic: `/${word.toLowerCase()}/`,
+      translation: '',
+      tip: `Palavra-chave da Magic Song "${formData.title}". Articulação natural.`,
+      score: 95
+    }));
 
     const payload = {
       title: formData.title,
       subtitle: formData.subtitle || 'Fixação da Aula Oficial',
-      cover_url: formattedCover,
-      audio_url: formattedAudio,
+      cover_url: canonicalCover,
+      audio_url: canonicalAudio,
       duration: formData.duration || '3:00',
       bpm: formData.bpm || '108 BPM',
       lyrics_en: formData.lyricsEn || '',
       lyrics_pt: formData.lyricsPt || '',
+      pronunciation_guide: pronunciationGuide,
       lesson_id: formData.lessonId || null,
       module_id: formData.moduleId || null
     };
 
-    const res = await songsService.createSong(payload);
-    const newSong = {
-      id: res.data?.id || `song-${Date.now()}`,
+    let savedSongObj = {
+      id: editingSongId || `song-${Date.now()}`,
       title: formData.title,
       subtitle: formData.subtitle || 'Fixação da Aula Oficial',
-      image: formattedCover,
-      audioUrl: formattedAudio,
+      image: canonicalCover,
+      audioUrl: canonicalAudio,
       module: formData.module || (modulesList[0]?.title || 'Geral'),
       lesson: formData.lesson || (lessonsList[0]?.title || 'Geral'),
       duration: formData.duration,
@@ -142,15 +422,32 @@ export default function SongManager() {
       status: 'Publicado'
     };
 
-    setSongs([newSong, ...songs]);
-    setSelectedSong(newSong);
+    if (editingSongId) {
+      await songsService.updateSong(editingSongId, payload);
+      const updatedSongs = songs.map((s) => (s.id === editingSongId ? savedSongObj : s));
+      setSongs(updatedSongs);
+      setSelectedSong(savedSongObj);
+    } else {
+      const res = await songsService.createSong(payload);
+      if (res.data?.id) savedSongObj.id = res.data.id;
+      setSongs([savedSongObj, ...songs]);
+      setSelectedSong(savedSongObj);
+    }
+
     setIsModalOpen(false);
     setShowAutoDistributeSuccess(true);
     setTimeout(() => setShowAutoDistributeSuccess(false), 5000);
   };
 
   const handleDelete = async (id) => {
-    await songsService.deleteSong(id);
+    if (!window.confirm('Tem certeza que deseja excluir esta Magic Song? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    const res = await songsService.deleteSong(id);
+    if (res?.error) {
+      alert(`Erro ao excluir música: ${res.error}`);
+      return;
+    }
     const filtered = songs.filter((s) => s.id !== id);
     setSongs(filtered);
     if (selectedSong?.id === id) {
@@ -171,6 +468,10 @@ export default function SongManager() {
         .filter((w) => w.length > 3)
     )
   ).slice(0, 6);
+
+  // Helper: Live line counting for modal validation
+  const curEnLines = (formData.lyricsEn || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const curPtLines = (formData.lyricsPt || '').split('\n').map((l) => l.trim()).filter(Boolean);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -194,7 +495,7 @@ export default function SongManager() {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenCreateModal}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
@@ -207,7 +508,7 @@ export default function SongManager() {
         <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 flex items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-            <span>🎉 Música cadastrada! Distribuída automaticamente para o Player Karaokê, Voice Lab de Pronúncia, Prática Musical e Materiais!</span>
+            <span>🎉 Música salva! Distribuída automaticamente para o Player Karaokê, Voice Lab de Pronúncia, Prática Musical e Materiais!</span>
           </div>
           <button onClick={() => setShowAutoDistributeSuccess(false)} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
@@ -267,6 +568,26 @@ export default function SongManager() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          handleOpenSyncModal(song);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                        title="Sincronizar Karaokê (Tap to Sync)"
+                      >
+                        <Timer className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditSong(song);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer"
+                        title="Editar Música"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleDelete(song.id);
                         }}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
@@ -306,7 +627,14 @@ export default function SongManager() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleOpenSyncModal(selectedSong)}
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 flex items-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <Timer className="w-4 h-4 text-cyan-300" />
+                    <span>⏱️ Sincronizar Karaokê</span>
+                  </button>
                   <span className="text-xs font-bold text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> 4 Abas Alimentadas
                   </span>
@@ -410,7 +738,7 @@ export default function SongManager() {
             </p>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenCreateModal}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-black shadow-lg shadow-emerald-600/30 cursor-pointer transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -419,7 +747,7 @@ export default function SongManager() {
         </div>
       )}
 
-      {/* Modal: Cadastrar Música SSOT */}
+      {/* Modal: Cadastrar / Editar Música SSOT */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative w-full max-w-2xl bg-[#111425] border border-purple-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
@@ -427,7 +755,7 @@ export default function SongManager() {
               <div>
                 <h3 className="text-lg font-black text-white flex items-center gap-2">
                   <Music className="w-5 h-5 text-emerald-400" />
-                  <span>Cadastrar Magic Song (Cadastro Único)</span>
+                  <span>{editingSongId ? 'Editar Magic Song (Fonte Única SSOT)' : 'Cadastrar Magic Song (Cadastro Único)'}</span>
                 </h3>
                 <p className="text-xs text-slate-400">
                   Preencha uma única vez para distribuir para o Player, Pronúncia, Prática Musical e Materiais.
@@ -540,29 +868,91 @@ export default function SongManager() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Lyrics Validation Alert Banner */}
+              {lyricsError && (
+                <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 space-y-2.5 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-rose-300 font-bold text-xs sm:text-sm">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                    <span>Desalinhamento de Versos Bloqueado</span>
+                  </div>
+                  <div className="text-xs space-y-1 text-slate-300">
+                    <p>
+                      A <strong>Letra em Inglês</strong> tem <span className="font-mono font-bold text-amber-300">{lyricsError.enCount} linha(s)</span> e a <strong>Tradução em Português</strong> tem <span className="font-mono font-bold text-amber-300">{lyricsError.ptCount} linha(s)</span>.
+                    </p>
+                    <p>
+                      ⚠️ A diferença começa na <strong>Linha {lyricsError.diffLine}</strong>, onde o lado <strong>"{lyricsError.missingSide}"</strong> está sem verso correspondente para:
+                    </p>
+                    <div className="p-2.5 rounded-xl bg-[#0b0d18] border border-rose-500/30 text-[11px] font-mono text-rose-200 italic">
+                      "{lyricsError.referenceVerse}"
+                    </div>
+                    <p className="text-[10px] text-slate-400 pt-0.5">
+                      Para manter a sincronização perfeita verso a verso no Player Karaokê e na Prática Musical, cada linha em inglês precisa de exatamente 1 linha correspondente em português.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-                    Letra em Inglês (1 verso por linha):
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-300 uppercase">
+                      Letra em Inglês:
+                    </label>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                      curEnLines.length === curPtLines.length && curEnLines.length > 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : curEnLines.length !== curPtLines.length && (curEnLines.length > 0 || curPtLines.length > 0)
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {curEnLines.length} {curEnLines.length === 1 ? 'linha' : 'linhas'}
+                    </span>
+                  </div>
                   <textarea
-                    rows={4}
+                    rows={5}
                     required
+                    placeholder="1 verso por linha em inglês..."
                     value={formData.lyricsEn}
-                    onChange={(e) => setFormData({ ...formData, lyricsEn: e.target.value })}
-                    className="w-full bg-[#161a2e] border border-[#242b46] rounded-xl p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-purple-500"
+                    onChange={(e) => {
+                      setFormData({ ...formData, lyricsEn: e.target.value });
+                      if (lyricsError) setLyricsError(null);
+                    }}
+                    className={`w-full bg-[#161a2e] border rounded-xl p-3 text-white text-xs font-mono resize-none focus:outline-none transition-colors ${
+                      lyricsError && curEnLines.length !== curPtLines.length
+                        ? 'border-rose-500/80 focus:border-rose-400'
+                        : 'border-[#242b46] focus:border-purple-500'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-                    Tradução em Português (1 verso por linha):
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-300 uppercase">
+                      Tradução em Português:
+                    </label>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                      curEnLines.length === curPtLines.length && curPtLines.length > 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : curEnLines.length !== curPtLines.length && (curEnLines.length > 0 || curPtLines.length > 0)
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {curPtLines.length} {curPtLines.length === 1 ? 'linha' : 'linhas'}
+                    </span>
+                  </div>
                   <textarea
-                    rows={4}
+                    rows={5}
                     required
+                    placeholder="1 verso por linha em português..."
                     value={formData.lyricsPt}
-                    onChange={(e) => setFormData({ ...formData, lyricsPt: e.target.value })}
-                    className="w-full bg-[#161a2e] border border-[#242b46] rounded-xl p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-purple-500"
+                    onChange={(e) => {
+                      setFormData({ ...formData, lyricsPt: e.target.value });
+                      if (lyricsError) setLyricsError(null);
+                    }}
+                    className={`w-full bg-[#161a2e] border rounded-xl p-3 text-white text-xs font-mono resize-none focus:outline-none transition-colors ${
+                      lyricsError && curEnLines.length !== curPtLines.length
+                        ? 'border-rose-500/80 focus:border-rose-400'
+                        : 'border-[#242b46] focus:border-purple-500'
+                    }`}
                   />
                 </div>
               </div>
@@ -614,6 +1004,304 @@ export default function SongManager() {
         </div>
       )}
 
+      {/* Modal: Tap to Sync (Sincronização Manual do Karaokê) */}
+      {isSyncModalOpen && syncingSong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-4xl bg-[#101323] border border-cyan-500/40 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5 max-h-[95vh] flex flex-col overflow-hidden">
+            
+            {/* Sync Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#1f253e] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300">
+                  <Timer className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded border border-cyan-500/30">
+                      Tap to Sync Pro
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">
+                      {syncVerses.filter((v) => v.startTime !== null).length} de {syncVerses.length} versos marcados
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-white truncate">
+                    Sincronizar: {syncingSong.title}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Latency reaction offset control */}
+                <div className="hidden sm:flex items-center gap-1.5 bg-[#15192c] border border-slate-800 px-2.5 py-1 rounded-xl text-xs" title="Tempo subtraído para compensar o atraso do reflexo humano ao clicar">
+                  <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-slate-400 text-[11px]">Compensação:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1000"
+                    step="50"
+                    value={reactionOffsetMs}
+                    onChange={(e) => setReactionOffsetMs(Number(e.target.value))}
+                    className="w-14 bg-[#0d0f1c] text-cyan-300 font-mono font-bold text-xs rounded px-1.5 py-0.5 border border-slate-700 text-center"
+                  />
+                  <span className="text-slate-500 text-[10px]">ms</span>
+                </div>
+
+                <button
+                  onClick={() => setIsSyncModalOpen(false)}
+                  className="p-2 rounded-xl bg-[#171b30] text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Audio Stream & Control Bar */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-[#15192e] to-[#0e1122] border border-[#232a48] space-y-3 flex-shrink-0">
+              {syncingSong.audioUrl && (
+                <audio
+                  ref={syncAudioRef}
+                  src={isGoogleDriveUrl(syncingSong.audioUrl) ? getDriveAudioUrl(syncingSong.audioUrl) : syncingSong.audioUrl}
+                  preload="auto"
+                  onTimeUpdate={(e) => setSyncCurrentTime(e.currentTarget.currentTime)}
+                  onLoadedMetadata={(e) => setSyncDuration(e.currentTarget.duration)}
+                  onPlay={() => setIsSyncPlaying(true)}
+                  onPause={() => setIsSyncPlaying(false)}
+                  onEnded={() => setIsSyncPlaying(false)}
+                />
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Play / Pause & Time Indicator */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      if (!syncAudioRef.current) return;
+                      if (isSyncPlaying) {
+                        syncAudioRef.current.pause();
+                      } else {
+                        syncAudioRef.current.play().catch(console.warn);
+                      }
+                    }}
+                    className="w-11 h-11 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 hover:scale-105 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-purple-600/30 cursor-pointer transition-all flex-shrink-0"
+                  >
+                    {isSyncPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                  </button>
+
+                  <div className="font-mono text-xs">
+                    <span className="text-cyan-300 font-bold text-sm">{formatTime(syncCurrentTime)}</span>
+                    <span className="text-slate-500 mx-1">/</span>
+                    <span className="text-slate-400">{formatTime(syncDuration)}</span>
+                  </div>
+                </div>
+
+                {/* Speed Controls */}
+                <div className="flex items-center gap-1.5 bg-[#0e1120] p-1 rounded-xl border border-slate-800/90 self-start sm:self-auto">
+                  <span className="text-[10px] font-bold text-slate-500 px-2 flex items-center gap-1">
+                    <FastForward className="w-3 h-3" /> Velocidade:
+                  </span>
+                  {[0.5, 0.75, 1.0, 1.25].map((rate) => (
+                    <button
+                      key={rate}
+                      type="button"
+                      onClick={() => {
+                        setPlaybackRate(rate);
+                        if (syncAudioRef.current) {
+                          syncAudioRef.current.playbackRate = rate;
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold cursor-pointer transition-all ${
+                        playbackRate === rate
+                          ? 'bg-cyan-500 text-black shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-[#1a1f38]'
+                      }`}
+                    >
+                      {rate === 1.0 ? '1.0x (Normal)' : `${rate}x`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scrubber Timeline */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={syncDuration || 100}
+                  step="0.05"
+                  value={syncCurrentTime}
+                  onChange={(e) => {
+                    const newTime = Number(e.target.value);
+                    setSyncCurrentTime(newTime);
+                    if (syncAudioRef.current) {
+                      syncAudioRef.current.currentTime = newTime;
+                    }
+                  }}
+                  className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                />
+              </div>
+            </div>
+
+            {/* Big Action Tap Area: Active Verse Banner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/70 via-[#181d38] to-[#101426] border-2 border-purple-500/50 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 flex-shrink-0">
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                    Verso Atual #{currentSyncVerseIdx + 1} de {syncVerses.length}
+                  </span>
+                  {syncVerses[currentSyncVerseIdx]?.startTime !== null && (
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded">
+                      Já marcado: {formatTime(syncVerses[currentSyncVerseIdx]?.startTime)}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-base sm:text-lg font-black text-white leading-tight">
+                  🇺🇸 "{syncVerses[currentSyncVerseIdx]?.en || 'Fim de todos os versos'}"
+                </p>
+                <p className="text-xs text-purple-200 font-medium">
+                  🇧🇷 "{syncVerses[currentSyncVerseIdx]?.pt || ''}"
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    if (!isSyncPlaying && syncAudioRef.current) {
+                      syncAudioRef.current.play().catch(console.warn);
+                    }
+                    handleMarkVerse();
+                  }}
+                  className="px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 ring-2 ring-emerald-400/50"
+                >
+                  <Clock className="w-5 h-5 fill-slate-950" />
+                  <span>MARCAR INÍCIO (ESPAÇO)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instruction Banner */}
+            <div className="px-3 py-1.5 rounded-xl bg-[#12162a] border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between flex-shrink-0">
+              <span className="flex items-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+                <span><strong>Como funciona:</strong> Dê Play e aperte a <strong>Barra de Espaço</strong> no momento exato em que cada verso começar a ser cantado.</span>
+              </span>
+              <span className="text-slate-500 hidden sm:inline font-mono">Dica: 0.75x dá precisão cirúrgica</span>
+            </div>
+
+            {/* Scrollable Verses Timeline List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px]">
+              {syncVerses.map((verse, idx) => {
+                const isCurrent = currentSyncVerseIdx === idx;
+                const isMarked = verse.startTime !== null;
+
+                return (
+                  <div
+                    key={verse.id || idx}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      isCurrent
+                        ? 'bg-gradient-to-r from-purple-950/80 via-[#212648] to-[#15192c] border-cyan-400 shadow-md ring-1 ring-cyan-400/50'
+                        : isMarked
+                        ? 'bg-[#12162a] border-emerald-500/30 text-slate-300'
+                        : 'bg-[#0d101e] border-slate-800/80 text-slate-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`text-xs font-mono font-bold w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isCurrent
+                          ? 'bg-cyan-500 text-black'
+                          : isMarked
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-slate-800 text-slate-500'
+                      }`}>
+                        {idx + 1}
+                      </span>
+
+                      <div className="min-w-0 space-y-0.5">
+                        <p className={`text-xs sm:text-sm font-bold truncate ${isCurrent ? 'text-white' : isMarked ? 'text-slate-200' : 'text-slate-400'}`}>
+                          {verse.en}
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {verse.pt}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Timestamp Badges */}
+                      <div className="font-mono text-xs text-right">
+                        {isMarked ? (
+                          <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                            {formatTime(verse.startTime)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-medium px-2 py-0.5 rounded bg-slate-800/50">
+                            --:--
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Redo / Adjust button */}
+                      <button
+                        onClick={() => handleRedoVerse(idx)}
+                        className={`p-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1 ${
+                          isCurrent
+                            ? 'bg-cyan-500 text-black font-bold'
+                            : 'bg-[#1a1f36] text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                        title="Voltar o cursor para gravar ou ajustar este verso"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span className="text-[10px] hidden sm:inline">Refazer</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="pt-3 border-t border-[#1f253e] flex items-center justify-between gap-3 flex-shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={handleResetAllSync}
+                className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Resetar Todas as Marcações</span>
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsSyncModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-[#171b30] hover:bg-[#202540] text-slate-300 text-xs font-bold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingSync}
+                  onClick={handleSaveSyncTimestamps}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-500 hover:from-emerald-500 hover:to-cyan-400 text-white text-xs font-black shadow-lg shadow-emerald-600/30 cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingSync ? (
+                    <span>Salvando...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Salvar Sincronização no Banco</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+

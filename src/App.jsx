@@ -36,10 +36,7 @@ const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
 const Onboarding = lazy(() => import('./components/auth/Onboarding'));
 const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
-import { defaultSongLesson } from './data/songLessonData';
-import { magicSongsList, continueLessonsList } from './data/mockData';
-import { classroomLessonData } from './data/classroomData';
-import { travelSongMethodData } from './data/songMethodData';
+import { songsService } from './services/songsService';
 import { XP_REWARDS } from './data/gamificationData';
 
 // Determine initial view from window.location.pathname
@@ -89,8 +86,8 @@ function MainApp() {
   // 'dashboard' | 'classroom' | 'my-lessons' | 'song-player' | 'tracks' | 'materials' | 'pronunciation' | 'musical-practice' | 'gamification' | 'profile' | 'ranking' | 'community' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'onboarding' | 'admin-login' | 'admin'
   const [currentView, setCurrentView] = useState(getInitialView);
   const [activeTab, setActiveTab] = useState(getInitialView() === 'community' ? 'community' : 'home');
-  const [activeSong, setActiveSong] = useState(defaultSongLesson);
-  const [activeLesson, setActiveLesson] = useState(classroomLessonData);
+  const [activeSong, setActiveSong] = useState(null);
+  const [activeLesson, setActiveLesson] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalItem, setModalItem] = useState(null);
 
@@ -194,15 +191,114 @@ function MainApp() {
     }
   }, [currentView, isAuthenticated, isOnboarded, isPasswordRecovery, loading, role]);
 
+  // Helper: Normalize Supabase Song for Player
+  const normalizeSongForPlayer = (song) => {
+    if (!song) return null;
+
+    let lyrics = [];
+    if (Array.isArray(song.timestamps) && song.timestamps.length > 0) {
+      lyrics = song.timestamps.map((t, idx) => {
+        const sec = typeof t.startTime === 'number' ? t.startTime : 0;
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return {
+          id: t.id || idx + 1,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          en: t.en || t.english || '',
+          english: t.english || t.en || '',
+          pt: t.pt || t.portuguese || '',
+          portuguese: t.portuguese || t.pt || '',
+          time: t.time || timeStr,
+          notes: t.notes || t.tip || t.structure || ''
+        };
+      });
+    } else if (Array.isArray(song.lyricsTimestamps) && song.lyricsTimestamps.length > 0) {
+      lyrics = song.lyricsTimestamps;
+    } else if (Array.isArray(song.lyrics) && song.lyrics.length > 0) {
+      lyrics = song.lyrics;
+    } else if (song.lyrics_en) {
+      const enLines = String(song.lyrics_en).split('\n').map((l) => l.trim()).filter(Boolean);
+      const ptLines = String(song.lyrics_pt || '').split('\n').map((l) => l.trim()).filter(Boolean);
+      lyrics = enLines.map((en, idx) => ({
+        id: idx + 1,
+        time: `0:${String((idx * 4) % 60).padStart(2, '0')}`,
+        english: en,
+        portuguese: ptLines[idx] || '',
+        phonetic: '',
+        structure: ''
+      }));
+    }
+
+    // Generate dynamic challenge from lyrics if not present
+    let challenge = song.challenge || null;
+    if (!challenge && lyrics.length > 0) {
+      const targetVerse = lyrics[0];
+      const otherOptions = lyrics.slice(1, 4).map((l) => l.english || l.text);
+      const options = [targetVerse.english || targetVerse.text, ...otherOptions].filter(Boolean).sort(() => 0.5 - Math.random());
+      
+      challenge = {
+        question: "Como se canta em inglês o verso:",
+        prompt: targetVerse.portuguese || targetVerse.translation || targetVerse.english,
+        options: options.length >= 2 ? options : [targetVerse.english, "Goodbye", "Thank you", "Please"],
+        correctAnswer: targetVerse.english || targetVerse.text,
+        explanation: `"${targetVerse.english || targetVerse.text}" significa "${targetVerse.portuguese || 'este verso'}" na música.`
+      };
+    }
+
+    return {
+      id: song.id,
+      title: song.title || 'Música Sem Nome',
+      subtitle: song.subtitle || song.category || 'Música de Fixação',
+      image: song.cover_url || song.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80',
+      audioUrl: song.audio_url || song.audioUrl,
+      level: song.level || 'Iniciante',
+      duration: song.duration || '3:20',
+      bpm: song.bpm || '108 BPM',
+      lyrics: lyrics,
+      vocabulary: Array.isArray(song.pronunciation_guide) && song.pronunciation_guide.length > 0 
+        ? song.pronunciation_guide 
+        : (song.vocabulary || []),
+      challenge: challenge,
+      xpReward: song.xpReward || 50
+    };
+  };
+
   // Open Classroom Video Lesson View
   const handleOpenClassroom = (lessonData) => {
-    setActiveLesson({
-      ...classroomLessonData,
-      ...(lessonData || {}),
-      lessonNumber: lessonData?.lessonNumber || classroomLessonData.lessonNumber,
-      title: lessonData?.title || classroomLessonData.title,
-      duration: lessonData?.totalDuration || lessonData?.duration || classroomLessonData.duration
-    });
+    if (!lessonData) {
+      setActiveLesson(null);
+    } else {
+      const songPayload = lessonData.relatedSong || (lessonData.songId ? { id: lessonData.songId, title: lessonData.title } : null);
+
+      setActiveLesson({
+        id: lessonData.id || 'lesson-active',
+        lessonNumber: lessonData.lessonNumber || `Aula ${lessonData.number || '01'}`,
+        title: lessonData.title || 'Aula Oficial',
+        duration: lessonData.totalDuration || lessonData.duration || '15 min',
+        module: lessonData.module || 'Módulo 1: Primeiros Passos',
+        level: lessonData.level || 'Iniciante',
+        videoThumbnail: lessonData.videoThumbnail || lessonData.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80',
+        videoUrl: lessonData.videoUrl || '',
+        description: lessonData.description || 'Nesta aula prática, você vai dominar as estruturas essenciais do inglês cantando e fixando com o método Magic English.',
+        learningGoals: lessonData.learningGoals || [
+          'Dominar as estruturas e vocabulário essencial',
+          'Compreender o significado de cada verso',
+          'Treinar a pronúncia vocal no Voice Lab',
+          'Fixar o inglês com a Prática Musical'
+        ],
+        videoChapters: lessonData.videoChapters || [
+          { time: '0:00', title: 'Introdução & Contexto' },
+          { time: '0:45', title: 'Vocabulário & Pronúncia' },
+          { time: '1:30', title: 'Fixação Musical & Tradução Reversa' }
+        ],
+        relatedSong: songPayload,
+        exercises: lessonData.exercises || [],
+        pronunciationList: lessonData.pronunciationList || [],
+        downloadableFiles: lessonData.downloadableFiles || []
+      });
+    }
     setCurrentView('classroom');
     setActiveTab('classes');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -210,15 +306,7 @@ function MainApp() {
 
   // Open Magic Song Lesson View
   const handleOpenSongPlayer = (song) => {
-    const lessonData = {
-      ...defaultSongLesson,
-      title: song?.title || defaultSongLesson.title,
-      subtitle: song?.subtitle || song?.category || defaultSongLesson.subtitle,
-      image: song?.image || defaultSongLesson.image,
-      level: song?.level || 'Iniciante',
-      duration: song?.duration || '3:24',
-      bpm: song?.bpm || '108 BPM'
-    };
+    const lessonData = normalizeSongForPlayer(song);
     setActiveSong(lessonData);
     setCurrentView('song-player');
     setActiveTab('songs');
@@ -226,7 +314,18 @@ function MainApp() {
   };
 
   // Open 4-Step Musical Practice Lab
-  const handleOpenMusicalPractice = () => {
+  const handleOpenMusicalPractice = (song = null) => {
+    if (song) {
+      setActiveSong(normalizeSongForPlayer(song));
+    } else if (activeLesson?.relatedSong) {
+      setActiveSong(normalizeSongForPlayer(activeLesson.relatedSong));
+    } else {
+      songsService.getSongs().then(({ data }) => {
+        if (data && data.length > 0) {
+          setActiveSong(normalizeSongForPlayer(data[0]));
+        }
+      });
+    }
     setCurrentView('musical-practice');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -252,7 +351,13 @@ function MainApp() {
     } else if (tabId === 'tracks') {
       setCurrentView('tracks');
     } else if (tabId === 'songs') {
-      handleOpenSongPlayer(magicSongsList[0]);
+      songsService.getSongs().then(({ data }) => {
+        if (data && data.length > 0) {
+          handleOpenSongPlayer(data[0]);
+        } else {
+          handleOpenSongPlayer(null);
+        }
+      });
     } else if (tabId === 'materials') {
       setCurrentView('materials');
     } else if (tabId === 'pronunciation') {
@@ -437,7 +542,7 @@ function MainApp() {
                 <MagicClassroomView
                   lesson={activeLesson}
                   onBack={() => handleSidebarTabChange('classes')}
-                  onOpenMusicPlayer={() => handleOpenMusicalPractice()}
+                  onOpenMusicPlayer={(song) => handleOpenMusicalPractice(song)}
                   onNextLesson={() => {
                     handleOpenClassroom({
                       lessonNumber: "Aula 02",
@@ -451,7 +556,7 @@ function MainApp() {
                 />
               ) : currentView === 'musical-practice' ? (
                 <MusicalPracticeView
-                  data={travelSongMethodData}
+                  song={activeSong}
                   onBack={() => handleSidebarTabChange('classes')}
                   onGainXp={(amount) => {
                     addXp(amount, 'Prática Musical Completa', { showModal: true });
@@ -460,7 +565,7 @@ function MainApp() {
               ) : currentView === 'my-lessons' ? (
                 <MyModulesView
                   onOpenClassroomLesson={(lesson) => handleOpenClassroom(lesson)}
-                  onOpenMusicalPractice={() => handleOpenMusicalPractice()}
+                  onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
                 />
               ) : currentView === 'materials' ? (
                 <MaterialsView />
@@ -498,9 +603,14 @@ function MainApp() {
                 <LearningTracksPage
                   onOpenLesson={(lesson) => {
                     handleOpenClassroom({
+                      id: lesson.id,
+                      number: lesson.number,
                       lessonNumber: `Aula ${lesson.number}`,
                       title: lesson.title,
-                      duration: lesson.duration
+                      duration: lesson.duration,
+                      module: "Inglês do Zero",
+                      songId: lesson.songId,
+                      videoThumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80'
                     });
                   }}
                 />

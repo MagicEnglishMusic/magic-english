@@ -33,10 +33,21 @@ export default function VideoPlayer({ lesson }) {
   const isDrive = isGoogleDriveUrl(videoSrc);
   const driveEmbedUrl = isDrive ? getDriveVideoUrl(videoSrc) : null;
 
-  // Playback timer simulation for custom overlay
+  // Playback audio narration for interactive simulation if no direct video stream
   useEffect(() => {
     let timer = null;
     if (isPlaying && !isDrive) {
+      if ('speechSynthesis' in window && !window.speechSynthesis.speaking) {
+        const narration = new SpeechSynthesisUtterance(
+          captionMode === 'en' 
+            ? "Hello and welcome to your English lesson! In this class, you will learn essential phrases with music and rhythm."
+            : "Olá e bem-vindo à sua aula de inglês! Nesta aula, você aprenderá estruturas essenciais com música e ritmo."
+        );
+        narration.lang = captionMode === 'en' ? 'en-US' : 'pt-BR';
+        narration.rate = 0.9;
+        window.speechSynthesis.speak(narration);
+      }
+
       timer = setInterval(() => {
         setCurrentTime((prev) => {
           if (prev >= duration) {
@@ -49,10 +60,18 @@ export default function VideoPlayer({ lesson }) {
         });
       }, 1000 / playbackSpeed);
     } else {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       clearInterval(timer);
     }
-    return () => clearInterval(timer);
-  }, [isPlaying, duration, playbackSpeed, isDrive]);
+    return () => {
+      clearInterval(timer);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [isPlaying, duration, playbackSpeed, isDrive, captionMode]);
 
   const formatTime = (secs) => {
     const mins = Math.floor(secs / 60);
@@ -66,6 +85,8 @@ export default function VideoPlayer({ lesson }) {
     setCurrentTime(Math.floor((val / 100) * duration));
   };
 
+  const thumbnailSrc = lesson?.videoThumbnail || lesson?.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80';
+
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-black border border-purple-500/40 shadow-2xl shadow-purple-950/60 aspect-video group select-none">
       
@@ -73,15 +94,15 @@ export default function VideoPlayer({ lesson }) {
       {isDrive && isPlaying ? (
         <iframe
           src={driveEmbedUrl}
-          title={lesson.title}
+          title={lesson?.title || 'Aula'}
           allow="autoplay; fullscreen"
           className="w-full h-full border-0 absolute inset-0 z-10"
         />
       ) : (
         <div className="absolute inset-0 z-0">
           <img
-            src={lesson.videoThumbnail || lesson.thumbnail}
-            alt={lesson.title}
+            src={thumbnailSrc}
+            alt={lesson?.title || 'Aula'}
             className={`w-full h-full object-cover transition-all duration-700 ${
               isPlaying ? 'brightness-90' : 'brightness-60 group-hover:scale-105'
             }`}

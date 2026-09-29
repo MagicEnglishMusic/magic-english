@@ -8,6 +8,7 @@ import MaterialManager from './MaterialManager';
 import PronunciationManager from './PronunciationManager';
 import GamificationManager from './GamificationManager';
 import StudentManager from './StudentManager';
+import CommunityManager from './CommunityManager';
 import AdminProfileModal from './AdminProfileModal';
 import { ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -73,6 +74,8 @@ export default function AdminLayout({ onLogout }) {
         <main className="flex-1 p-6 sm:p-8 lg:p-10 max-w-7xl w-full mx-auto pb-16">
           {activeTab === 'dashboard' ? (
             <AdminDashboard onNavigateTab={setActiveTab} />
+          ) : activeTab === 'community' ? (
+            <CommunityManager />
           ) : activeTab === 'modules' || activeTab === 'courses' ? (
             <ModuleManager />
           ) : activeTab === 'lessons' ? (

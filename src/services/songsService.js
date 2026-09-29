@@ -25,7 +25,7 @@ export const songsService = {
 
   // Get single song by ID
   async getSongById(id) {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !id) {
       return { data: null, error: 'Supabase não configurado' };
     }
 
@@ -39,6 +39,59 @@ export const songsService = {
       if (error) throw error;
       return { data: data || null, error: null };
     } catch (err) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  // Find the exact real song for a lesson (SSOT resolution)
+  async findSongForLesson({ lessonId = null, moduleId = null, lessonTitle = '', songTitle = '' } = {}) {
+    if (!isSupabaseConfigured) {
+      return { data: null, error: null };
+    }
+
+    try {
+      const { data: allSongs, error } = await supabase
+        .from('songs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error || !allSongs || allSongs.length === 0) {
+        return { data: null, error: error?.message || 'No songs found' };
+      }
+
+      // Priority 1: Direct lesson_id match
+      if (lessonId) {
+        const directMatch = allSongs.find((s) => s.lesson_id === lessonId);
+        if (directMatch) return { data: directMatch, error: null };
+      }
+
+      // Priority 2: Title exact or partial match
+      const cleanLesTitle = (lessonTitle || '').toLowerCase().trim();
+      const cleanSngTitle = (songTitle || '').toLowerCase().trim();
+
+      if (cleanSngTitle) {
+        const titleMatch = allSongs.find((s) => (s.title || '').toLowerCase().trim() === cleanSngTitle);
+        if (titleMatch) return { data: titleMatch, error: null };
+      }
+
+      if (cleanLesTitle) {
+        const contentMatch = allSongs.find((s) => {
+          const st = (s.title || '').toLowerCase().trim();
+          return st && (cleanLesTitle.includes(st) || st.includes(cleanLesTitle));
+        });
+        if (contentMatch) return { data: contentMatch, error: null };
+      }
+
+      // Priority 3: module_id match
+      if (moduleId) {
+        const modMatch = allSongs.find((s) => s.module_id === moduleId);
+        if (modMatch) return { data: modMatch, error: null };
+      }
+
+      // No match found
+      return { data: null, error: null };
+    } catch (err) {
+      console.warn('Error in findSongForLesson:', err.message);
       return { data: null, error: err.message };
     }
   },

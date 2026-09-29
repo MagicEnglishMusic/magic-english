@@ -1,11 +1,10 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { classroomLessonData } from '../data/classroomData';
 
 export const lessonsService = {
   // Get all lessons (Admin)
   async getAllLessons() {
     if (!isSupabaseConfigured) {
-      return { data: [classroomLessonData], error: null };
+      return { data: [], error: null };
     }
 
     try {
@@ -27,8 +26,8 @@ export const lessonsService = {
 
   // Get lessons by module ID
   async getLessonsByModule(moduleId) {
-    if (!isSupabaseConfigured) {
-      return { data: [classroomLessonData], error: null };
+    if (!isSupabaseConfigured || !moduleId) {
+      return { data: [], error: null };
     }
 
     try {
@@ -48,8 +47,8 @@ export const lessonsService = {
 
   // Get single lesson details with song & materials
   async getLessonDetails(lessonId) {
-    if (!isSupabaseConfigured) {
-      return { data: classroomLessonData, error: null };
+    if (!isSupabaseConfigured || !lessonId) {
+      return { data: null, error: null };
     }
 
     try {
@@ -66,7 +65,7 @@ export const lessonsService = {
       if (lessonError) throw lessonError;
       return { data: lesson, error: null };
     } catch (err) {
-      return { data: classroomLessonData, error: null };
+      return { data: null, error: err.message };
     }
   },
 

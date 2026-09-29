@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layers, Plus, Edit2, Trash2, CheckCircle2, Eye, X, Image, Sparkles, FolderPlus } from 'lucide-react';
 import { modulesService } from '../../services/modulesService';
+import { isGoogleDriveUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function ModuleManager() {
   const [modules, setModules] = useState([]);
@@ -26,7 +27,7 @@ export default function ModuleManager() {
             order: m.order_index || m.order || idx + 1,
             title: m.title || 'Módulo Sem Nome',
             description: m.description || '',
-            image: m.banner_url || m.image || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80',
+            image: getDriveImageUrl(m.banner_url || m.image || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80'),
             lessonsCount: m.lessons_count || m.lessonsCount || 0,
             songsCount: m.songs_count || m.songsCount || 0,
             status: m.status === 'published' ? 'Publicado' : (m.status === 'draft' ? 'Rascunho' : (m.status || 'Publicado')),
@@ -48,10 +49,14 @@ export default function ModuleManager() {
     e.preventDefault();
     if (!formData.title) return;
 
+    const formattedBanner = isGoogleDriveUrl(formData.image)
+      ? getDriveImageUrl(formData.image)
+      : formData.image;
+
     const payload = {
       title: formData.title,
       description: formData.description || '',
-      banner_url: formData.image,
+      banner_url: formattedBanner,
       order_index: modules.length + 1,
       status: formData.status === 'Publicado' ? 'published' : 'draft',
       lessons_count: 0,
@@ -64,7 +69,7 @@ export default function ModuleManager() {
       order: modules.length + 1,
       title: formData.title,
       description: formData.description || '',
-      image: formData.image,
+      image: formattedBanner,
       lessonsCount: 0,
       songsCount: 0,
       status: formData.status,
@@ -84,8 +89,15 @@ export default function ModuleManager() {
   };
 
   const handleDelete = async (id) => {
-    await modulesService.deleteModule(id);
-    setModules(modules.filter((m) => m.id !== id));
+    if (!window.confirm('Tem certeza que deseja excluir este módulo? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    const res = await modulesService.deleteModule(id);
+    if (res?.error) {
+      alert(`Erro ao excluir módulo: ${res.error}`);
+      return;
+    }
+    setModules((prev) => prev.filter((m) => m.id !== id));
   };
 
   return (
@@ -114,19 +126,19 @@ export default function ModuleManager() {
 
       {/* Modules Grid / Cards */}
       {modules.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {modules.map((mod, idx) => (
             <div
               key={mod.id}
-              className="p-5 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-4 group shadow-xl"
+              className="p-4 rounded-2xl bg-[#111425] border border-[#1e233b] hover:border-purple-500/40 transition-all flex flex-col justify-between space-y-4 group shadow-xl"
             >
               <div className="space-y-3">
-                {/* Cover Banner */}
-                <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-slate-800">
+                {/* Cover Banner (9:16 aspect ratio) */}
+                <div className="relative aspect-[9/16] w-full rounded-xl overflow-hidden border border-slate-800 bg-[#0c0e1a]">
                   <img
                     src={mod.image}
                     alt={mod.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   

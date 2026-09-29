@@ -93,13 +93,13 @@ export const INITIAL_USER_GAMIFICATION = {
   streak: 0,
   nextGoalHint: "Assista à primeira aula para começar sua evolução.",
   weeklyDays: [
-    { day: "Seg", date: "22/09", completed: false },
-    { day: "Ter", date: "23/09", completed: false },
-    { day: "Qua", date: "24/09", completed: false },
-    { day: "Qui", date: "25/09", completed: false },
-    { day: "Sex", date: "26/09", completed: false, isToday: true },
-    { day: "Sáb", date: "27/09", completed: false },
-    { day: "Dom", date: "28/09", completed: false }
+    { day: "Seg", date: "", completed: false },
+    { day: "Ter", date: "", completed: false },
+    { day: "Qua", date: "", completed: false },
+    { day: "Qui", date: "", completed: false },
+    { day: "Sex", date: "", completed: false },
+    { day: "Sáb", date: "", completed: false },
+    { day: "Dom", date: "", completed: false }
   ]
 };
 
@@ -222,13 +222,13 @@ export const CLEAN_USER_GAMIFICATION = {
   streak: 0,
   nextGoalHint: "Assista à primeira aula para começar sua evolução.",
   weeklyDays: [
-    { day: "Seg", date: "22/09", completed: false },
-    { day: "Ter", date: "23/09", completed: false },
-    { day: "Qua", date: "24/09", completed: false },
-    { day: "Qui", date: "25/09", completed: false },
-    { day: "Sex", date: "26/09", completed: false, isToday: true },
-    { day: "Sáb", date: "27/09", completed: false },
-    { day: "Dom", date: "28/09", completed: false }
+    { day: "Seg", date: "", completed: false },
+    { day: "Ter", date: "", completed: false },
+    { day: "Qua", date: "", completed: false },
+    { day: "Qui", date: "", completed: false },
+    { day: "Sex", date: "", completed: false },
+    { day: "Sáb", date: "", completed: false },
+    { day: "Dom", date: "", completed: false }
   ]
 };
 

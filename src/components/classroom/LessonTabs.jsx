@@ -113,21 +113,24 @@ export default function LessonTabs({ lesson, onOpenFullMusicPlayer }) {
         {/* Tab 3: 📖 Material (Biblioteca de PDFs para Download) */}
         {activeTab === 'material' && (
           <MaterialsTab
-            files={lesson?.downloadableFiles || []}
+            lessonId={lesson?.id}
+            files={lesson?.downloadableFiles}
           />
         )}
 
         {/* Tab 4: 🎤 Pronúncia (Extraída da Letra da Canção) */}
         {activeTab === 'pronunciation' && (
           <PronunciationPractice
-            items={lesson?.extractedPronunciation || lesson?.pronunciationList || []}
+            items={lesson?.extractedPronunciation || lesson?.pronunciationList || lesson?.relatedSong?.vocabulary || lesson?.relatedSong?.pronunciation_guide || []}
           />
         )}
 
         {/* Tab 5: 🧠 Prática Musical (Tradução Reversa de TODAS as Frases) */}
         {activeTab === 'practice' && (
           <MusicalPracticeTab
-            lyrics={lesson?.relatedSong?.lyricsTimestamps || []}
+            song={lesson?.relatedSong}
+            lyrics={lesson?.relatedSong?.lyricsTimestamps || lesson?.relatedSong?.lyrics || lesson?.relatedSong?.timestamps}
+            songId={lesson?.relatedSong?.id || "song-lesson"}
           />
         )}
       </div>

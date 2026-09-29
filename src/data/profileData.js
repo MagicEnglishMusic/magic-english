@@ -35,8 +35,6 @@ export const studentProfileData = {
       level: 1,
       name: "First Steps",
       icon: "🌱",
-      status: "completed", // 'completed' | 'current' | 'next' | 'future'
-      statusLabel: "Concluído",
       tag: "Base Sólida",
       description: "Primeiros passos e vocabulário elementar."
     },
@@ -44,8 +42,6 @@ export const studentProfileData = {
       level: 2,
       name: "Music Learner",
       icon: "🎵",
-      status: "current",
-      statusLabel: "Atual",
       tag: "Em Progresso",
       description: "Aprendendo estruturas essenciais através do ritmo."
     },
@@ -53,8 +49,6 @@ export const studentProfileData = {
       level: 3,
       name: "Conversation Builder",
       icon: "💬",
-      status: "next",
-      statusLabel: "Próximo",
       tag: "3.000 XP",
       description: "Construindo suas primeiras conversas com segurança."
     },
@@ -62,8 +56,6 @@ export const studentProfileData = {
       level: 4,
       name: "Confident Speaker",
       icon: "🎤",
-      status: "future",
-      statusLabel: "Futuro",
       tag: "6.000 XP",
       description: "Falando com ritmo natural e sem medo de errar."
     },
@@ -71,8 +63,6 @@ export const studentProfileData = {
       level: 5,
       name: "English Explorer",
       icon: "🌎",
-      status: "future",
-      statusLabel: "Futuro",
       tag: "10.000 XP",
       description: "Preparado para viagens e situações profissionais reais."
     },
@@ -80,8 +70,6 @@ export const studentProfileData = {
       level: 6,
       name: "Magic Fluent",
       icon: "👑",
-      status: "future",
-      statusLabel: "Futuro",
       tag: "15.000 XP",
       description: "Domínio avançado e espontaneidade no idioma."
     }

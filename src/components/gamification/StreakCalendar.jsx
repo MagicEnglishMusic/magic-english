@@ -2,16 +2,8 @@ import React from 'react';
 import { Flame, Calendar, Check, Sparkles } from 'lucide-react';
 
 export default function StreakCalendar({
-  streak = 12,
-  weeklyDays = [
-    { day: "Seg", date: "22/09", completed: true },
-    { day: "Ter", date: "23/09", completed: true },
-    { day: "Qua", date: "24/09", completed: true },
-    { day: "Qui", date: "25/09", completed: true },
-    { day: "Sex", date: "26/09", completed: true, isToday: true },
-    { day: "Sáb", date: "27/09", completed: false },
-    { day: "Dom", date: "28/09", completed: false }
-  ],
+  streak = 0,
+  weeklyDays = [],
   compact = false,
   className = ""
 }) {

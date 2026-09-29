@@ -8,7 +8,12 @@ export default function ExerciseCard({ questions, onCompleteExercise }) {
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
 
+  if (!questions || !Array.isArray(questions) || questions.length === 0) {
+    return null;
+  }
+
   const currentQ = questions[currentIdx] || questions[0];
+  if (!currentQ) return null;
 
   const handleSelect = (option) => {
     if (isAnswered) return;

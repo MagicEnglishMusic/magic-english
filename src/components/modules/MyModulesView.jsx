@@ -1,12 +1,45 @@
-import React, { useState } from 'react';
-import { Play, Sparkles, Tv, Clock, BookOpen, Music, CheckCircle2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Sparkles, Tv, Clock, BookOpen, Music, CheckCircle2, ArrowRight, Layers, Loader2 } from 'lucide-react';
 import ModuleBannerCard from './ModuleBannerCard';
 import ModuleDetailView from './ModuleDetailView';
 import ProgressBar from '../tracks/ProgressBar';
-import { modulesLibraryData, currentOngoingLesson } from '../../data/modulesData';
+import { modulesService } from '../../services/modulesService';
+import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPractice }) {
   const [selectedModule, setSelectedModule] = useState(null);
+  const [modules, setModules] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadModules() {
+      setIsLoading(true);
+      try {
+        const { data } = await modulesService.getModules();
+        if (data) {
+          const formatted = data.map((m, idx) => ({
+            id: m.id,
+            moduleNumber: `MÓDULO ${m.order_index || idx + 1}`,
+            title: m.title || 'Módulo Sem Nome',
+            shortDescription: m.subtitle || m.description || 'Módulo oficial do curso.',
+            fullDescription: m.description || m.subtitle || 'Módulo oficial do curso.',
+            coverImage: getDriveImageUrl(m.banner_url || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80'),
+            lessonsCount: m.lessons_count ?? 0,
+            songsCount: m.songs_count ?? 0,
+            progress: 0,
+            status: m.status || 'published',
+            isLocked: false
+          }));
+          setModules(formatted);
+        }
+      } catch (err) {
+        console.warn('Error fetching modules in MyModulesView:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadModules();
+  }, []);
 
   const handleSelectModule = (mod) => {
     setSelectedModule(mod);
@@ -28,11 +61,16 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
           onSelectLesson={(lesson) => {
             if (onOpenClassroomLesson) {
               onOpenClassroomLesson({
+                id: lesson.id,
                 lessonNumber: lesson.lessonNumber,
                 title: lesson.title,
                 duration: lesson.duration,
                 module: selectedModule.title,
-                videoThumbnail: lesson.thumbnail
+                moduleId: selectedModule.id,
+                videoThumbnail: lesson.thumbnail,
+                videoUrl: lesson.videoUrl,
+                relatedSong: lesson.relatedSong,
+                rawLesson: lesson
               });
             }
           }}
@@ -40,62 +78,7 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
         />
       ) : (
         <>
-          {/* 1. Área Superior: "Continue sua jornada" */}
-          <div className="relative rounded-3xl overflow-hidden border border-purple-500/40 bg-gradient-to-r from-[#140e2b] via-[#0f132a] to-[#09152a] p-6 sm:p-8 shadow-2xl shadow-purple-950/40 group">
-            <div className="absolute inset-0 z-0 opacity-25">
-              <img
-                src={currentOngoingLesson.thumbnail}
-                alt="Continue sua jornada"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#0d091e] via-[#0d091e]/90 to-transparent"></div>
-            </div>
-
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2.5 max-w-xl">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full border border-purple-500/30 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{currentOngoingLesson.progress > 0 ? "Continue sua jornada" : "Inicie sua jornada"}</span>
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Você está no <strong className="text-white">{currentOngoingLesson.moduleName} ({currentOngoingLesson.moduleTitle})</strong>
-                  </span>
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl font-black text-white">
-                  {currentOngoingLesson.lessonNumber} — {currentOngoingLesson.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-300">
-                  {currentOngoingLesson.subtitle}
-                </p>
-
-                {/* Progress Bar */}
-                <div className="pt-1 max-w-md">
-                  <ProgressBar value={currentOngoingLesson.progress} max={100} showLabel={true} size="sm" />
-                </div>
-              </div>
-
-              {/* Action Button: Iniciar / Continuar Aula */}
-              <div className="flex-shrink-0">
-                <button
-                  onClick={() => {
-                    if (onOpenClassroomLesson) {
-                      onOpenClassroomLesson(currentOngoingLesson);
-                    }
-                  }}
-                  className="flex items-center gap-3 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-sm sm:text-base shadow-lg shadow-purple-600/40 hover:shadow-purple-500/60 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
-                >
-                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                    <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                  </div>
-                  <span>{currentOngoingLesson.progress > 0 ? "▶ Continuar aula" : "▶ Começar primeira aula"}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Área Principal: "Meus Módulos" Header */}
+          {/* 1. Header: "Meus Módulos" */}
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Tv className="w-6 h-6 text-purple-400" />
@@ -106,16 +89,37 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
             </p>
           </div>
 
-          {/* 3. Grade Visual de Cards Verticais 3:4 (Estilo Capa de Streaming Netflix / Prime Video) */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
-            {modulesLibraryData.map((module) => (
-              <ModuleBannerCard
-                key={module.id}
-                module={module}
-                onSelectModule={handleSelectModule}
-              />
-            ))}
-          </div>
+          {/* 2. Loading State */}
+          {isLoading ? (
+            <div className="p-16 rounded-3xl bg-[#111425] border border-[#1e233b] flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <p className="text-sm text-slate-400">Carregando módulos...</p>
+            </div>
+          ) : modules.length > 0 ? (
+            /* 3. Grade Visual de Cards Verticais 3:4 */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
+              {modules.map((module) => (
+                <ModuleBannerCard
+                  key={module.id}
+                  module={module}
+                  onSelectModule={handleSelectModule}
+                />
+              ))}
+            </div>
+          ) : (
+            /* 4. Empty State Limpo */
+            <div className="p-12 text-center rounded-3xl bg-[#111425] border border-[#1e233b] shadow-xl space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 mx-auto">
+                <Layers className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-black text-white">Nenhum módulo disponível no momento</h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Os módulos de aprendizado cadastrados pelo administrador aparecerão aqui.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
 

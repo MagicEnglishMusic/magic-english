@@ -14,7 +14,8 @@ import {
   User,
   LogOut,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  MessageSquare
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 
@@ -65,6 +66,7 @@ export default function AdminSidebar({
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'community', label: 'Comunidade & Moderação', icon: MessageSquare },
     { id: 'courses', label: 'Cursos & Trilhas', icon: BookOpen },
     { id: 'modules', label: 'Módulos', icon: Layers, badge: formatBadge(stats.totalModules) },
     { id: 'lessons', label: 'Aulas', icon: Tv, badge: formatBadge(stats.totalLessons) },

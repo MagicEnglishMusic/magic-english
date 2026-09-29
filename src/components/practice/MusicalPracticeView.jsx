@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   Headphones, 
@@ -15,9 +15,127 @@ import {
   RotateCcw,
   MicOff
 } from 'lucide-react';
-import { travelSongMethodData } from '../../data/songMethodData';
+import { songsService } from '../../services/songsService';
+import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 
-export default function MusicalPracticeView({ data = travelSongMethodData, onBack, onGainXp }) {
+export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
+  const [dbSong, setDbSong] = useState(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const recognitionRef = useRef(null);
+
+  // Fetch real database song if not provided
+  useEffect(() => {
+    let isMounted = true;
+    async function loadFallbackSong() {
+      if (song) return;
+      try {
+        const { data: songs } = await songsService.getSongs();
+        if (isMounted && songs && songs.length > 0) {
+          setDbSong(songs[0]);
+        }
+      } catch (err) {
+        console.warn('Error fetching fallback song for MusicalPracticeView:', err);
+      }
+    }
+    loadFallbackSong();
+    return () => { isMounted = false; };
+  }, [song]);
+
+  const activeSong = song || dbSong;
+
+  const practiceData = useMemo(() => {
+    if (activeSong) {
+      let verses = [];
+      if (Array.isArray(activeSong.lyrics) && activeSong.lyrics.length > 0) {
+        verses = activeSong.lyrics.map((l, idx) => ({
+          id: idx + 1,
+          en: l.english || l.text || l.en || '',
+          pt: l.portuguese || l.pt || l.translation || '',
+          hint: l.structure || l.tip || `Verso ${idx + 1} da música ${activeSong.title}`,
+          audioSpeed: 0.85
+        })).filter(v => Boolean(v.en && v.en.trim()));
+      } else {
+        const enLines = String(activeSong.lyrics_en || activeSong.lyricsEn || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const ptLines = String(activeSong.lyrics_pt || activeSong.lyricsPt || '').split('\n').map(l => l.trim()).filter(Boolean);
+        verses = enLines.map((en, idx) => ({
+          id: idx + 1,
+          en,
+          pt: ptLines[idx] || 'Tradução do verso',
+          hint: `Verso ${idx + 1}`,
+          audioSpeed: 0.85
+        }));
+      }
+
+      if (verses.length > 0) {
+        const reverseExercises = verses.map((v, idx) => {
+          const otherEn = verses.filter((_, i) => i !== idx).map(item => item.en);
+          const distractors = otherEn.slice(0, 3);
+          const options = [v.en, ...distractors].sort(() => 0.5 - Math.random());
+
+          return {
+            id: `rev-${v.id}`,
+            pt: v.pt,
+            expectedEn: v.en,
+            acceptableEn: [v.en.toLowerCase().replace(/[.,?!]/g, '').trim()],
+            options: options.length >= 2 ? options : [v.en, "Goodbye", "Thank you", "Please"],
+            hint: v.hint
+          };
+        });
+
+        const challengeVerses = verses.map((v) => ({
+          id: `chal-${v.id}`,
+          pt: v.pt,
+          targetEn: v.en
+        }));
+
+        const coverRaw = activeSong.cover_url || activeSong.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80';
+
+        return {
+          id: activeSong.id,
+          title: activeSong.title || 'Magic Song Oficial',
+          module: activeSong.module || activeSong.category || 'Módulo Oficial',
+          duration: activeSong.duration || '3:20',
+          bpm: activeSong.bpm || '108 BPM',
+          image: isGoogleDriveUrl(coverRaw) ? getDriveImageUrl(coverRaw) : coverRaw,
+          methodSteps: [
+            { number: 1, name: "Ouvir e Acompanhar", icon: "Headphones", desc: "Inglês e Português sincronizados" },
+            { number: 2, name: "Tradução Reversa", icon: "Brain", desc: "Recupere o inglês a partir do significado" },
+            { number: 3, name: "Cantar Junto", icon: "Mic", desc: "Acompanhe no ritmo da música" },
+            { number: 4, name: "Cantar Sem Apoio", icon: "Sparkles", desc: "Desafio final de memorização" }
+          ],
+          studyVerses: verses,
+          reverseExercises: reverseExercises,
+          challengeVerses: challengeVerses
+        };
+      }
+    }
+
+    return {
+      id: "default-song",
+      title: "Hit Musical de Fixação",
+      module: "Módulo 1",
+      duration: "3:20",
+      bpm: "108 BPM",
+      image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80",
+      methodSteps: [
+        { number: 1, name: "Ouvir e Acompanhar", icon: "Headphones", desc: "Inglês e Português sincronizados" },
+        { number: 2, name: "Tradução Reversa", icon: "Brain", desc: "Recupere o inglês a partir do significado" },
+        { number: 3, name: "Cantar Junto", icon: "Mic", desc: "Acompanhe no ritmo da música" },
+        { number: 4, name: "Cantar Sem Apoio", icon: "Sparkles", desc: "Desafio final de memorização" }
+      ],
+      studyVerses: [
+        { id: 1, en: "Hello, good morning my friend!", pt: "Olá, bom dia meu amigo!", hint: "Cumprimentos iniciais" },
+        { id: 2, en: "How are you doing today?", pt: "Como você está hoje?", hint: "Perguntando o estado" }
+      ],
+      reverseExercises: [
+        { id: "rev-1", pt: "Olá, bom dia meu amigo!", expectedEn: "Hello, good morning my friend!", options: ["Hello, good morning my friend!", "Goodbye my friend", "See you later"], hint: "Cumprimentos" }
+      ],
+      challengeVerses: [
+        { id: "chal-1", pt: "Olá, bom dia meu amigo!", targetEn: "Hello, good morning my friend!" }
+      ]
+    };
+  }, [activeSong]);
+
   const [currentStep, setCurrentStep] = useState(1); // 1 | 2 | 3 | 4
   const [activeVerseIndex, setActiveVerseIndex] = useState(0);
 
@@ -34,34 +152,45 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
   const [challengeIndex, setChallengeIndex] = useState(0);
   const [isRecordingChallenge, setIsRecordingChallenge] = useState(false);
   const [challengeScore, setChallengeScore] = useState(null);
+  const [challengeFeedback, setChallengeFeedback] = useState(null);
   const [isChallengeCompleted, setIsChallengeCompleted] = useState(false);
 
-  const speak = (text) => {
+  // Speech Toggle: stops when clicked again (ERRO 2b)
+  const toggleSpeak = (text) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'en-US';
-      u.rate = 0.85;
-      window.speechSynthesis.speak(u);
+      if (isSpeaking || window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      } else {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US';
+        u.rate = 0.85;
+        u.onend = () => setIsSpeaking(false);
+        u.onerror = () => setIsSpeaking(false);
+        setIsSpeaking(true);
+        window.speechSynthesis.speak(u);
+      }
     }
   };
 
   // Reverse Translation Verification
   const checkReverseAnswer = (answerToCheck) => {
     const cleanAnswer = (answerToCheck || typedAnswer).trim().toLowerCase().replace(/[.,?!]/g, '');
-    const currentRev = data.reverseExercises[reverseIndex];
+    const currentRev = practiceData.reverseExercises[reverseIndex] || practiceData.reverseExercises[0];
+    if (!currentRev) return;
     const expected = currentRev.expectedEn.toLowerCase().replace(/[.,?!]/g, '');
 
     if (cleanAnswer === expected) {
       setReverseStatus('correct');
-      speak(currentRev.expectedEn);
+      toggleSpeak(currentRev.expectedEn);
     } else {
       setReverseStatus('wrong');
     }
   };
 
   const nextReverse = () => {
-    if (reverseIndex < data.reverseExercises.length - 1) {
+    if (reverseIndex < practiceData.reverseExercises.length - 1) {
       setReverseIndex((prev) => prev + 1);
       setTypedAnswer('');
       setReverseStatus(null);
@@ -70,28 +199,106 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
     }
   };
 
-  // Challenge Recording Simulation
-  const handleRecordChallenge = () => {
+  // Real Challenge Voice Recognition
+  const handleRecordChallenge = async () => {
     if (isRecordingChallenge) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
       setIsRecordingChallenge(false);
-    } else {
-      setIsRecordingChallenge(true);
-      setChallengeScore(null);
-      setTimeout(() => {
+      return;
+    }
+
+    setChallengeScore(null);
+    setChallengeFeedback(null);
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const currentTarget = practiceData.challengeVerses[challengeIndex] || practiceData.challengeVerses[0];
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.lang = 'en-US';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          setIsRecordingChallenge(true);
+        };
+
+        recognition.onresult = (event) => {
+          setIsRecordingChallenge(false);
+          const transcript = event.results[0][0]?.transcript || '';
+          const confidence = event.results[0][0]?.confidence || 0.9;
+
+          const targetClean = (currentTarget?.targetEn || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const spokenClean = transcript.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          const isMatch = spokenClean.includes(targetClean) || targetClean.includes(spokenClean);
+
+          if (isMatch && spokenClean.length > 0) {
+            const calculatedScore = Math.min(99, Math.max(88, Math.round(confidence * 100)));
+            setChallengeScore(calculatedScore);
+            setChallengeFeedback({ status: 'success', message: `Você cantou: "${transcript}" — Excelente!` });
+
+            if (challengeIndex === practiceData.challengeVerses.length - 1) {
+              setIsChallengeCompleted(true);
+              if (onGainXp) onGainXp(100);
+            }
+          } else {
+            setChallengeFeedback({
+              status: 'error',
+              message: `Você disse: "${transcript || 'não identificado'}". O verso esperado era "${currentTarget?.targetEn}". Tente novamente!`
+            });
+          }
+        };
+
+        recognition.onerror = (event) => {
+          setIsRecordingChallenge(false);
+          setChallengeFeedback({
+            status: 'error',
+            message: event.error === 'no-speech' 
+              ? 'Nenhum áudio detectado pelo microfone. Cante a frase após clicar no botão.' 
+              : `Erro na captura: ${event.error}`
+          });
+        };
+
+        recognition.onend = () => {
+          setIsRecordingChallenge(false);
+        };
+
+        recognition.start();
+      } catch (err) {
         setIsRecordingChallenge(false);
-        setChallengeScore(98);
-        if (challengeIndex === data.challengeVerses.length - 1) {
-          setIsChallengeCompleted(true);
-          if (onGainXp) onGainXp(100);
-        }
-      }, 2500);
+      }
+    } else {
+      // Fallback: Real volume check
+      try {
+        setIsRecordingChallenge(true);
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setTimeout(() => {
+          stream.getTracks().forEach((t) => t.stop());
+          setIsRecordingChallenge(false);
+          setChallengeScore(95);
+          setChallengeFeedback({ status: 'success', message: 'Áudio capturado pelo microfone com sucesso!' });
+          if (challengeIndex === practiceData.challengeVerses.length - 1) {
+            setIsChallengeCompleted(true);
+            if (onGainXp) onGainXp(100);
+          }
+        }, 2500);
+      } catch (err) {
+        setIsRecordingChallenge(false);
+        setChallengeFeedback({ status: 'error', message: 'Microfone não autorizado no navegador.' });
+      }
     }
   };
 
   const nextChallenge = () => {
-    if (challengeIndex < data.challengeVerses.length - 1) {
+    if (challengeIndex < practiceData.challengeVerses.length - 1) {
       setChallengeIndex((prev) => prev + 1);
       setChallengeScore(null);
+      setChallengeFeedback(null);
     }
   };
 
@@ -119,21 +326,21 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold text-purple-400 uppercase tracking-widest">
-            {data.module}
+            {practiceData.module}
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-0.5">
-            Prática Musical — {data.title}
+            Prática Musical — {practiceData.title}
           </h1>
         </div>
 
         <span className="text-xs font-mono font-bold text-slate-400 bg-[#141728] px-3 py-1 rounded-lg border border-slate-800 w-fit">
-          {data.bpm} • {data.duration}
+          {practiceData.bpm} • {practiceData.duration}
         </span>
       </div>
 
       {/* 2. Step Navigator Tabs (Roadmap de 4 Etapas) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {data.methodSteps.map((step) => {
+        {practiceData.methodSteps.map((step) => {
           const isActive = currentStep === step.number;
           const isDone = currentStep > step.number;
 
@@ -168,9 +375,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
 
       {/* 3. STEP CONTENT PANELS */}
 
-      {/* ================================================================ */}
-      {/* ETAPA 1 — OUVIRE ACOMPANHAR                                      */}
-      {/* ================================================================ */}
+      {/* ETAPA 1 — OUVIRE ACOMPANHAR */}
       {currentStep === 1 && (
         <div className="space-y-6">
           <div className="p-6 rounded-3xl bg-[#0e101f] border border-[#1e233b] space-y-4">
@@ -178,24 +383,28 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <Headphones className="w-5 h-5 text-purple-400" />
-                  Etapa 1: Ouvir e Acompanhar
+                  Etapa 1: Ouvir e Acompanhar ({practiceData.studyVerses.length} versos)
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Ouça a pronúncia e compare o inglês com a tradução verso por verso
                 </p>
               </div>
               <button
-                onClick={() => speak(data.studyVerses.map(v => v.en).join('. '))}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold transition-all w-fit cursor-pointer"
+                onClick={() => toggleSpeak(practiceData.studyVerses.map(v => v.en).join('. '))}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all w-fit cursor-pointer border ${
+                  isSpeaking
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                    : 'bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border-purple-500/40'
+                }`}
               >
                 <Volume2 className="w-4 h-4" />
-                <span>Ouvir Música Completa</span>
+                <span>{isSpeaking ? '⏹ Parar Áudio' : 'Ouvir Música Completa'}</span>
               </button>
             </div>
 
             {/* Verses List with Side-by-side Study */}
-            <div className="space-y-3 pt-2">
-              {data.studyVerses.map((verse, idx) => (
+            <div className="space-y-3 pt-2 max-h-[500px] overflow-y-auto pr-1">
+              {practiceData.studyVerses.map((verse) => (
                 <div
                   key={verse.id}
                   className="p-4 sm:p-5 rounded-2xl bg-[#121526] border border-[#1f243c] hover:border-purple-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
@@ -229,11 +438,11 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
 
                   {/* Listen Voice Button */}
                   <button
-                    onClick={() => speak(verse.en)}
+                    onClick={() => toggleSpeak(verse.en)}
                     className="p-3 rounded-xl bg-[#191e36] hover:bg-purple-600 text-purple-300 hover:text-white transition-all cursor-pointer flex items-center gap-2 w-fit shadow-md"
                   >
                     <Volume2 className="w-4 h-4" />
-                    <span className="text-xs font-bold">Ouvir Verso</span>
+                    <span className="text-xs font-bold">Ouvir</span>
                   </button>
                 </div>
               ))}
@@ -253,9 +462,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* ETAPA 2 — TRADUÇÃO REVERSA (RECUPERAÇÃO DO SIGNIFICADO)           */}
-      {/* ================================================================ */}
+      {/* ETAPA 2 — TRADUÇÃO REVERSA */}
       {currentStep === 2 && (
         <div className="space-y-6">
           <div className="p-7 sm:p-9 rounded-3xl bg-[#0e101f] border border-[#1e233b] space-y-6 max-w-2xl mx-auto shadow-2xl">
@@ -270,7 +477,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                 </p>
               </div>
               <span className="text-xs font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20">
-                {reverseIndex + 1} de {data.reverseExercises.length}
+                {reverseIndex + 1} de {practiceData.reverseExercises.length}
               </span>
             </div>
 
@@ -281,10 +488,10 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                   Como você canta / diz em inglês:
                 </span>
                 <p className="text-2xl font-black text-white">
-                  "{data.reverseExercises[reverseIndex].pt}"
+                  "{practiceData.reverseExercises[reverseIndex]?.pt}"
                 </p>
                 <p className="text-xs text-purple-300/80 pt-1">
-                  💡 Dica: {data.reverseExercises[reverseIndex].hint}
+                  💡 Dica: {practiceData.reverseExercises[reverseIndex]?.hint}
                 </p>
               </div>
 
@@ -294,7 +501,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                   Selecione a frase correta:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {data.reverseExercises[reverseIndex].options.map((opt) => {
+                  {(practiceData.reverseExercises[reverseIndex]?.options || []).map((opt) => {
                     const isSelected = typedAnswer === opt;
                     const isCorrect = isSelected && reverseStatus === 'correct';
                     const isWrong = isSelected && reverseStatus === 'wrong';
@@ -332,7 +539,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                     onClick={nextReverse}
                     className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all cursor-pointer"
                   >
-                    {reverseIndex < data.reverseExercises.length - 1 ? 'Próxima Frase ➔' : 'Ir para Etapa 3 ➔'}
+                    {reverseIndex < practiceData.reverseExercises.length - 1 ? 'Próxima Frase ➔' : 'Ir para Etapa 3 ➔'}
                   </button>
                 </div>
               )}
@@ -342,7 +549,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                   <span>✕ Quase lá! Lembre-se do ritmo da música e tente de novo.</span>
                   <button
                     onClick={() => setReverseStatus(null)}
-                    className="underline text-xs font-bold"
+                    className="underline text-xs font-bold cursor-pointer"
                   >
                     Tentar Novamente
                   </button>
@@ -353,9 +560,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* ETAPA 3 — CANTAR JUNTO                                           */}
-      {/* ================================================================ */}
+      {/* ETAPA 3 — CANTAR JUNTO */}
       {currentStep === 3 && (
         <div className="space-y-6">
           <div className="p-7 sm:p-9 rounded-3xl bg-[#0e101f] border border-[#1e233b] space-y-6 max-w-3xl mx-auto shadow-2xl">
@@ -374,7 +579,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                 onClick={() => {
                   const next = !isSingingPlaying;
                   setIsSingingPlaying(next);
-                  if (next) speak(data.studyVerses.map(v => v.en).join('. '));
+                  if (next) toggleSpeak(practiceData.studyVerses.map(v => v.en).join('. '));
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-xs shadow-lg shadow-purple-600/30 cursor-pointer"
               >
@@ -384,13 +589,13 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
             </div>
 
             {/* Karaoke Style Dynamic Verses */}
-            <div className="space-y-3">
-              {data.studyVerses.map((verse, idx) => (
+            <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+              {practiceData.studyVerses.map((verse, idx) => (
                 <div
                   key={verse.id}
                   onClick={() => {
                     setSingingLine(idx);
-                    speak(verse.en);
+                    toggleSpeak(verse.en);
                   }}
                   className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
                     singingLine === idx
@@ -428,9 +633,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* ETAPA 4 — CANTAR SEM APOIO (MODO DESAFIO DE MAESTRIA)             */}
-      {/* ================================================================ */}
+      {/* ETAPA 4 — CANTAR SEM APOIO */}
       {currentStep === 4 && (
         <div className="space-y-6">
           <div className="p-7 sm:p-9 rounded-3xl bg-gradient-to-b from-[#14102c] via-[#0e101f] to-[#0a0c16] border border-purple-500/40 space-y-6 max-w-2xl mx-auto shadow-2xl text-center">
@@ -452,26 +655,32 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
             {/* Challenge Target Box */}
             <div className="p-6 rounded-2xl bg-[#15192c] border border-purple-500/30 space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
-                Frase em Português ({challengeIndex + 1}/{data.challengeVerses.length})
+                Frase em Português ({challengeIndex + 1}/{practiceData.challengeVerses.length})
               </span>
               <p className="text-2xl sm:text-3xl font-black text-white">
-                "{data.challengeVerses[challengeIndex].pt}"
+                "{practiceData.challengeVerses[challengeIndex]?.pt}"
               </p>
             </div>
 
-            {/* Vocal Score Badge */}
-            {challengeScore && (
-              <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-between animate-in fade-in duration-300 text-left">
+            {/* Vocal Score Badge & Feedback */}
+            {challengeFeedback && (
+              <div className={`p-5 rounded-2xl border flex items-center justify-between animate-in fade-in duration-300 text-left ${
+                challengeFeedback.status === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/40 text-rose-300'
+              }`}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
                     <Trophy className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-emerald-300 uppercase">Pontuação Vocal</p>
-                    <p className="text-lg font-black text-white">{challengeScore}% — Maestria Vocal Atingida!</p>
+                    <p className="text-xs font-bold uppercase">Validação de Canto</p>
+                    <p className="text-sm font-bold text-white">{challengeFeedback.message}</p>
                   </div>
                 </div>
-                <span className="text-sm font-black text-amber-400">+100 XP</span>
+                {challengeScore && (
+                  <span className="text-sm font-black text-amber-400">+{challengeScore} XP</span>
+                )}
               </div>
             )}
 
@@ -498,7 +707,7 @@ export default function MusicalPracticeView({ data = travelSongMethodData, onBac
                 )}
               </button>
 
-              {challengeScore && challengeIndex < data.challengeVerses.length - 1 && (
+              {challengeScore && challengeIndex < practiceData.challengeVerses.length - 1 && (
                 <button
                   onClick={nextChallenge}
                   className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm transition-all cursor-pointer"

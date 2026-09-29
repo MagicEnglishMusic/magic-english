@@ -150,15 +150,6 @@ export function AuthProvider({ children }) {
       }
     };
 
-    console.log('[DEBUG AUTH] resolveUserState:', {
-      userId,
-      profileEncontrado: Boolean(profile),
-      profileRole: profile?.role,
-      metadataRole: sessionUser.user_metadata?.role,
-      resolvedRole: cleanUser.role,
-      resolvedIsOnboarded
-    });
-
     return {
       user: cleanUser,
       role: cleanUser.role,
@@ -235,7 +226,6 @@ export function AuthProvider({ children }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
-      console.log('[DEBUG AUTH] onAuthStateChange event:', event, 'session user:', session?.user?.id);
       if (event === 'PASSWORD_RECOVERY') {
         if (session?.user) {
           const resolved = await resolveUserState(session.user);
@@ -546,13 +536,6 @@ export function AuthProvider({ children }) {
         });
 
         if (error) throw error;
-
-        console.log('[DEBUG AUTH] loginAdmin signInWithPassword success:', {
-          user: data?.user,
-          userId: data?.user?.id,
-          email: data?.user?.email
-        });
-
         if (data?.user) {
           const resolved = await resolveUserState(data.user);
           const normalizedRole = String(resolved?.role || '').trim().toLowerCase();

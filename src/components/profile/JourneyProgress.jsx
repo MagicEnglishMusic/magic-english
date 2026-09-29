@@ -3,7 +3,7 @@ import { CheckCircle2, Lock, Star, Sparkles, ChevronRight, Zap } from 'lucide-re
 
 export default function JourneyProgress({
   journeySteps = [],
-  currentLevelNumber = 2,
+  currentLevelNumber = 1,
   className = ""
 }) {
   return (
@@ -29,9 +29,9 @@ export default function JourneyProgress({
       {/* Visual Progression Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
         {journeySteps.map((step) => {
-          const isCompleted = step.status === 'completed' || step.level < currentLevelNumber;
-          const isCurrent = step.status === 'current' || step.level === currentLevelNumber;
-          const isNext = step.status === 'next' || step.level === currentLevelNumber + 1;
+          const isCompleted = step.level < currentLevelNumber;
+          const isCurrent = step.level === currentLevelNumber;
+          const isNext = step.level === currentLevelNumber + 1;
           const isFuture = step.level > currentLevelNumber + 1;
 
           return (

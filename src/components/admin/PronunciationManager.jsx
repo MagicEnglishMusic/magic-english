@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Mic, Plus, Volume2, Sparkles, Trash2, X, CheckCircle2 } from 'lucide-react';
 import { songsService } from '../../services/songsService';
+import { pronunciationService } from '../../services/pronunciationService';
 
 export default function PronunciationManager() {
   const [vocabList, setVocabList] = useState([]);
@@ -15,18 +16,24 @@ export default function PronunciationManager() {
   });
 
   useEffect(() => {
-    async function loadSongs() {
+    async function loadData() {
       try {
-        const { data } = await songsService.getSongs();
-        if (data && data.length > 0) {
-          setSongsList(data);
-          setFormData((prev) => ({ ...prev, song: data[0].title }));
+        const [songsRes, wordsRes] = await Promise.all([
+          songsService.getSongs(),
+          pronunciationService.getWords()
+        ]);
+        if (songsRes?.data && songsRes.data.length > 0) {
+          setSongsList(songsRes.data);
+          setFormData((prev) => ({ ...prev, song: songsRes.data[0].title }));
+        }
+        if (wordsRes?.data) {
+          setVocabList(wordsRes.data);
         }
       } catch (err) {
-        console.warn('Error loading songs in PronunciationManager:', err);
+        console.warn('Error loading data in PronunciationManager:', err);
       }
     }
-    loadSongs();
+    loadData();
   }, []);
 
   const speak = (text) => {
@@ -39,25 +46,44 @@ export default function PronunciationManager() {
     }
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     if (!formData.word) return;
 
-    const newVoc = {
-      id: `voc-${Date.now()}`,
+    const payload = {
       word: formData.word,
       phonetic: formData.phonetic || `/${formData.word.toLowerCase()}/`,
-      translation: formData.translation,
+      translation: formData.translation || '',
       song: formData.song || (songsList[0]?.title || 'Geral'),
-      tip: formData.tip || "Articulação natural em inglês nativo."
+      tip: formData.tip || "Articulação natural em inglês nativo.",
+      score: 95
+    };
+
+    const res = await pronunciationService.createWord(payload);
+    const newVoc = res?.data || {
+      id: `voc-${Date.now()}`,
+      ...payload
     };
 
     setVocabList([newVoc, ...vocabList]);
     setIsModalOpen(false);
+    setFormData({
+      word: '',
+      phonetic: '',
+      translation: '',
+      song: songsList[0]?.title || '',
+      tip: ''
+    });
   };
 
-  const handleDelete = (id) => {
-    setVocabList(vocabList.filter((v) => v.id !== id));
+  const handleDelete = async (id) => {
+    if (!window.confirm('Tem certeza que deseja excluir este termo fonético?')) return;
+    const res = await pronunciationService.deleteWord(id);
+    if (res?.error) {
+      alert(`Erro ao excluir palavra: ${res.error}`);
+      return;
+    }
+    setVocabList((prev) => prev.filter((v) => v.id !== id));
   };
 
   return (

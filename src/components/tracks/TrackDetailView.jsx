@@ -4,8 +4,10 @@ import ModuleCard from './ModuleCard';
 import ProgressBar from './ProgressBar';
 import AchievementBadge from './AchievementBadge';
 import { userJourneyLevels } from '../../data/tracksData';
+import { useGamification } from '../../context/GamificationContext';
 
 export default function TrackDetailView({ track, onBack, onSelectLesson }) {
+  const { currentLevel } = useGamification();
   if (!track) return null;
 
   return (
@@ -132,58 +134,65 @@ export default function TrackDetailView({ track, onBack, onSelectLesson }) {
       </div>
 
       {/* Journey Evolution Roadmap */}
-      <div className="p-7 rounded-3xl bg-[#0e101f] border border-[#20253f] space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              Sua Jornada de Fluência
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Complete mais 3 músicas para desbloquear o próximo nível.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20 w-fit">
-            Nível Atual: Music Learner 🎵
-          </span>
-        </div>
+      {(() => {
+        const userLvl = currentLevel?.level || 1;
+        const activeJourneyLevel = userJourneyLevels.find((lvl) => lvl.id === userLvl) || userJourneyLevels[0];
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
-          {userJourneyLevels.map((lvl, index) => {
-            const isCompleted = lvl.status === 'completed';
-            const isCurrent = lvl.status === 'current';
-            const isLocked = lvl.status === 'locked' || lvl.status === 'upcoming';
-
-            return (
-              <div
-                key={lvl.id}
-                className={`p-4 rounded-2xl border transition-all ${
-                  isCurrent
-                    ? 'bg-gradient-to-b from-purple-950/50 to-[#15192c] border-purple-500/60 shadow-lg shadow-purple-600/20 ring-1 ring-purple-400/40'
-                    : isCompleted
-                    ? 'bg-[#101322] border-emerald-500/30'
-                    : 'bg-[#0d0f1a] border-slate-800/60 opacity-60'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{lvl.emoji}</span>
-                  {isCompleted ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : isCurrent ? (
-                    <span className="text-[10px] font-bold bg-purple-500 text-white px-2 py-0.5 rounded-full">
-                      Atual
-                    </span>
-                  ) : (
-                    <Lock className="w-3.5 h-3.5 text-slate-500" />
-                  )}
-                </div>
-                <h4 className="text-sm font-bold text-white">{lvl.name}</h4>
-                <p className="text-[11px] text-slate-400 mt-1">{lvl.desc}</p>
+        return (
+          <div className="p-7 rounded-3xl bg-[#0e101f] border border-[#20253f] space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  Sua Jornada de Fluência
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Complete atividades e músicas para avançar de nível.
+                </p>
               </div>
-            );
-          })}
-        </div>
-      </div>
+              <span className="text-xs font-bold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20 w-fit">
+                Nível Atual: {activeJourneyLevel.name} {activeJourneyLevel.emoji}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+              {userJourneyLevels.map((lvl) => {
+                const isCompleted = lvl.id < userLvl;
+                const isCurrent = lvl.id === userLvl;
+                const isLocked = lvl.id > userLvl;
+
+                return (
+                  <div
+                    key={lvl.id}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      isCurrent
+                        ? 'bg-gradient-to-b from-purple-950/50 to-[#15192c] border-purple-500/60 shadow-lg shadow-purple-600/20 ring-1 ring-purple-400/40'
+                        : isCompleted
+                        ? 'bg-[#101322] border-emerald-500/30'
+                        : 'bg-[#0d0f1a] border-slate-800/60 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">{lvl.emoji}</span>
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      ) : isCurrent ? (
+                        <span className="text-[10px] font-bold bg-purple-500 text-white px-2 py-0.5 rounded-full">
+                          Atual
+                        </span>
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      )}
+                    </div>
+                    <h4 className="text-sm font-bold text-white">{lvl.name}</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">{lvl.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

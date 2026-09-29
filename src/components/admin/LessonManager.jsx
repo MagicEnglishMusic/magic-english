@@ -138,8 +138,15 @@ export default function LessonManager() {
   };
 
   const handleDelete = async (id) => {
-    await lessonsService.deleteLesson(id);
-    setLessons(lessons.filter((l) => l.id !== id));
+    if (!window.confirm('Tem certeza que deseja excluir esta aula? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    const res = await lessonsService.deleteLesson(id);
+    if (res?.error) {
+      alert(`Erro ao excluir aula: ${res.error}`);
+      return;
+    }
+    setLessons((prev) => prev.filter((l) => l.id !== id));
   };
 
   return (

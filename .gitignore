@@ -42,3 +42,6 @@ tmp
 temp
 *.tmp
 .system_generated
+scratch/
+supabase/.temp/
+test-e2e-visual.cjs

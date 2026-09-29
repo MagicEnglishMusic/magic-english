@@ -7,19 +7,21 @@ export default function ModuleBannerCard({ module, onSelectModule }) {
   return (
     <div
       onClick={() => onSelectModule && onSelectModule(module)}
-      className="group relative aspect-[3/4] rounded-3xl overflow-hidden border border-[#1f243c] bg-[#0c0e1a] shadow-xl hover:border-purple-500/70 hover:shadow-2xl hover:shadow-purple-600/30 transition-all duration-500 cursor-pointer flex flex-col justify-between select-none hover:-translate-y-1.5"
+      className="group relative aspect-[9/16] rounded-3xl overflow-hidden border border-[#1f243c] bg-[#0c0e1a] shadow-xl hover:border-purple-500/70 hover:shadow-2xl hover:shadow-purple-600/30 transition-all duration-500 cursor-pointer flex flex-col justify-between select-none hover:-translate-y-1.5"
     >
-      {/* 1. Full-bleed Background Cover Image (3:4 Poster Aspect) */}
+      {/* 1. Full-bleed Background Cover Image (9:16 Vertical Poster Aspect) */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <img
           src={module.coverImage}
           alt={module.title}
-          className="w-full h-full object-cover object-center scale-100 group-hover:scale-110 transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
         />
-        {/* Layered cinematic dark gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#080911] via-[#080911]/90 via-45% to-transparent"></div>
-        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
-        <div className="absolute -top-12 -left-12 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none group-hover:bg-purple-600/35 transition-all"></div>
+
+        {/* Top Vignette (Ensures top badges readability without darkening the whole image) */}
+        <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none" />
+
+        {/* Bottom Dynamic Gradient (Focused on bottom, smoothly expands on hover for text readability) */}
+        <div className="absolute bottom-0 inset-x-0 h-2/5 group-hover:h-3/5 bg-gradient-to-t from-black/95 via-black/60 to-transparent opacity-85 group-hover:opacity-100 transition-all duration-500 pointer-events-none" />
       </div>
 
       {/* 2. Top Header: Module Number & Count Pills */}
@@ -50,24 +52,24 @@ export default function ModuleBannerCard({ module, onSelectModule }) {
       {/* 4. Bottom Content Area (Title, Description, Progress) */}
       <div className="relative z-10 p-4 sm:p-5 space-y-2.5">
         <div className="space-y-1">
-          <h3 className="text-base sm:text-lg lg:text-xl font-black text-white group-hover:text-purple-300 transition-colors leading-tight drop-shadow-md">
+          <h3 className="text-base sm:text-lg font-black text-white group-hover:text-purple-300 transition-colors leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
             {module.title}
           </h3>
-          <p className="text-[11px] sm:text-xs text-slate-300/90 line-clamp-2 leading-relaxed">
+          <p className="text-[11px] sm:text-xs text-slate-200/90 line-clamp-2 leading-relaxed drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
             "{module.shortDescription}"
           </p>
         </div>
 
         {/* Mini Progress Bar or Status */}
-        <div className="pt-2 border-t border-white/10 space-y-1">
-          <div className="flex items-center justify-between text-[10px] text-slate-400">
-            <span>{module.progress > 0 ? `${module.progress}% concluído` : 'Não iniciado'}</span>
-            <span className="text-purple-300 font-bold group-hover:translate-x-0.5 transition-transform">
+        <div className="pt-2 border-t border-white/15 space-y-1">
+          <div className="flex items-center justify-between text-[10px] text-slate-300">
+            <span className="font-medium">{module.progress > 0 ? `${module.progress}% concluído` : 'Não iniciado'}</span>
+            <span className="text-purple-300 font-bold group-hover:translate-x-0.5 transition-transform drop-shadow">
               Ver aulas ➔
             </span>
           </div>
 
-          <div className="w-full bg-[#181d30] h-1.5 rounded-full overflow-hidden">
+          <div className="w-full bg-black/50 backdrop-blur-sm h-1.5 rounded-full overflow-hidden border border-white/10">
             <div
               className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400 rounded-full transition-all duration-700"
               style={{ width: `${module.progress}%` }}

@@ -3,18 +3,37 @@ import { CheckCircle2, Circle, Clock, Zap, Sparkles, Trophy, Tv, Music, Brain, M
 import { useGamification } from '../../context/GamificationContext';
 import { XP_REWARDS } from '../../data/gamificationData';
 
-export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLesson, lessonId }) {
+export default function LessonProgress({ 
+  onCompleteLesson, 
+  onNextLesson, 
+  nextLesson, 
+  lessonId,
+  initialSteps = { video: false, song: false, pronunciation: false, practice: false }
+}) {
+  const [completedSteps, setCompletedSteps] = useState(initialSteps);
   const [isCompleted, setIsCompleted] = useState(false);
   const { addXp, recordLessonProgress } = useGamification();
 
-  const items = [
-    { label: 'Vídeo da Aula', status: isCompleted ? 'done' : 'pending', icon: Tv },
-    { label: 'Magic Song Fixação', status: isCompleted ? 'done' : 'pending', icon: Music },
-    { label: 'Pronúncia IA', status: isCompleted ? 'done' : 'pending', icon: Mic },
-    { label: 'Prática Musical', status: isCompleted ? 'done' : 'pending', icon: Brain },
+  const stepsList = [
+    { key: 'video', label: '1. Vídeo da Aula', desc: 'Assista ao vídeo explicativo', icon: Tv },
+    { key: 'song', label: '2. Magic Song Fixação', desc: 'Ouça o áudio e acompanhe a letra', icon: Music },
+    { key: 'pronunciation', label: '3. Pronúncia IA', desc: 'Grave e valide sua voz no Voice Lab', icon: Mic },
+    { key: 'practice', label: '4. Prática Musical', desc: 'Faça a tradução reversa dos versos', icon: Brain },
   ];
 
+  const toggleStep = (key) => {
+    if (isCompleted) return;
+    setCompletedSteps((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const completedCount = Object.values(completedSteps).filter(Boolean).length;
+  const isAllStepsDone = completedCount === 4;
+
   const handleComplete = () => {
+    if (!isAllStepsDone || isCompleted) return;
     setIsCompleted(true);
     if (recordLessonProgress) {
       recordLessonProgress(lessonId || 'b0000001-0000-0000-0000-000000000001', 100, true);
@@ -23,7 +42,7 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
       showModal: true,
       type: 'xp',
       title: '📚 Aula Concluída com Sucesso!',
-      subtitle: 'Você concluiu o vídeo e as práticas de fixação.',
+      subtitle: 'Você concluiu o vídeo e todos os 4 passos de fixação.',
       icon: '🏆',
       bonusText: `+${XP_REWARDS.COMPLETE_LESSON} Magic XP adicionados à sua jornada!`
     });
@@ -38,37 +57,41 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
           Sua Evolução na Aula
         </h3>
         <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-          isCompleted 
+          isCompleted || isAllStepsDone
             ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
             : 'text-purple-300 bg-purple-500/10 border-purple-500/20'
         }`}>
-          {isCompleted ? '100% Concluída' : 'Em Andamento'}
+          {isCompleted ? '100% Concluída' : `${completedCount}/4 Passos`}
         </span>
       </div>
 
       {/* Progress Checklist */}
       <div className="space-y-3">
-        {items.map((it, idx) => {
-          const isDone = it.status === 'done' || isCompleted;
-          const Icon = it.icon;
+        {stepsList.map((step) => {
+          const isDone = Boolean(completedSteps[step.key]) || isCompleted;
+          const Icon = step.icon;
           return (
             <div
-              key={idx}
-              className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
+              key={step.key}
+              onClick={() => toggleStep(step.key)}
+              className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer select-none group ${
                 isDone
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
-                  : 'bg-[#131626] border-slate-800 text-slate-300'
+                  : 'bg-[#131626] border-slate-800 text-slate-300 hover:border-purple-500/40 hover:bg-[#181c30]'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs ${
-                    isDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#181c30] text-purple-400'
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors ${
+                    isDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#181c30] text-purple-400 group-hover:bg-purple-600/20'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
                 </div>
-                <span className="text-sm font-semibold">{it.label}</span>
+                <div>
+                  <span className="text-sm font-semibold block">{step.label}</span>
+                  <span className="text-[10px] text-slate-400">{step.desc}</span>
+                </div>
               </div>
 
               {isDone ? (
@@ -77,9 +100,9 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
                   <span>Concluído</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-xs text-purple-300 font-semibold">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Em andamento</span>
+                <div className="flex items-center gap-1 text-xs text-slate-500 font-semibold group-hover:text-purple-300">
+                  <Circle className="w-3.5 h-3.5" />
+                  <span>Pendente</span>
                 </div>
               )}
             </div>
@@ -91,11 +114,13 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
       <div className="pt-2">
         <button
           onClick={handleComplete}
-          disabled={isCompleted}
-          className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-xl ${
+          disabled={!isAllStepsDone || isCompleted}
+          className={`w-full py-4 px-6 rounded-2xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all shadow-xl ${
             isCompleted
               ? 'bg-emerald-600/20 border border-emerald-500 text-emerald-300 cursor-default'
-              : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-purple-600/40 hover:scale-[1.02] active:scale-[0.98]'
+              : isAllStepsDone
+              ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-purple-600/40 hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+              : 'bg-slate-800/60 border border-slate-700/60 text-slate-400 cursor-not-allowed opacity-75'
           }`}
         >
           {isCompleted ? (
@@ -103,10 +128,15 @@ export default function LessonProgress({ onCompleteLesson, onNextLesson, nextLes
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               <span>Aula Concluída (+{XP_REWARDS.COMPLETE_LESSON} XP Resgatados!)</span>
             </>
-          ) : (
+          ) : isAllStepsDone ? (
             <>
               <Zap className="w-5 h-5 fill-white" />
               <span>Concluir Aula (+{XP_REWARDS.COMPLETE_LESSON} XP)</span>
+            </>
+          ) : (
+            <>
+              <Clock className="w-4 h-4 text-slate-400" />
+              <span>Complete os 4 passos para concluir ({completedCount}/4)</span>
             </>
           )}
         </button>

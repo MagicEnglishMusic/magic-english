@@ -1,9 +1,45 @@
-import React from 'react';
-import { ArrowLeft, Play, CheckCircle2, Lock, Clock, Sparkles, Music, BookOpen, Tv, Mic, ArrowRight, Brain, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Play, CheckCircle2, Lock, Clock, Sparkles, Music, BookOpen, Tv, Mic, ArrowRight, Brain, Zap, Loader2, BookX } from 'lucide-react';
 import ProgressBar from '../tracks/ProgressBar';
+import { lessonsService } from '../../services/lessonsService';
+import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpenMusicalPractice }) {
+  const [lessons, setLessons] = useState([]);
+  const [isLoadingLessons, setIsLoadingLessons] = useState(true);
+
+  useEffect(() => {
+    async function loadLessons() {
+      if (!module?.id) return;
+      setIsLoadingLessons(true);
+      try {
+        const { data } = await lessonsService.getLessonsByModule(module.id);
+        if (data) {
+          const formatted = data.map((l, idx) => ({
+            id: l.id,
+            lessonNumber: l.lesson_number || `Aula ${String(idx + 1).padStart(2, '0')}`,
+            title: l.title || 'Aula Sem Título',
+            description: l.description || '',
+            duration: l.duration || '15 min',
+            videoUrl: l.video_url,
+            thumbnail: getDriveImageUrl(l.thumbnail_url) || module.coverImage,
+            status: idx === 0 ? 'in_progress' : 'locked',
+            relatedSong: l.related_song || 'Magic Song'
+          }));
+          setLessons(formatted);
+        }
+      } catch (err) {
+        console.warn('Error fetching module lessons:', err);
+      } finally {
+        setIsLoadingLessons(false);
+      }
+    }
+    loadLessons();
+  }, [module?.id]);
+
   if (!module) return null;
+
+  const currentLessonsCount = lessons.length || module.lessonsCount || 0;
 
   return (
     <div className="space-y-10 animate-in fade-in duration-300">
@@ -19,7 +55,7 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
         </button>
 
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300">
-          {module.moduleNumber} • {module.lessonsCount} Videoaulas • {module.songsCount} Músicas
+          {module.moduleNumber} • {currentLessonsCount} Videoaulas • {module.songsCount || 0} Músicas
         </span>
       </div>
 
@@ -52,15 +88,15 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
         {/* Right Stats Card */}
         <div className="relative z-10 w-full md:w-auto flex-shrink-0 grid grid-cols-2 gap-3 p-5 rounded-2xl bg-[#131628]/90 backdrop-blur-md border border-[#232944]">
           <div className="p-3 rounded-xl bg-[#191d32] border border-slate-800 text-center">
-            <span className="text-xl sm:text-2xl font-black text-white">{module.lessonsCount}</span>
+            <span className="text-xl sm:text-2xl font-black text-white">{currentLessonsCount}</span>
             <p className="text-[10px] text-slate-400 mt-0.5">Videoaulas</p>
           </div>
           <div className="p-3 rounded-xl bg-[#191d32] border border-slate-800 text-center">
-            <span className="text-xl sm:text-2xl font-black text-purple-400">{module.songsCount}</span>
+            <span className="text-xl sm:text-2xl font-black text-purple-400">{module.songsCount || 0}</span>
             <p className="text-[10px] text-slate-400 mt-0.5">Magic Songs</p>
           </div>
           <div className="p-3 rounded-xl bg-[#191d32] border border-slate-800 text-center">
-            <span className="text-xl sm:text-2xl font-black text-amber-400">+{module.lessonsCount * 50}</span>
+            <span className="text-xl sm:text-2xl font-black text-amber-400">+{currentLessonsCount * 50}</span>
             <p className="text-[10px] text-slate-400 mt-0.5">XP Total</p>
           </div>
           <div className="p-3 rounded-xl bg-[#191d32] border border-slate-800 text-center">
@@ -71,34 +107,68 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
       </div>
 
       {/* 3. Visual Learning Method Flow Roadmap */}
-      <div className="p-6 rounded-3xl bg-[#0c0e1a] border border-purple-500/20 space-y-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-purple-400" />
-          <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
-            Fluxo de Aprendizagem do Módulo
-          </span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 text-center">
-          <div className="p-2.5 rounded-xl bg-[#121526] border border-slate-800 text-xs text-slate-300">
-            <span className="block text-sm mb-0.5">🎬</span> 1. Assistir aula
+      {(() => {
+        const modProgress = Number(module.progress) || 0;
+        const currentStepNum = modProgress >= 100 ? 6 
+          : modProgress >= 80 ? 5
+          : modProgress >= 60 ? 4
+          : modProgress >= 40 ? 3
+          : modProgress >= 20 ? 2
+          : 1;
+
+        const learningSteps = [
+          { number: 1, title: 'Assistir aula', icon: '🎬' },
+          { number: 2, title: 'Ouvir música', icon: '🎵' },
+          { number: 3, title: 'Entender tradução', icon: '📖' },
+          { number: 4, title: 'Tradução reversa', icon: '🧠' },
+          { number: 5, title: 'Cantar junto', icon: '🎤' },
+          { number: 6, title: 'Dominar a frase', icon: '⭐' }
+        ];
+
+        return (
+          <div className="p-6 rounded-3xl bg-[#0c0e1a] border border-purple-500/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
+                  Fluxo de Aprendizagem do Módulo
+                </span>
+              </div>
+              <span className="text-[11px] font-mono font-bold text-purple-300 bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/20">
+                {modProgress >= 100 ? 'Módulo 100% Dominado 🏆' : `Etapa ${currentStepNum} de 6`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 text-center">
+              {learningSteps.map((step) => {
+                const isCompleted = modProgress >= 100 || (modProgress > 0 && currentStepNum > step.number);
+                const isCurrent = !isCompleted && currentStepNum === step.number;
+                const isLocked = !isCompleted && !isCurrent;
+
+                return (
+                  <div
+                    key={step.number}
+                    className={`p-2.5 rounded-xl border text-xs transition-all relative ${
+                      isCompleted
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 font-semibold'
+                        : isCurrent
+                        ? 'bg-gradient-to-b from-purple-950/60 to-[#171b30] border-purple-500 text-white font-bold shadow-md shadow-purple-600/20 ring-1 ring-purple-400/40'
+                        : 'bg-[#121526] border-slate-800/80 text-slate-500 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-1 mb-0.5">
+                      <span className="text-sm">{step.icon}</span>
+                      {isCompleted && <span className="text-emerald-400 font-bold text-[10px]">✓</span>}
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>}
+                    </div>
+                    <span>{step.number}. {step.title}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-[#121526] border border-slate-800 text-xs text-slate-300">
-            <span className="block text-sm mb-0.5">🎵</span> 2. Ouvir música
-          </div>
-          <div className="p-2.5 rounded-xl bg-[#121526] border border-slate-800 text-xs text-slate-300">
-            <span className="block text-sm mb-0.5">📖</span> 3. Entender tradução
-          </div>
-          <div className="p-2.5 rounded-xl bg-[#121526] border border-slate-800 text-xs text-slate-300">
-            <span className="block text-sm mb-0.5">🧠</span> 4. Tradução reversa
-          </div>
-          <div className="p-2.5 rounded-xl bg-[#121526] border border-slate-800 text-xs text-slate-300">
-            <span className="block text-sm mb-0.5">🎤</span> 5. Cantar junto
-          </div>
-          <div className="p-2.5 rounded-xl bg-purple-600/20 border border-purple-500/40 text-xs font-bold text-purple-200">
-            <span className="block text-sm mb-0.5">⭐</span> 6. Dominar a frase
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* 4. Section 1: 🎬 Aulas em Vídeo */}
       <div className="space-y-4">
@@ -114,81 +184,93 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
           </div>
         </div>
 
-        <div className="space-y-3.5">
-          {module.lessons.map((lesson) => {
-            const isCompleted = lesson.status === 'completed';
-            const isInProgress = lesson.status === 'in_progress';
-            const isLocked = lesson.status === 'locked';
+        {isLoadingLessons ? (
+          <div className="p-12 rounded-2xl bg-[#111424] border border-[#1d2238] flex flex-col items-center justify-center space-y-3">
+            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <p className="text-xs text-slate-400">Carregando aulas do módulo...</p>
+          </div>
+        ) : lessons.length > 0 ? (
+          <div className="space-y-3.5">
+            {lessons.map((lesson) => {
+              const isCompleted = lesson.status === 'completed';
+              const isInProgress = lesson.status === 'in_progress';
+              const isLocked = lesson.status === 'locked';
 
-            return (
-              <div
-                key={lesson.id}
-                onClick={() => !isLocked && onSelectLesson && onSelectLesson(lesson)}
-                className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                  isLocked
-                    ? 'bg-[#0d0f1a]/60 border-slate-800/60 opacity-60 cursor-not-allowed'
-                    : isInProgress
-                    ? 'bg-gradient-to-r from-purple-950/40 via-[#15182e] to-[#101324] border-purple-500/60 shadow-xl shadow-purple-600/15 cursor-pointer hover:border-purple-400 hover:scale-[1.01]'
-                    : 'bg-[#111424] border-[#1d2238] hover:border-purple-500/40 hover:bg-[#161a2f] cursor-pointer hover:scale-[1.01]'
-                }`}
-              >
-                {/* Left: Thumbnail & Lesson Info */}
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 relative">
-                    <img src={lesson.thumbnail} alt={lesson.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      ) : isInProgress ? (
-                        <Play className="w-5 h-5 fill-white text-white animate-pulse" />
-                      ) : (
-                        <Lock className="w-4 h-4 text-slate-400" />
-                      )}
+              return (
+                <div
+                  key={lesson.id}
+                  onClick={() => !isLocked && onSelectLesson && onSelectLesson(lesson)}
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                    isLocked
+                      ? 'bg-[#0d0f1a]/60 border-slate-800/60 opacity-60 cursor-not-allowed'
+                      : isInProgress
+                      ? 'bg-gradient-to-r from-purple-950/40 via-[#15182e] to-[#101324] border-purple-500/60 shadow-xl shadow-purple-600/15 cursor-pointer hover:border-purple-400 hover:scale-[1.01]'
+                      : 'bg-[#111424] border-[#1d2238] hover:border-purple-500/40 hover:bg-[#161a2f] cursor-pointer hover:scale-[1.01]'
+                  }`}
+                >
+                  {/* Left: Thumbnail & Lesson Info */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 relative">
+                      <img src={lesson.thumbnail} alt={lesson.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        {isCompleted ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        ) : isInProgress ? (
+                          <Play className="w-5 h-5 fill-white text-white animate-pulse" />
+                        ) : (
+                          <Lock className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-purple-400">
+                          {lesson.lessonNumber}
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className="text-[11px] text-cyan-300 font-semibold flex items-center gap-1">
+                          <Music className="w-3 h-3" />
+                          {lesson.relatedSong}
+                        </span>
+                      </div>
+
+                      <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 truncate max-w-lg">
+                        {lesson.description}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="space-y-0.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-purple-400">
-                        {lesson.lessonNumber}
-                      </span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-[11px] text-cyan-300 font-semibold flex items-center gap-1">
-                        <Music className="w-3 h-3" />
-                        {lesson.relatedSong}
-                      </span>
-                    </div>
-
-                    <h3 className="text-sm sm:text-base font-bold text-white truncate">
-                      {lesson.title}
-                    </h3>
-                    <p className="text-xs text-slate-400 truncate max-w-lg">
-                      {lesson.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Right: Duration, Status & Action */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
-                  <span className="text-xs text-slate-400 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    {lesson.duration}
-                  </span>
-
-                  {!isLocked ? (
-                    <button className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-all shadow-md shadow-purple-600/30 whitespace-nowrap cursor-pointer">
-                      {isCompleted ? 'Reassistir Aula' : 'Assistir Aula'} ➔
-                    </button>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-500 bg-slate-800/40 px-3 py-1 rounded-full">
-                      Bloqueada
+                  {/* Right: Duration, Status & Action */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      {lesson.duration}
                     </span>
-                  )}
+
+                    {!isLocked ? (
+                      <button className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-all shadow-md shadow-purple-600/30 whitespace-nowrap cursor-pointer">
+                        {isCompleted ? 'Reassistir Aula' : 'Assistir Aula'} ➔
+                      </button>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-500 bg-slate-800/40 px-3 py-1 rounded-full">
+                        Bloqueada
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 rounded-2xl bg-[#111424] border border-[#1d2238] text-center space-y-2">
+            <p className="text-sm font-bold text-white">Nenhuma aula cadastrada neste módulo ainda</p>
+            <p className="text-xs text-slate-400">As aulas adicionadas pelo administrador neste módulo aparecerão aqui.</p>
+          </div>
+        )}
       </div>
 
       {/* 5. Section 2: 🎵 Magic Songs & Prática Musical */}

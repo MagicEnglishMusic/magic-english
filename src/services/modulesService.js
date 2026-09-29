@@ -1,21 +1,42 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { learningTracksList } from '../data/mockData';
 
 export const modulesService = {
-  // Fetch all modules ordered
+  // Fetch all modules ordered with dynamic lessons and songs count
   async getModules() {
     if (!isSupabaseConfigured) {
       return { data: [], error: null };
     }
 
     try {
+      // Fetch modules with nested count if possible, fallback to standard select
       const { data, error } = await supabase
         .from('modules')
-        .select('*')
+        .select(`
+          *,
+          lessons (id),
+          songs (id)
+        `)
         .order('order_index', { ascending: true });
 
-      if (error) throw error;
-      return { data: data || [], error: null };
+      if (error) {
+        // Fallback to simple select if relations aren't configured with foreign keys in join
+        const { data: simpleData, error: simpleError } = await supabase
+          .from('modules')
+          .select('*')
+          .order('order_index', { ascending: true });
+
+        if (simpleError) throw simpleError;
+        return { data: simpleData || [], error: null };
+      }
+
+      // Compute dynamic counts from relation arrays
+      const formatted = (data || []).map((m) => ({
+        ...m,
+        lessons_count: Array.isArray(m.lessons) ? m.lessons.length : (m.lessons_count || 0),
+        songs_count: Array.isArray(m.songs) ? m.songs.length : (m.songs_count || 0)
+      }));
+
+      return { data: formatted, error: null };
     } catch (err) {
       console.warn('Error fetching modules from Supabase:', err.message);
       return { data: [], error: err.message };

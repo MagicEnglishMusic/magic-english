@@ -17,6 +17,30 @@ import {
   CLEAN_SONG_MASTERY
 } from '../data/gamificationData';
 
+// Dynamic weekly days generator based on current date
+const generateWeeklyDays = () => {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = Dom, 1 = Seg, 2 = Ter, 3 = Qua, 4 = Qui, 5 = Sex, 6 = Sáb
+  const currentDayIndex = (dayOfWeek + 6) % 7; // 0 = Seg, ..., 6 = Dom
+  const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+  
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - currentDayIndex);
+
+  return dayNames.map((dayName, idx) => {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + idx);
+    const dayNum = String(dayDate.getDate()).padStart(2, '0');
+    const monthNum = String(dayDate.getMonth() + 1).padStart(2, '0');
+    return {
+      day: dayName,
+      date: `${dayNum}/${monthNum}`,
+      completed: false,
+      isToday: idx === currentDayIndex
+    };
+  });
+};
+
 const GamificationContext = createContext(null);
 
 export function GamificationProvider({ children }) {
@@ -24,7 +48,7 @@ export function GamificationProvider({ children }) {
 
   const [xp, setXp] = useState(() => user?.xp || 0);
   const [streak, setStreak] = useState(() => user?.streak || 0);
-  const [weeklyDays, setWeeklyDays] = useState(CLEAN_USER_GAMIFICATION.weeklyDays);
+  const [weeklyDays, setWeeklyDays] = useState(generateWeeklyDays);
   const [badges, setBadges] = useState(CLEAN_BADGES);
   const [dailyChallenges, setDailyChallenges] = useState(CLEAN_DAILY_CHALLENGES);
   const [songMasteryList, setSongMasteryList] = useState(CLEAN_SONG_MASTERY);
@@ -37,7 +61,7 @@ export function GamificationProvider({ children }) {
       setBadges(CLEAN_BADGES);
       setSongMasteryList(CLEAN_SONG_MASTERY);
       setDailyChallenges(CLEAN_DAILY_CHALLENGES);
-      setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
+      setWeeklyDays(generateWeeklyDays());
       return;
     }
 
@@ -47,7 +71,7 @@ export function GamificationProvider({ children }) {
     setBadges(CLEAN_BADGES);
     setSongMasteryList(CLEAN_SONG_MASTERY);
     setDailyChallenges(CLEAN_DAILY_CHALLENGES);
-    setWeeklyDays(CLEAN_USER_GAMIFICATION.weeklyDays);
+    setWeeklyDays(generateWeeklyDays());
 
     if (isSupabaseConfigured && user.id) {
         // Fetch unlocked rewards
@@ -66,36 +90,37 @@ export function GamificationProvider({ children }) {
             }
           });
 
-        // Fetch song mastery
-        supabase
-          .from('song_mastery')
-          .select('*')
-          .eq('user_id', user.id)
-          .then(({ data: songMasteryData }) => {
-            if (songMasteryData && songMasteryData.length > 0) {
-              setSongMasteryList((prev) =>
-                prev.map((s) => {
-                  const match = songMasteryData.find((r) => r.song_id === s.songId);
-                  if (match) {
-                    const checklist = {
-                      watched_lesson: match.step_video,
-                      listened_full: match.step_song,
-                      reverse_translation: match.step_reverse_translation,
-                      sing_along: match.step_sing_along,
-                      final_challenge: match.step_final_challenge
-                    };
-                    const count = Object.values(checklist).filter(Boolean).length;
-                    let status = 'not_started';
-                    if (count === 5) status = 'mastered';
-                    else if (count >= 3) status = 'practicing';
-                    else if (count >= 1) status = 'learning';
-                    return { ...s, checklist, status };
-                  }
-                  return s;
-                })
-              );
-            }
-          });
+        // Fetch song mastery (Supabase + LocalStorage)
+        progressService.getSongMastery(user.id).then(({ data: songMasteryData }) => {
+          if (songMasteryData && songMasteryData.length > 0) {
+            setSongMasteryList((prev) =>
+              prev.map((s) => {
+                const match = songMasteryData.find((r) => r.song_id === s.songId || r.song_id === s.id);
+                if (match) {
+                  const checklist = {
+                    video: Boolean(match.step_video),
+                    listen: Boolean(match.step_song),
+                    reverse: Boolean(match.step_reverse_translation),
+                    sing: Boolean(match.step_sing_along),
+                    challenge: Boolean(match.step_final_challenge),
+                    watched_lesson: Boolean(match.step_video),
+                    listened_full: Boolean(match.step_song),
+                    reverse_translation: Boolean(match.step_reverse_translation),
+                    sing_along: Boolean(match.step_sing_along),
+                    final_challenge: Boolean(match.step_final_challenge)
+                  };
+                  const count = [match.step_video, match.step_song, match.step_reverse_translation, match.step_sing_along, match.step_final_challenge].filter(Boolean).length;
+                  let status = 'not_started';
+                  if (count === 5) status = 'mastered';
+                  else if (count >= 3) status = 'practicing';
+                  else if (count >= 1) status = 'learning';
+                  return { ...s, checklist, status, masteryPercent: match.mastery_percent || Math.round((count / 5) * 100) };
+                }
+                return s;
+              })
+            );
+          }
+        });
       }
   }, [user?.id, user?.xp, user?.streak]);
 
@@ -329,6 +354,38 @@ export function GamificationProvider({ children }) {
     });
   };
 
+  // Reset Song Mastery step with Supabase persistence (without reducing user XP)
+  const resetSongMastery = (songId) => {
+    setSongMasteryList((prev) => {
+      const resetChecklist = {
+        video: false,
+        listen: false,
+        reverse: false,
+        sing: false,
+        challenge: false,
+        watched_lesson: false,
+        listened_full: false,
+        reverse_translation: false,
+        sing_along: false,
+        final_challenge: false
+      };
+
+      if (isSupabaseConfigured && user?.id) {
+        progressService.resetSongMastery(user.id, songId);
+      }
+
+      return prev.map((song) => {
+        if (song.songId !== songId && song.id !== songId) return song;
+        return {
+          ...song,
+          checklist: resetChecklist,
+          status: 'not_started',
+          masteryPercent: 0
+        };
+      });
+    });
+  };
+
   // Record Lesson Progress directly to Supabase
   const recordLessonProgress = async (lessonId, progressPercent = 100, completed = true) => {
     if (isSupabaseConfigured && user?.id) {
@@ -353,6 +410,7 @@ export function GamificationProvider({ children }) {
     addXp,
     claimDailyChallenge,
     updateSongMasteryStep,
+    resetSongMastery,
     unlockBadge,
     recordLessonProgress
   };

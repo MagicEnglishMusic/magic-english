@@ -12,6 +12,18 @@ import {
 } from 'lucide-react';
 
 export default function PracticeCards({ challenge, xpReward = 50, onClaimXp }) {
+  const defaultChallenge = {
+    question: "Desafio da Música:",
+    prompt: "Complete ou resgate a frase correta:",
+    options: ["Good morning", "Goodbye", "Thank you", "Please"],
+    correctAnswer: "Good morning",
+    explanation: "Pratique cantando o verso correto da música!"
+  };
+
+  const activeChallenge = (challenge && typeof challenge === 'object' && challenge.question && Array.isArray(challenge.options))
+    ? challenge
+    : defaultChallenge;
+
   // Practice 1: Pronunciation State
   const [isRecording, setIsRecording] = useState(false);
   const [recordedScore, setRecordedScore] = useState(null);
@@ -40,7 +52,7 @@ export default function PracticeCards({ challenge, xpReward = 50, onClaimXp }) {
 
   const handleSelectAnswer = (option) => {
     setSelectedOption(option);
-    if (option === challenge.correctAnswer) {
+    if (option === activeChallenge.correctAnswer) {
       setQuizStatus('correct');
     } else {
       setQuizStatus('wrong');
@@ -78,7 +90,7 @@ export default function PracticeCards({ challenge, xpReward = 50, onClaimXp }) {
               </span>
             </div>
             <p className="text-sm font-bold text-white">
-              Cante a frase: "Hello, good morning my friend!"
+              Cante a frase: "{activeChallenge.correctAnswer || 'Good morning!'}"
             </p>
             <p className="text-xs text-slate-400">
               Pressione o botão e fale no microfone para avaliar seu ritmo.
@@ -131,15 +143,15 @@ export default function PracticeCards({ challenge, xpReward = 50, onClaimXp }) {
                 Quiz
               </span>
             </div>
-            <p className="text-xs text-slate-400">{challenge.question}</p>
+            <p className="text-xs text-slate-400">{activeChallenge.question}</p>
             <p className="text-sm font-bold text-white bg-[#161a2f] p-2.5 rounded-xl border border-slate-800">
-              "{challenge.prompt}"
+              "{activeChallenge.prompt}"
             </p>
           </div>
 
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              {challenge.options.map((option) => {
+              {(activeChallenge.options || []).map((option) => {
                 const isSelected = selectedOption === option;
                 const isCorrect = isSelected && quizStatus === 'correct';
                 const isWrong = isSelected && quizStatus === 'wrong';
@@ -164,7 +176,7 @@ export default function PracticeCards({ challenge, xpReward = 50, onClaimXp }) {
 
             {quizStatus === 'correct' && (
               <p className="text-[11px] text-emerald-400 font-semibold pt-1 text-center">
-                ✓ Correto! {challenge.explanation}
+                ✓ Correto! {activeChallenge.explanation}
               </p>
             )}
             {quizStatus === 'wrong' && (

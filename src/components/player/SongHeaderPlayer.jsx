@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, 
   Pause, 
@@ -11,69 +11,170 @@ import {
   Music, 
   Clock, 
   Sliders,
-  Radio
+  Radio,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(15); // percentage
-  const [currentTime, setCurrentTime] = useState(30); // in seconds
-  const [durationSeconds, setDurationSeconds] = useState(204); // 3:24 = 204s
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [audioError, setAudioError] = useState(null);
+  const [progress, setProgress] = useState(0); // percentage
+  const [currentTime, setCurrentTime] = useState(0); // in seconds
+  const [durationSeconds, setDurationSeconds] = useState(200); // default duration
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const audioRef = useRef(null);
 
-  // Timer simulation for playback
-  useEffect(() => {
-    let interval = null;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= durationSeconds) {
-            if (isLooping) return 0;
-            setIsPlaying(false);
-            return durationSeconds;
-          }
-          const next = prev + 1;
-          setProgress((next / durationSeconds) * 100);
-          return next;
-        });
-      }, 1000);
-    } else {
-      clearInterval(interval);
+  const resolvedAudio = useMemo(() => {
+    const raw = song?.audioUrl || song?.audio_url || '';
+    if (!raw) return '';
+    return isGoogleDriveUrl(raw) ? getDriveAudioUrl(raw) : raw;
+  }, [song]);
+
+  const resolvedCover = useMemo(() => {
+    const raw = song?.image || song?.cover_url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80';
+    return isGoogleDriveUrl(raw) ? getDriveImageUrl(raw) : raw;
+  }, [song]);
+
+  const lyrics = useMemo(() => {
+    if (Array.isArray(song?.timestamps) && song.timestamps.length > 0) {
+      return song.timestamps;
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, durationSeconds, isLooping]);
+    if (Array.isArray(song?.lyrics) && song.lyrics.length > 0) {
+      return song.lyrics;
+    }
+    return [];
+  }, [song]);
+
+  // Audio Event Handlers (Real Audio Synchronization)
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const time = audioRef.current.currentTime;
+    setCurrentTime(time);
+
+    const dur = audioRef.current.duration;
+    if (dur && !isNaN(dur) && dur > 0) {
+      setDurationSeconds(dur);
+      setProgress((time / dur) * 100);
+    }
+
+    // Sync active lyric line strictly within [startTime, endTime)
+    if (onLineChange && lyrics.length > 0) {
+      const lineIdx = lyrics.findIndex((l, idx) => {
+        const start = typeof l.startTime === 'number' ? l.startTime : null;
+        if (start === null) return false;
+        const nextVerse = lyrics[idx + 1];
+        const nextStart = nextVerse && typeof nextVerse.startTime === 'number' ? nextVerse.startTime : null;
+        const end = typeof l.endTime === 'number' 
+          ? l.endTime 
+          : (nextStart !== null ? nextStart : (durationSeconds > 0 ? durationSeconds : start + 3.5));
+        return time >= start && time < end;
+      });
+
+      if (lineIdx !== currentLineIndex) {
+        onLineChange(lineIdx);
+      }
+    }
+  };
+
+  const handleLoadedMetadata = (e) => {
+    const dur = e.currentTarget.duration;
+    if (dur && !isNaN(dur) && dur > 0) {
+      setDurationSeconds(dur);
+    }
+  };
+
+  const handleAudioEnded = () => {
+    if (isLooping && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(console.warn);
+    } else {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setProgress(0);
+      if (onLineChange) onLineChange(-1);
+    }
+  };
 
   const togglePlay = () => {
-    const nextState = !isPlaying;
-    setIsPlaying(nextState);
-    // Use Web Speech Synthesis to pronounce the active line if supported
-    if (nextState && 'speechSynthesis' in window && song?.lyrics?.length > 0) {
-      window.speechSynthesis.cancel();
-      const currentLyric = song.lyrics[currentLineIndex || 0]?.english || song.title;
-      const utterance = new SpeechSynthesisUtterance(currentLyric);
-      utterance.lang = 'en-US';
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
+    setAudioError(null);
+    if (!resolvedAudio || !audioRef.current) {
+      // Fallback speech synthesis if no audio
+      if ('speechSynthesis' in window && lyrics.length > 0) {
+        const lyric = lyrics[currentLineIndex >= 0 ? currentLineIndex : 0]?.english || lyrics[currentLineIndex >= 0 ? currentLineIndex : 0]?.en || song?.title;
+        const u = new SpeechSynthesisUtterance(lyric);
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
+      }
+      return;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      setIsLoadingAudio(true);
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            setIsLoadingAudio(false);
+          })
+          .catch((err) => {
+            console.warn('Audio play failed:', err);
+            setIsLoadingAudio(false);
+            setIsPlaying(false);
+            setAudioError('Clique novamente para autorizar a reprodução.');
+          });
+      }
     }
   };
 
   const handleSeek = (e) => {
     const newProgress = parseFloat(e.target.value);
     setProgress(newProgress);
-    setCurrentTime(Math.floor((newProgress / 100) * durationSeconds));
+    const newTime = (newProgress / 100) * durationSeconds;
+    setCurrentTime(newTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
   };
 
   const skipTime = (seconds) => {
-    setCurrentTime((prev) => {
-      const next = Math.min(Math.max(prev + seconds, 0), durationSeconds);
-      setProgress((next / durationSeconds) * 100);
-      return next;
-    });
+    if (!audioRef.current) return;
+    const next = Math.min(Math.max(audioRef.current.currentTime + seconds, 0), durationSeconds);
+    audioRef.current.currentTime = next;
+    setCurrentTime(next);
+    setProgress((next / durationSeconds) * 100);
+  };
+
+  const handleVolumeChange = (e) => {
+    const newVol = parseInt(e.target.value);
+    setVolume(newVol);
+    if (audioRef.current) {
+      audioRef.current.volume = newVol / 100;
+    }
+    if (newVol > 0 && isMuted) {
+      setIsMuted(false);
+      if (audioRef.current) audioRef.current.muted = false;
+    }
+  };
+
+  const toggleMute = () => {
+    const nextMute = !isMuted;
+    setIsMuted(nextMute);
+    if (audioRef.current) {
+      audioRef.current.muted = nextMute;
+    }
   };
 
   const formatTime = (secs) => {
+    if (secs === null || secs === undefined || isNaN(secs)) return '0:00';
     const mins = Math.floor(secs / 60);
     const remainingSecs = Math.floor(secs % 60);
     return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
@@ -81,6 +182,28 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
 
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-br from-[#121528] via-[#0e101f] to-[#0a0c18] border border-purple-500/30 p-6 sm:p-8 shadow-2xl shadow-purple-950/50">
+      
+      {/* Real HTML5 Audio Element for Full Synchronization */}
+      {resolvedAudio && (
+        <audio
+          ref={audioRef}
+          src={resolvedAudio}
+          preload="metadata"
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => { setIsPlaying(true); setIsLoadingAudio(false); }}
+          onPause={() => setIsPlaying(false)}
+          onEnded={handleAudioEnded}
+          onWaiting={() => setIsLoadingAudio(true)}
+          onPlaying={() => setIsLoadingAudio(false)}
+          onError={(e) => {
+            console.warn('Audio stream error event:', e);
+            setIsPlaying(false);
+            setIsLoadingAudio(false);
+          }}
+        />
+      )}
+
       {/* Background Neon Ambience */}
       <div className="absolute -top-20 -right-20 w-80 h-80 bg-purple-600/15 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-blue-600/15 rounded-full blur-3xl pointer-events-none"></div>
@@ -91,8 +214,8 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
         <div className="lg:col-span-5 flex items-center gap-5">
           <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden flex-shrink-0 shadow-2xl border border-purple-500/40 group">
             <img
-              src={song.image}
-              alt={song.title}
+              src={resolvedCover}
+              alt={song?.title || 'Música'}
               className={`w-full h-full object-cover transition-transform duration-700 ${
                 isPlaying ? 'scale-110' : 'scale-100'
               }`}
@@ -100,7 +223,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
             <div className="absolute top-2 left-2">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white shadow-sm">
-                {song.level}
+                {song?.level || 'Iniciante'}
               </span>
             </div>
             {isPlaying && (
@@ -116,20 +239,20 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
               <span>Magic Song Lesson</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white truncate tracking-tight">
-              {song.title}
+              {song?.title || 'Magic Song Oficial'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 truncate">
-              {song.subtitle}
+              {song?.subtitle || 'Fixação da Aula'}
             </p>
             <div className="flex items-center gap-3 text-xs text-slate-400 pt-1">
               <span className="flex items-center gap-1 text-purple-300 font-medium">
                 <Clock className="w-3.5 h-3.5" />
-                {song.duration}
+                {song?.duration || formatTime(durationSeconds)}
               </span>
               <span>•</span>
-              <span className="text-slate-400">{song.genre || 'Pop'}</span>
+              <span className="text-slate-400">{song?.genre || 'Pop'}</span>
               <span>•</span>
-              <span className="text-cyan-400 font-semibold">{song.bpm}</span>
+              <span className="text-cyan-400 font-semibold">{song?.bpm || '108 BPM'}</span>
             </div>
           </div>
         </div>
@@ -141,7 +264,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
           <div className="flex items-center justify-between gap-1 h-8 px-4 py-1.5 rounded-xl bg-[#090b14]/70 border border-slate-800/80">
             <div className="flex items-center gap-1 text-xs text-slate-400">
               <Music className="w-3.5 h-3.5 text-purple-400" />
-              <span className="text-[11px] font-semibold text-slate-300">Áudio Masterizado</span>
+              <span className="text-[11px] font-semibold text-slate-300">Áudio Masterizado Real</span>
             </div>
             {/* 20 Animated EQ bars */}
             <div className="flex items-end gap-1 h-5 flex-1 max-w-xs justify-end">
@@ -170,6 +293,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
                 type="range"
                 min="0"
                 max="100"
+                step="0.1"
                 value={progress}
                 onChange={handleSeek}
                 className="w-full h-2 bg-[#1a1e32] rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400 focus:outline-none"
@@ -177,7 +301,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
             </div>
             <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
               <span>{formatTime(currentTime)}</span>
-              <span className="text-purple-300">Tempo restante: -{formatTime(durationSeconds - currentTime)}</span>
+              <span className="text-purple-300">Tempo restante: -{formatTime(Math.max(durationSeconds - currentTime, 0))}</span>
             </div>
           </div>
 
@@ -196,14 +320,17 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
               {/* Big Play / Pause Button with Neon Glow */}
               <button
                 onClick={togglePlay}
-                className={`p-3.5 sm:p-4 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-blue-500 text-white font-bold transition-all duration-200 cursor-pointer shadow-xl ${
+                disabled={isLoadingAudio}
+                className={`p-3.5 sm:p-4 rounded-full bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-blue-500 text-white font-bold transition-all duration-200 cursor-pointer shadow-xl disabled:opacity-75 ${
                   isPlaying
                     ? 'shadow-purple-500/70 scale-105 ring-4 ring-purple-500/30'
                     : 'shadow-purple-600/40 hover:scale-105'
                 }`}
                 title={isPlaying ? 'Pausar música' : 'Tocar música'}
               >
-                {isPlaying ? (
+                {isLoadingAudio ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-white" />
+                ) : isPlaying ? (
                   <Pause className="w-6 h-6 fill-white" />
                 ) : (
                   <Play className="w-6 h-6 fill-white ml-0.5" />
@@ -236,7 +363,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
             {/* Volume Control */}
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => setIsMuted(!isMuted)}
+                onClick={toggleMute}
                 className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 {isMuted || volume === 0 ? (
@@ -250,14 +377,18 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
                 min="0"
                 max="100"
                 value={isMuted ? 0 : volume}
-                onChange={(e) => {
-                  setVolume(parseInt(e.target.value));
-                  if (isMuted) setIsMuted(false);
-                }}
+                onChange={handleVolumeChange}
                 className="w-16 sm:w-24 h-1.5 bg-[#1a1e32] rounded-lg appearance-none cursor-pointer accent-purple-500"
               />
             </div>
           </div>
+
+          {audioError && (
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{audioError}</span>
+            </div>
+          )}
 
         </div>
 
@@ -265,3 +396,4 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
     </div>
   );
 }
+

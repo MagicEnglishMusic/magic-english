@@ -137,61 +137,68 @@ export default function TracksListView({ onSelectTrack, onContinueCurrentTrack }
         </div>
       </div>
 
-      {/* 4. Sistema de Progresso / Visual de Evolução (Jornada) */}
-      <div className="p-7 sm:p-8 rounded-3xl bg-[#0e101f] border border-[#20253f] space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-400" />
-              Sua Jornada de Fluência
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Complete mais 3 músicas para desbloquear o próximo nível.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-3.5 py-1.5 rounded-full border border-purple-500/30 w-fit">
-            Nível Atual: Music Learner 🎵
-          </span>
-        </div>
+        {/* 4. Sistema de Progresso / Visual de Evolução (Jornada) */}
+        {(() => {
+          const userLvl = currentLevel?.level || 1;
+          const activeJourneyLevel = userJourneyLevels.find((lvl) => lvl.id === userLvl) || userJourneyLevels[0];
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-          {userJourneyLevels.map((lvl, index) => {
-            const isCompleted = lvl.status === 'completed';
-            const isCurrent = lvl.status === 'current';
-
-            return (
-              <div
-                key={lvl.id}
-                className={`p-5 rounded-2xl border transition-all ${
-                  isCurrent
-                    ? 'bg-gradient-to-b from-purple-950/50 to-[#14172a] border-purple-500/60 shadow-xl shadow-purple-600/20 ring-1 ring-purple-400/40'
-                    : isCompleted
-                    ? 'bg-[#101322] border-emerald-500/30'
-                    : 'bg-[#0d0f1a] border-slate-800/60 opacity-60'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-3xl">{lvl.emoji}</span>
-                  {isCompleted ? (
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Concluído</span>
-                    </div>
-                  ) : isCurrent ? (
-                    <span className="text-[10px] font-extrabold uppercase bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2.5 py-0.5 rounded-full shadow-sm">
-                      Nível Atual
-                    </span>
-                  ) : (
-                    <Lock className="w-4 h-4 text-slate-500" />
-                  )}
+          return (
+            <div className="p-7 sm:p-8 rounded-3xl bg-[#0e101f] border border-[#20253f] space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-amber-400" />
+                    Sua Jornada de Fluência
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Complete atividades e músicas para avançar de nível.
+                  </p>
                 </div>
-                <h4 className="text-base font-bold text-white">{lvl.name}</h4>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{lvl.desc}</p>
+                <span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-3.5 py-1.5 rounded-full border border-purple-500/30 w-fit">
+                  Nível Atual: {activeJourneyLevel.name} {activeJourneyLevel.emoji}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                {userJourneyLevels.map((lvl) => {
+                  const isCompleted = lvl.id < userLvl;
+                  const isCurrent = lvl.id === userLvl;
+
+                  return (
+                    <div
+                      key={lvl.id}
+                      className={`p-5 rounded-2xl border transition-all ${
+                        isCurrent
+                          ? 'bg-gradient-to-b from-purple-950/50 to-[#14172a] border-purple-500/60 shadow-xl shadow-purple-600/20 ring-1 ring-purple-400/40'
+                          : isCompleted
+                          ? 'bg-[#101322] border-emerald-500/30'
+                          : 'bg-[#0d0f1a] border-slate-800/60 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-3xl">{lvl.emoji}</span>
+                        {isCompleted ? (
+                          <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Concluído</span>
+                          </div>
+                        ) : isCurrent ? (
+                          <span className="text-[10px] font-extrabold uppercase bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2.5 py-0.5 rounded-full shadow-sm">
+                            Nível Atual
+                          </span>
+                        ) : (
+                          <Lock className="w-4 h-4 text-slate-500" />
+                        )}
+                      </div>
+                      <h4 className="text-base font-bold text-white">{lvl.name}</h4>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{lvl.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
     </div>
   );
