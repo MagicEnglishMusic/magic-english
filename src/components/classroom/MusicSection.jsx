@@ -3,6 +3,7 @@ import { Play, Pause, Music, Volume2, Sparkles, CheckCircle2, RotateCcw, Radio, 
 import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 import { useGamification } from '../../context/GamificationContext';
 import { XP_REWARDS } from '../../data/gamificationData';
+import { findActiveVerseIndex, KARAOKE_LEAD_SECONDS } from '../../utils/karaokeSync';
 
 export default function MusicSection({ song, onOpenFullPlayer }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -91,22 +92,54 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // Direct Audio Event Handlers (No disconnected timer)
+  const lastIdxRef = useRef(-1);
+
+  // High-precision rAF loop for zero-latency active verse tracking
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    let animId = null;
+    const syncLoop = () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        const time = audioRef.current.currentTime;
+        const lineIdx = findActiveVerseIndex(lyrics, time, duration, KARAOKE_LEAD_SECONDS);
+
+        if (lineIdx !== lastIdxRef.current) {
+          lastIdxRef.current = lineIdx;
+          setActiveLineIndex(lineIdx);
+        }
+      }
+      animId = requestAnimationFrame(syncLoop);
+    };
+
+    animId = requestAnimationFrame(syncLoop);
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isPlaying, lyrics, duration]);
+
+  // Direct Audio Event Handlers (Progress bar & Paused/Seek updates)
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
     const time = audioRef.current.currentTime;
     setCurrentTime(time);
 
-    // Find the current lyric line strictly within its [startTime, endTime) window
-    const lineIdx = lyrics.findIndex((l, idx) => {
-      if (typeof l.startTime !== 'number') return false;
-      const nextVerse = lyrics[idx + 1];
-      const nextStart = nextVerse && typeof nextVerse.startTime === 'number' ? nextVerse.startTime : null;
-      const end = typeof l.endTime === 'number' ? l.endTime : (nextStart !== null ? nextStart : (duration > 0 ? duration : l.startTime + 3.5));
-      return time >= l.startTime && time < end;
-    });
+    // Sync active lyric line when audio is paused
+    if (audioRef.current.paused) {
+      const lineIdx = findActiveVerseIndex(lyrics, time, duration, KARAOKE_LEAD_SECONDS);
+      lastIdxRef.current = lineIdx;
+      setActiveLineIndex(lineIdx);
+    }
+  };
 
-    setActiveLineIndex(lineIdx);
+  const handleSeeked = () => {
+    if (audioRef.current) {
+      const time = audioRef.current.currentTime;
+      setCurrentTime(time);
+      const lineIdx = findActiveVerseIndex(lyrics, time, duration, KARAOKE_LEAD_SECONDS);
+      lastIdxRef.current = lineIdx;
+      setActiveLineIndex(lineIdx);
+    }
   };
 
   const handleAudioEnded = () => {
@@ -175,6 +208,7 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
   };
 
   const handleSeekLine = (index) => {
+    lastIdxRef.current = index;
     setActiveLineIndex(index);
     const line = lyrics[index];
     if (line && audioRef.current && resolvedAudio) {
@@ -202,6 +236,7 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
           src={resolvedAudio}
           preload="metadata"
           onTimeUpdate={handleTimeUpdate}
+          onSeeked={handleSeeked}
           onPlay={() => { setIsPlaying(true); setIsLoadingAudio(false); }}
           onPause={() => setIsPlaying(false)}
           onEnded={handleAudioEnded}
@@ -350,7 +385,7 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
                 <div
                   key={line.id || index}
                   onClick={() => handleSeekLine(index)}
-                  className={`p-4 rounded-2xl border transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 group ${
+                  className={`p-4 rounded-2xl border transition-all duration-100 cursor-pointer flex items-center justify-between gap-4 group ${
                     isSpeakingThis
                       ? 'bg-gradient-to-r from-purple-900/80 via-[#22284e] to-[#121528] border-cyan-400 shadow-xl shadow-cyan-500/20 ring-2 ring-cyan-400/50'
                       : isCurrent

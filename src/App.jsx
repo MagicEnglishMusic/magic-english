@@ -256,6 +256,7 @@ function MainApp() {
       level: song.level || 'Iniciante',
       duration: song.duration || '3:20',
       bpm: song.bpm || '108 BPM',
+      timestamps: song.timestamps || lyrics,
       lyrics: lyrics,
       vocabulary: Array.isArray(song.pronunciation_guide) && song.pronunciation_guide.length > 0 
         ? song.pronunciation_guide 

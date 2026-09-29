@@ -91,7 +91,7 @@ export default function LearningTabs({ song, currentLineIndex, onSelectLine }) {
                 <div
                   key={line?.id || index}
                   onClick={() => onSelectLine(index)}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 cursor-pointer flex items-start justify-between gap-4 group ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all duration-100 cursor-pointer flex items-start justify-between gap-4 group ${
                     isSelected
                       ? 'bg-gradient-to-r from-purple-950/40 via-[#181a30] to-[#121528] border-purple-500/60 shadow-xl shadow-purple-600/15 scale-[1.01]'
                       : 'bg-[#111322] border-[#1d2238] hover:border-purple-500/30 hover:bg-[#15182a]'

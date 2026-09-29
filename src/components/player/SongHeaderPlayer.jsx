@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
+import { findActiveVerseIndex, KARAOKE_LEAD_SECONDS } from '../../utils/karaokeSync';
 
 export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -50,7 +51,37 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
     return [];
   }, [song]);
 
-  // Audio Event Handlers (Real Audio Synchronization)
+  const lastIdxRef = useRef(currentLineIndex);
+
+  useEffect(() => {
+    lastIdxRef.current = currentLineIndex;
+  }, [currentLineIndex]);
+
+  // High-precision rAF loop for zero-latency active verse tracking
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    let animId = null;
+    const syncLoop = () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        const time = audioRef.current.currentTime;
+        const lineIdx = findActiveVerseIndex(lyrics, time, durationSeconds, KARAOKE_LEAD_SECONDS);
+
+        if (onLineChange && lineIdx !== lastIdxRef.current) {
+          lastIdxRef.current = lineIdx;
+          onLineChange(lineIdx);
+        }
+      }
+      animId = requestAnimationFrame(syncLoop);
+    };
+
+    animId = requestAnimationFrame(syncLoop);
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isPlaying, lyrics, durationSeconds, onLineChange]);
+
+  // Audio Event Handlers (Progress bar & Paused/Seek updates)
   const handleTimeUpdate = () => {
     if (!audioRef.current) return;
     const time = audioRef.current.currentTime;
@@ -62,20 +93,19 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
       setProgress((time / dur) * 100);
     }
 
-    // Sync active lyric line strictly within [startTime, endTime)
-    if (onLineChange && lyrics.length > 0) {
-      const lineIdx = lyrics.findIndex((l, idx) => {
-        const start = typeof l.startTime === 'number' ? l.startTime : null;
-        if (start === null) return false;
-        const nextVerse = lyrics[idx + 1];
-        const nextStart = nextVerse && typeof nextVerse.startTime === 'number' ? nextVerse.startTime : null;
-        const end = typeof l.endTime === 'number' 
-          ? l.endTime 
-          : (nextStart !== null ? nextStart : (durationSeconds > 0 ? durationSeconds : start + 3.5));
-        return time >= start && time < end;
-      });
+    // Sync active lyric line when audio is paused
+    if (audioRef.current.paused && onLineChange && lyrics.length > 0) {
+      const lineIdx = findActiveVerseIndex(lyrics, time, durationSeconds, KARAOKE_LEAD_SECONDS);
+      onLineChange(lineIdx);
+    }
+  };
 
-      if (lineIdx !== currentLineIndex) {
+  const handleSeeked = () => {
+    if (audioRef.current) {
+      const time = audioRef.current.currentTime;
+      setCurrentTime(time);
+      if (onLineChange && lyrics.length > 0) {
+        const lineIdx = findActiveVerseIndex(lyrics, time, durationSeconds, KARAOKE_LEAD_SECONDS);
         onLineChange(lineIdx);
       }
     }
@@ -190,6 +220,7 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
           src={resolvedAudio}
           preload="metadata"
           onTimeUpdate={handleTimeUpdate}
+          onSeeked={handleSeeked}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={() => { setIsPlaying(true); setIsLoadingAudio(false); }}
           onPause={() => setIsPlaying(false)}
