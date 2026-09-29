@@ -6,10 +6,27 @@ import ProgressBar from '../tracks/ProgressBar';
 import { modulesService } from '../../services/modulesService';
 import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 
-export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPractice }) {
+export default function MyModulesView({ 
+  selectedModuleId = null,
+  onModuleChange = null,
+  onOpenClassroomLesson, 
+  onOpenMusicalPractice 
+}) {
   const [selectedModule, setSelectedModule] = useState(null);
   const [modules, setModules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync selectedModule when selectedModuleId prop changes or modules finish loading
+  useEffect(() => {
+    if (modules.length > 0) {
+      if (selectedModuleId) {
+        const found = modules.find((m) => m.id === selectedModuleId || m.moduleNumber?.toLowerCase() === String(selectedModuleId).toLowerCase());
+        setSelectedModule(found || null);
+      } else {
+        setSelectedModule(null);
+      }
+    }
+  }, [selectedModuleId, modules]);
 
   useEffect(() => {
     async function loadModules() {
@@ -31,6 +48,10 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
             isLocked: false
           }));
           setModules(formatted);
+          if (selectedModuleId) {
+            const found = formatted.find((m) => m.id === selectedModuleId || m.moduleNumber?.toLowerCase() === String(selectedModuleId).toLowerCase());
+            if (found) setSelectedModule(found);
+          }
         }
       } catch (err) {
         console.warn('Error fetching modules in MyModulesView:', err);
@@ -39,15 +60,17 @@ export default function MyModulesView({ onOpenClassroomLesson, onOpenMusicalPrac
       }
     }
     loadModules();
-  }, []);
+  }, [selectedModuleId]);
 
   const handleSelectModule = (mod) => {
     setSelectedModule(mod);
+    if (onModuleChange) onModuleChange(mod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBackToModules = () => {
     setSelectedModule(null);
+    if (onModuleChange) onModuleChange(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

@@ -5,7 +5,7 @@ import { useGamification } from '../../context/GamificationContext';
 import { XP_REWARDS } from '../../data/gamificationData';
 import { findActiveVerseIndex, KARAOKE_LEAD_SECONDS } from '../../utils/karaokeSync';
 
-export default function MusicSection({ song, onOpenFullPlayer }) {
+export default function MusicSection({ song, onOpenFullPlayer, onSongComplete }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [audioError, setAudioError] = useState(null);
@@ -124,6 +124,10 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
     const time = audioRef.current.currentTime;
     setCurrentTime(time);
 
+    if (duration > 0 && time >= duration * 0.95 && onSongComplete) {
+      onSongComplete();
+    }
+
     // Sync active lyric line when audio is paused
     if (audioRef.current.paused) {
       const lineIdx = findActiveVerseIndex(lyrics, time, duration, KARAOKE_LEAD_SECONDS);
@@ -150,6 +154,9 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
     // Mark listening step as completed in Supabase
     if (updateSongMasteryStep) {
       updateSongMasteryStep(songId, 'listen', true);
+    }
+    if (onSongComplete) {
+      onSongComplete();
     }
   };
 
@@ -222,8 +229,11 @@ export default function MusicSection({ song, onOpenFullPlayer }) {
   };
 
   const handleResetProgress = () => {
-    if (resetSongMastery) {
-      resetSongMastery(songId);
+    setCurrentIndex(0);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.pause();
+      setIsPlaying(false);
     }
     setShowResetConfirm(false);
   };

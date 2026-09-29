@@ -301,8 +301,8 @@ Deno.serve(async (req: Request) => {
 
           // 7.1 Gera link de primeiro acesso / redefinição de senha para o novo aluno
           try {
-            const siteUrl = Deno.env.get("SITE_URL") || "https://magicenglish.com.br";
-            const resetRedirectUrl = `${siteUrl.replace(/\/$/, "")}/reset-password`;
+            const appUrl = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://app.magicenglish.com.br";
+            const resetRedirectUrl = `${appUrl.replace(/\/$/, "")}/reset-password`;
             console.log(`📧 Gerando link de primeiro acesso para ${customerEmail} (Redirect: ${resetRedirectUrl})...`);
 
             const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({

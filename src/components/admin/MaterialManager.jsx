@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Download, Trash2, X, UploadCloud, CheckCircle2, HardDrive } from 'lucide-react';
+import { FileText, Plus, Download, Trash2, Edit2, X, UploadCloud, CheckCircle2, HardDrive } from 'lucide-react';
 import { materialsService } from '../../services/materialsService';
 import { modulesService } from '../../services/modulesService';
 import { lessonsService } from '../../services/lessonsService';
@@ -11,6 +11,8 @@ export default function MaterialManager() {
   const [lessonsList, setLessonsList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingMaterialId, setEditingMaterialId] = useState(null);
+
   const [formData, setFormData] = useState({
     name: '',
     type: 'PDF',
@@ -41,6 +43,8 @@ export default function MaterialManager() {
             size: m.file_size || m.size || '1.5 MB',
             fileUrl: m.file_url || m.fileUrl || '',
             viewUrl: m.view_url || m.viewUrl || m.file_url || '',
+            moduleId: m.module_id || '',
+            lessonId: m.lesson_id || '',
             module: m.module || 'Módulo Geral',
             lesson: m.lesson || 'Aula Geral',
             downloads: m.downloads || 0,
@@ -54,8 +58,8 @@ export default function MaterialManager() {
           if (modRes.data.length > 0) {
             setFormData((prev) => ({
               ...prev,
-              moduleId: modRes.data[0].id,
-              module: modRes.data[0].title
+              moduleId: prev.moduleId || modRes.data[0].id,
+              module: prev.module || modRes.data[0].title
             }));
           }
         }
@@ -65,8 +69,8 @@ export default function MaterialManager() {
           if (lesRes.data.length > 0) {
             setFormData((prev) => ({
               ...prev,
-              lessonId: lesRes.data[0].id,
-              lesson: lesRes.data[0].title
+              lessonId: prev.lessonId || lesRes.data[0].id,
+              lesson: prev.lesson || lesRes.data[0].title
             }));
           }
         }
@@ -79,7 +83,41 @@ export default function MaterialManager() {
     loadData();
   }, []);
 
-  const handleCreate = async (e) => {
+  const handleOpenCreateModal = () => {
+    setEditingMaterialId(null);
+    setFormData({
+      name: '',
+      type: 'PDF',
+      size: '2.0 MB',
+      fileUrl: '',
+      moduleId: modulesList[0]?.id || '',
+      module: modulesList[0]?.title || '',
+      lessonId: lessonsList[0]?.id || '',
+      lesson: lessonsList[0]?.title || '',
+      status: 'Ativo'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (mat) => {
+    setEditingMaterialId(mat.id);
+    const selMod = modulesList.find((m) => m.id === mat.moduleId);
+    const selLes = lessonsList.find((l) => l.id === mat.lessonId);
+    setFormData({
+      name: mat.name || '',
+      type: mat.type || 'PDF',
+      size: mat.size || '2.0 MB',
+      fileUrl: mat.fileUrl || '',
+      moduleId: mat.moduleId || modulesList[0]?.id || '',
+      module: selMod ? selMod.title : (mat.module || ''),
+      lessonId: mat.lessonId || lessonsList[0]?.id || '',
+      lesson: selLes ? selLes.title : (mat.lesson || ''),
+      status: mat.status || 'Ativo'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
 
@@ -92,37 +130,59 @@ export default function MaterialManager() {
       file_type: formData.type,
       file_size: formData.size,
       file_url: urls.downloadUrl,
-      lesson_id: formData.lessonId || null
+      lesson_id: formData.lessonId || null,
+      module_id: formData.moduleId || null
     };
 
-    const res = await materialsService.createMaterial(payload);
+    if (editingMaterialId) {
+      const res = await materialsService.updateMaterial(editingMaterialId, payload);
+      if (res.error) {
+        alert(`Erro ao atualizar material: ${res.error}`);
+        return;
+      }
+      setMaterials((prev) => prev.map((m) => {
+        if (m.id === editingMaterialId) {
+          return {
+            ...m,
+            name: formData.name,
+            type: formData.type,
+            size: formData.size,
+            fileUrl: urls.downloadUrl,
+            viewUrl: urls.viewUrl,
+            moduleId: formData.moduleId,
+            lessonId: formData.lessonId,
+            module: formData.module || m.module,
+            lesson: formData.lesson || m.lesson,
+            status: formData.status
+          };
+        }
+        return m;
+      }));
+    } else {
+      const res = await materialsService.createMaterial(payload);
+      if (res.error) {
+        alert(`Erro ao cadastrar material: ${res.error}`);
+        return;
+      }
+      const newMat = {
+        id: res.data?.id || `mat-${Date.now()}`,
+        name: formData.name,
+        type: formData.type,
+        size: formData.size,
+        fileUrl: urls.downloadUrl,
+        viewUrl: urls.viewUrl,
+        moduleId: formData.moduleId,
+        lessonId: formData.lessonId,
+        module: formData.module || (modulesList[0]?.title || 'Geral'),
+        lesson: formData.lesson || (lessonsList[0]?.title || 'Geral'),
+        downloads: 0,
+        status: formData.status
+      };
+      setMaterials([newMat, ...materials]);
+    }
 
-    const newMat = {
-      id: res.data?.id || `mat-${Date.now()}`,
-      name: formData.name,
-      type: formData.type,
-      size: formData.size,
-      fileUrl: urls.downloadUrl,
-      viewUrl: urls.viewUrl,
-      module: formData.module || (modulesList[0]?.title || 'Geral'),
-      lesson: formData.lesson || (lessonsList[0]?.title || 'Geral'),
-      downloads: 0,
-      status: formData.status
-    };
-
-    setMaterials([newMat, ...materials]);
     setIsModalOpen(false);
-    setFormData({
-      name: '',
-      type: 'PDF',
-      size: '2.0 MB',
-      fileUrl: '',
-      moduleId: modulesList[0]?.id || '',
-      module: modulesList[0]?.title || '',
-      lessonId: lessonsList[0]?.id || '',
-      lesson: lessonsList[0]?.title || '',
-      status: 'Ativo'
-    });
+    setEditingMaterialId(null);
   };
 
   const handleDelete = async (id) => {
@@ -138,60 +198,70 @@ export default function MaterialManager() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1f243c]">
+    <div className="p-6 sm:p-8 lg:p-10 space-y-8 animate-in fade-in duration-300">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1c2035]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">
-              Arquivos & Apostilas
-            </span>
-            <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/15 px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
-              <HardDrive className="w-3 h-3" />
-              <span>Google Drive PDF Storage</span>
-            </span>
+            <FileText className="w-6 h-6 text-purple-400" />
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Gerenciador de Materiais & PDFs
+            </h1>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 mt-0.5">
-            <FileText className="w-6 h-6 text-emerald-400" />
-            <span>Gerenciamento de Materiais Complementares</span>
-          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Cadastre apostilas, resumos e materiais complementares integrados ao Google Drive
+          </p>
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all self-start sm:self-auto"
+          onClick={handleOpenCreateModal}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all cursor-pointer w-fit"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Cadastrar Material (Drive)</span>
+          <span>+ Novo Material</span>
         </button>
       </div>
 
-      {/* Materials Table */}
-      <div className="p-6 rounded-3xl bg-[#111425] border border-[#1e233b] shadow-2xl space-y-3">
-        {materials.length > 0 ? (
+      {/* Materials Table List */}
+      <div className="rounded-2xl bg-[#111425] border border-[#1e233b] overflow-hidden shadow-xl">
+        <div className="p-4 sm:p-5 border-b border-[#1c2138] flex items-center justify-between bg-[#13172b]">
+          <div className="flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
+              Materiais Cadastrados no Sistema ({materials.length})
+            </span>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="p-12 text-center text-xs text-slate-400">
+            Carregando materiais do banco de dados...
+          </div>
+        ) : materials.length > 0 ? (
           <>
-            <div className="hidden sm:grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-[#1b2034]">
-              <span className="col-span-5">Arquivo & Formato</span>
-              <span className="col-span-3">Vínculo (Aula / Módulo)</span>
-              <span className="col-span-2 text-center">Downloads</span>
-              <span className="col-span-2 text-right">Ações</span>
+            {/* Table Header */}
+            <div className="hidden sm:grid grid-cols-12 gap-4 px-6 py-3 bg-[#0d0f1c] text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800/80">
+              <div className="col-span-5">Material / Arquivo</div>
+              <div className="col-span-3">Aula / Módulo Vinculado</div>
+              <div className="col-span-2 text-center">Downloads</div>
+              <div className="col-span-2 text-right">Ações</div>
             </div>
 
+            {/* Rows */}
             {materials.map((mat) => (
               <div
                 key={mat.id}
-                className="p-4 rounded-2xl bg-[#141728] border border-slate-800/80 hover:border-purple-500/40 transition-all flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 items-start sm:items-center"
+                className="grid grid-cols-1 sm:grid-cols-12 gap-4 p-5 sm:px-6 sm:py-4 border-b border-[#181c30] hover:bg-[#15192e] transition-colors items-center"
               >
                 <div className="col-span-5 flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0">
                     <FileText className="w-5 h-5" />
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate">
+                  <div className="min-w-0 space-y-0.5">
+                    <h4 className="text-sm font-bold text-white truncate">
                       {mat.name}
                     </h4>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {mat.type} • {mat.size}
                     </p>
                   </div>
@@ -215,8 +285,16 @@ export default function MaterialManager() {
                     {mat.status}
                   </span>
                   <button
+                    onClick={() => handleOpenEditModal(mat)}
+                    className="p-2 rounded-lg bg-[#191d30] text-purple-300 hover:bg-purple-600 hover:text-white transition-colors cursor-pointer"
+                    title="Editar Material"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => handleDelete(mat.id)}
                     className="p-2 rounded-lg bg-[#191d30] text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                    title="Excluir Material"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -236,7 +314,7 @@ export default function MaterialManager() {
               </p>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 cursor-pointer transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -246,14 +324,14 @@ export default function MaterialManager() {
         )}
       </div>
 
-      {/* Modal: Upload / Link Material */}
+      {/* Modal: Create / Edit Material */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative w-full max-w-lg bg-[#111425] border border-purple-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-[#1f243c]">
               <h3 className="text-lg font-black text-white flex items-center gap-2">
                 <UploadCloud className="w-5 h-5 text-emerald-400" />
-                <span>+ Cadastrar Material do Google Drive</span>
+                <span>{editingMaterialId ? 'Editar Material' : '+ Cadastrar Material do Google Drive'}</span>
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -263,7 +341,7 @@ export default function MaterialManager() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
                   Nome do Arquivo / Título:
@@ -390,7 +468,7 @@ export default function MaterialManager() {
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 cursor-pointer"
                 >
-                  Salvar Material
+                  {editingMaterialId ? 'Atualizar Material' : 'Salvar Material'}
                 </button>
               </div>
             </form>

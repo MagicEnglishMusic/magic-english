@@ -165,7 +165,7 @@ export default function CommunityFeed({
           </div>
         ) : (
           filteredPosts.map((post) => (
-            <CommunityPost key={post.id} post={post} user={user} />
+            <CommunityPost key={post.id} post={post} user={user} isMaintenance={!isPostingEnabled} />
           ))
         )}
       </div>

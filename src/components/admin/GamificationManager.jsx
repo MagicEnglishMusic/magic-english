@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Trophy, Zap, Plus, Award, Target, Sparkles, CheckCircle2, Flame, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Zap, Plus, Award, Target, Sparkles, CheckCircle2, Flame, X, RefreshCw } from 'lucide-react';
 import { XP_REWARDS, INITIAL_BADGES, INITIAL_DAILY_CHALLENGES } from '../../data/gamificationData';
+import { communityService } from '../../services/communityService';
 
 export default function GamificationManager() {
   const [xpRewards, setXpRewards] = useState(XP_REWARDS);
@@ -8,6 +9,15 @@ export default function GamificationManager() {
   const [challenges, setChallenges] = useState(INITIAL_DAILY_CHALLENGES);
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    communityService.getAppSettings('xp_rules').then((res) => {
+      if (res.data && typeof res.data === 'object') {
+        setXpRewards((prev) => ({ ...prev, ...res.data }));
+      }
+    });
+  }, []);
 
   const [newBadge, setNewBadge] = useState({
     title: '',
@@ -24,9 +34,15 @@ export default function GamificationManager() {
     });
   };
 
-  const handleSaveXpSettings = () => {
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  const handleSaveXpSettings = async () => {
+    setIsSaving(true);
+    try {
+      await communityService.updateAppSettings('xp_rules', xpRewards);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCreateBadge = (e) => {
@@ -75,7 +91,7 @@ export default function GamificationManager() {
       {savedSuccess && (
         <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>Regras de XP atualizadas com sucesso para toda a plataforma!</span>
+          <span>Regras de XP salvas com sucesso em app_settings ('xp_rules')!</span>
         </div>
       )}
 
@@ -93,9 +109,11 @@ export default function GamificationManager() {
           </div>
           <button
             onClick={handleSaveXpSettings}
-            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shadow-md"
+            disabled={isSaving}
+            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
           >
-            Salvar Valores de XP
+            {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+            <span>{isSaving ? 'Salvando...' : 'Salvar Valores de XP'}</span>
           </button>
         </div>
 

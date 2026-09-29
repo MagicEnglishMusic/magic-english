@@ -43,13 +43,19 @@ export default function ModuleCard({ module, onSelectLesson }) {
 
       {/* Lesson Cards List */}
       <div className="space-y-3">
-        {lessons.map((lesson) => (
-          <LessonCard
-            key={lesson?.id}
-            lesson={lesson}
-            onSelectLesson={onSelectLesson}
-          />
-        ))}
+        {lessons.length > 0 ? (
+          lessons.map((lesson) => (
+            <LessonCard
+              key={lesson?.id}
+              lesson={lesson}
+              onSelectLesson={onSelectLesson}
+            />
+          ))
+        ) : (
+          <p className="text-xs text-slate-500 italic py-2">
+            Aulas deste módulo em produção.
+          </p>
+        )}
       </div>
     </div>
   );

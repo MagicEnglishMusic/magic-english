@@ -85,11 +85,7 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
     setCurrentIndex(0);
     setTypedAnswer('');
     setStatus(null);
-    setIsCompleted(false);
     setShowResetConfirm(false);
-    if (resetSongMastery) {
-      resetSongMastery(songId);
-    }
   };
 
   const toggleSpeak = (text) => {
@@ -129,16 +125,18 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
       setStatus(null);
     } else {
       setIsCompleted(true);
-      // Give XP and update Song Mastery step
-      addXp(XP_REWARDS.COMPLETE_MUSICAL_PRACTICE, 'Prática Musical Concluída!', {
+      const cleanSongId = String(songId || '').trim().toLowerCase();
+      // 1. Atualiza song_mastery no Supabase primeiro
+      updateSongMasteryStep(songId, 'reverse_translation', true);
+      // 2. Concede XP de prática musical com ref do song_id em minúsculo
+      addXp('practice_complete', cleanSongId, {
         showModal: true,
         type: 'xp',
         title: '🧠 Prática Musical Concluída!',
         subtitle: `Você fez a tradução reversa de todas as ${verses.length} frases da canção!`,
         icon: '🎵',
-        bonusText: `+${XP_REWARDS.COMPLETE_MUSICAL_PRACTICE} Magic XP conquistados!`
+        bonusText: `+75 Magic XP conquistados!`
       });
-      updateSongMasteryStep(songId, 'reverse_translation', true);
       if (onComplete) onComplete(XP_REWARDS.COMPLETE_MUSICAL_PRACTICE);
     }
   };

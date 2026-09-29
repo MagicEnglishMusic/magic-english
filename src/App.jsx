@@ -5,8 +5,6 @@ import RightPanel from './components/layout/RightPanel';
 import HeroBanner from './components/dashboard/HeroBanner';
 import MyEvolutionCard from './components/dashboard/MyEvolutionCard';
 import ProgressStats from './components/dashboard/ProgressStats';
-import ContinueSection from './components/dashboard/ContinueSection';
-import NextStepsSection from './components/dashboard/NextStepsSection';
 import MagicSongsSection from './components/dashboard/MagicSongsSection';
 import LearningTracksSection from './components/dashboard/LearningTracksSection';
 import LoginStudent from './components/auth/LoginStudent';
@@ -37,21 +35,23 @@ const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
 const Onboarding = lazy(() => import('./components/auth/Onboarding'));
 const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
 import { songsService } from './services/songsService';
+import { lessonsService } from './services/lessonsService';
 import { XP_REWARDS } from './data/gamificationData';
 
-// Determine initial view from window.location.pathname
-function getInitialView() {
-  if (typeof window === 'undefined') return 'dashboard';
-  const path = window.location.pathname.toLowerCase();
-  const hash = window.location.hash || '';
-  const search = window.location.search || '';
-  const href = window.location.href || '';
-  
+// Determine initial view and parameters from pathname
+export function parseRoute(pathname = '') {
+  if (typeof window === 'undefined') return { view: 'dashboard', tab: 'home', path: '/dashboard' };
+  const rawPath = pathname || (typeof window !== 'undefined' ? window.location.pathname : '') || '';
+  const path = rawPath.toLowerCase();
+  const hash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+  const search = typeof window !== 'undefined' ? window.location.search || '' : '';
+  const href = typeof window !== 'undefined' ? window.location.href || '' : '';
+
   if (path.startsWith('/admin/login')) {
-    return 'admin-login';
+    return { view: 'admin-login', tab: null, path: '/admin/login' };
   }
   if (path.startsWith('/admin')) {
-    return 'admin';
+    return { view: 'admin', tab: null, path: '/admin' };
   }
   if (
     path.startsWith('/reset-password') || 
@@ -59,137 +59,89 @@ function getInitialView() {
     search.includes('type=recovery') ||
     href.includes('type=recovery')
   ) {
-    return 'reset-password';
+    return { view: 'reset-password', tab: null, path: '/reset-password' };
   }
   if (path.startsWith('/register')) {
-    return 'register';
+    return { view: 'register', tab: null, path: '/register' };
   }
   if (path.startsWith('/forgot-password')) {
-    return 'forgot-password';
+    return { view: 'forgot-password', tab: null, path: '/forgot-password' };
   }
   if (path.startsWith('/onboarding')) {
-    return 'onboarding';
+    return { view: 'onboarding', tab: null, path: '/onboarding' };
   }
   if (path.startsWith('/login')) {
-    return 'login';
+    return { view: 'login', tab: null, path: '/login' };
+  }
+
+  // Student Classroom: /classroom or /classroom/:lessonId
+  if (path.startsWith('/classroom')) {
+    const parts = rawPath.split('/').filter(Boolean);
+    const lessonId = parts[1] || null;
+    return { view: 'classroom', tab: 'classes', lessonId, path: rawPath || '/classroom' };
+  }
+
+  // Student Musical Practice: /musical-practice or /musical-practice/:songId
+  if (path.startsWith('/musical-practice')) {
+    const parts = rawPath.split('/').filter(Boolean);
+    const songId = parts[1] || null;
+    return { view: 'musical-practice', tab: 'classes', songId, path: rawPath || '/musical-practice' };
+  }
+
+  // Student Modules / Lessons: /my-lessons or /my-lessons/:moduleId
+  if (path.startsWith('/my-lessons')) {
+    const parts = rawPath.split('/').filter(Boolean);
+    const moduleId = parts[1] || null;
+    return { view: 'my-lessons', tab: 'classes', moduleId, path: rawPath || '/my-lessons' };
+  }
+
+  // Student Magic Songs: /songs or /songs/:songId
+  if (path.startsWith('/songs')) {
+    const parts = rawPath.split('/').filter(Boolean);
+    const songId = parts[1] || null;
+    return { view: 'song-player', tab: 'songs', songId, path: rawPath || '/songs' };
+  }
+
+  if (path.startsWith('/tracks')) {
+    return { view: 'tracks', tab: 'tracks', path: '/tracks' };
+  }
+  if (path.startsWith('/materials')) {
+    return { view: 'materials', tab: 'materials', path: '/materials' };
+  }
+  if (path.startsWith('/pronunciation')) {
+    return { view: 'pronunciation', tab: 'pronunciation', path: '/pronunciation' };
+  }
+  if (path.startsWith('/achievements')) {
+    return { view: 'gamification', tab: 'achievements', path: '/achievements' };
+  }
+  if (path.startsWith('/ranking')) {
+    return { view: 'ranking', tab: 'ranking', path: '/ranking' };
   }
   if (path.startsWith('/community')) {
-    return 'community';
+    return { view: 'community', tab: 'community', path: '/community' };
   }
-  return 'dashboard';
+  if (path.startsWith('/profile') || path.startsWith('/settings')) {
+    return { view: 'profile', tab: 'profile', path: '/profile' };
+  }
+
+  return { view: 'dashboard', tab: 'home', path: '/dashboard' };
 }
 
 function MainApp() {
   const { isAuthenticated, role, isOnboarded, isPasswordRecovery, loading, logout } = useAuth();
 
+  const initialRoute = parseRoute(typeof window !== 'undefined' ? window.location.pathname : '');
+
   // Navigation State
-  // 'dashboard' | 'classroom' | 'my-lessons' | 'song-player' | 'tracks' | 'materials' | 'pronunciation' | 'musical-practice' | 'gamification' | 'profile' | 'ranking' | 'community' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'onboarding' | 'admin-login' | 'admin'
-  const [currentView, setCurrentView] = useState(getInitialView);
-  const [activeTab, setActiveTab] = useState(getInitialView() === 'community' ? 'community' : 'home');
+  const [currentView, setCurrentView] = useState(initialRoute.view);
+  const [activeTab, setActiveTab] = useState(initialRoute.tab || 'home');
+  const [selectedModuleId, setSelectedModuleId] = useState(initialRoute.moduleId || null);
   const [activeSong, setActiveSong] = useState(null);
   const [activeLesson, setActiveLesson] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalItem, setModalItem] = useState(null);
 
   const { rewardModal, closeRewardModal, addXp } = useGamification();
-
-  // Handle URL changes & browser history
-  const navigateTo = (view, path) => {
-    setCurrentView(view);
-    if (path && window.location.pathname !== path) {
-      window.history.pushState({ view }, '', path);
-    }
-  };
-
-  // Sync with browser back/forward buttons and hash changes
-  useEffect(() => {
-    const handlePopState = () => {
-      const view = getInitialView();
-      setCurrentView(view);
-      if (view === 'community') setActiveTab('community');
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
-    };
-  }, []);
-
-  // Password Recovery Session Listener
-  useEffect(() => {
-    if (isPasswordRecovery && currentView !== 'reset-password') {
-      navigateTo('reset-password', '/reset-password');
-    }
-  }, [isPasswordRecovery, currentView]);
-
-  // Administrative Guard: /admin and /admin/login role enforcement
-  useEffect(() => {
-    if (loading || (isAuthenticated && !role)) return;
-
-    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
-
-    if (currentView === 'admin' || currentView === 'admin-login') {
-      if (isAuthenticated) {
-        if (normalizedRole === 'student') {
-          console.log('[DEBUG APP] Admin Guard redirecting student to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
-          navigateTo('dashboard', '/dashboard');
-        } else if (normalizedRole === 'admin' && currentView === 'admin-login') {
-          console.log('[DEBUG APP] Admin Guard redirecting admin to /admin:', { currentView, role, isAuthenticated, isOnboarded, loading });
-          navigateTo('admin', '/admin');
-        }
-      } else if (currentView === 'admin') {
-        console.log('[DEBUG APP] Admin Guard redirecting unauthenticated to /admin/login:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('admin-login', '/admin/login');
-      }
-    }
-  }, [currentView, isAuthenticated, role, loading]);
-
-  // Student Authentication Guard for student-protected and onboarding pages
-  useEffect(() => {
-    if (loading || (isAuthenticated && !role)) return;
-
-    // Do NOT redirect away from reset-password while resetting password
-    if (isPasswordRecovery || currentView === 'reset-password') {
-      return;
-    }
-
-    const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'reset-password', 'admin-login'].includes(currentView);
-    
-    if (currentView === 'admin' || currentView === 'admin-login') {
-      return;
-    }
-
-    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
-
-    // ADMIN ISOLATION: Admin never executes student onboarding or student platform redirects
-    if (normalizedRole === 'admin') {
-      if (currentView !== 'admin' && currentView !== 'admin-login') {
-        console.log('[DEBUG APP] Admin Isolation redirecting admin to /admin:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('admin', '/admin');
-      }
-      return;
-    }
-
-    if (!isPublicAuthRoute) {
-      if (!isAuthenticated) {
-        console.log('[DEBUG APP] Student Guard redirecting unauthenticated to /login:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('login', '/login');
-      } else if (!isOnboarded && currentView !== 'onboarding') {
-        console.log('[DEBUG APP] Student Guard redirecting non-onboarded to /onboarding:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('onboarding', '/onboarding');
-      } else if (isOnboarded && currentView === 'onboarding') {
-        console.log('[DEBUG APP] Student Guard redirecting onboarded to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('dashboard', '/dashboard');
-      }
-    } else if (isAuthenticated) {
-      if (normalizedRole === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
-        console.log('[DEBUG APP] Student Guard redirecting authenticated student to /dashboard:', { currentView, role, isAuthenticated, isOnboarded, loading });
-        navigateTo('dashboard', '/dashboard');
-      }
-    }
-  }, [currentView, isAuthenticated, isOnboarded, isPasswordRecovery, loading, role]);
 
   // Helper: Normalize Supabase Song for Player
   const normalizeSongForPlayer = (song) => {
@@ -266,42 +218,209 @@ function MainApp() {
     };
   };
 
+  // Helper: Format Lesson for MagicClassroomView
+  const formatLessonForClassroom = (lessonData) => {
+    if (!lessonData) return null;
+    const songPayload = lessonData.songs || lessonData.relatedSong || (lessonData.song_id || lessonData.songId ? { id: lessonData.song_id || lessonData.songId, title: lessonData.title } : null);
+
+    return {
+      id: lessonData.id || 'lesson-active',
+      moduleId: lessonData.module_id || lessonData.moduleId || null,
+      lessonNumber: lessonData.lessonNumber || lessonData.lesson_number || `Aula ${String(lessonData.order_index || lessonData.number || 1).padStart(2, '0')}`,
+      title: lessonData.title || 'Aula Oficial',
+      duration: lessonData.totalDuration || lessonData.duration || '15 min',
+      module: lessonData.modules?.title || lessonData.module || 'Módulo do Curso',
+      level: lessonData.level || 'Iniciante',
+      videoThumbnail: lessonData.thumbnail_url || lessonData.videoThumbnail || lessonData.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80',
+      videoUrl: lessonData.video_url || lessonData.videoUrl || '',
+      description: lessonData.description || 'Nesta aula prática, você vai dominar as estruturas essenciais do inglês cantando e fixando com o método Magic English.',
+      learningGoals: lessonData.learning_goals || lessonData.learningGoals || [
+        'Dominar as estruturas e vocabulário essencial',
+        'Compreender o significado de cada verso',
+        'Treinar a pronúncia vocal no Voice Lab',
+        'Fixar o inglês com a Prática Musical'
+      ],
+      videoChapters: lessonData.video_chapters || lessonData.videoChapters || [],
+      relatedSong: songPayload,
+      exercises: lessonData.exercises || [],
+      pronunciationList: lessonData.pronunciationList || [],
+      downloadableFiles: lessonData.materials || lessonData.downloadableFiles || []
+    };
+  };
+
+  // Handle URL changes & browser history
+  const navigateTo = (view, path, replace = false) => {
+    setCurrentView(view);
+    if (path && window.location.pathname !== path) {
+      if (replace) {
+        window.history.replaceState({ view, path }, '', path);
+      } else {
+        window.history.pushState({ view, path }, '', path);
+      }
+    }
+  };
+
+  // Sync with browser back/forward buttons and hash changes
+  useEffect(() => {
+    const handlePopState = async () => {
+      const route = parseRoute(window.location.pathname);
+      setCurrentView(route.view);
+      if (route.tab) setActiveTab(route.tab);
+
+      if (route.view === 'my-lessons') {
+        setSelectedModuleId(route.moduleId || null);
+      } else if (route.view === 'classroom' && route.lessonId) {
+        if (!activeLesson || activeLesson.id !== route.lessonId) {
+          const { data } = await lessonsService.getLessonDetails(route.lessonId);
+          if (data) {
+            setActiveLesson(formatLessonForClassroom(data));
+            if (data.module_id) setSelectedModuleId(data.module_id);
+          }
+        }
+      } else if ((route.view === 'song-player' || route.view === 'musical-practice') && route.songId) {
+        if (!activeSong || activeSong.id !== route.songId) {
+          const { data } = await songsService.getSongById(route.songId);
+          if (data) {
+            setActiveSong(normalizeSongForPlayer(data));
+          }
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [activeLesson, activeSong]);
+
+  // Initial load deep link resolution (F5 or direct link)
+  useEffect(() => {
+    const route = parseRoute(window.location.pathname);
+    if (route.view === 'classroom' && route.lessonId && !activeLesson) {
+      lessonsService.getLessonDetails(route.lessonId).then(({ data }) => {
+        if (data) {
+          setActiveLesson(formatLessonForClassroom(data));
+          if (data.module_id) setSelectedModuleId(data.module_id);
+        }
+      });
+    } else if ((route.view === 'song-player' || route.view === 'musical-practice') && route.songId && !activeSong) {
+      songsService.getSongById(route.songId).then(({ data }) => {
+        if (data) {
+          setActiveSong(normalizeSongForPlayer(data));
+        }
+      });
+    }
+  }, []);
+
+  // Password Recovery Session Listener
+  useEffect(() => {
+    if (isPasswordRecovery && currentView !== 'reset-password') {
+      navigateTo('reset-password', '/reset-password');
+    }
+  }, [isPasswordRecovery, currentView]);
+
+  // Administrative Guard: /admin and /admin/login role enforcement
+  useEffect(() => {
+    if (loading || (isAuthenticated && !role)) return;
+
+    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
+
+    if (currentView === 'admin' || currentView === 'admin-login') {
+      if (isAuthenticated) {
+        if (normalizedRole === 'student') {
+          navigateTo('dashboard', '/dashboard');
+        } else if (normalizedRole === 'admin' && currentView === 'admin-login') {
+          navigateTo('admin', '/admin');
+        }
+      } else if (currentView === 'admin') {
+        navigateTo('admin-login', '/admin/login');
+      }
+    }
+  }, [currentView, isAuthenticated, role, loading]);
+
+  // Student Authentication Guard for student-protected and onboarding pages
+  useEffect(() => {
+    if (loading || (isAuthenticated && !role)) return;
+
+    // Do NOT redirect away from reset-password while resetting password
+    if (isPasswordRecovery || currentView === 'reset-password') {
+      return;
+    }
+
+    const isPublicAuthRoute = ['login', 'register', 'forgot-password', 'reset-password', 'admin-login'].includes(currentView);
+    
+    if (currentView === 'admin' || currentView === 'admin-login') {
+      return;
+    }
+
+    const normalizedRole = role ? String(role).trim().toLowerCase() : null;
+
+    // ADMIN ISOLATION: Admin never executes student onboarding or student platform redirects
+    if (normalizedRole === 'admin') {
+      if (currentView !== 'admin' && currentView !== 'admin-login') {
+        navigateTo('admin', '/admin');
+      }
+      return;
+    }
+
+    if (!isPublicAuthRoute) {
+      if (!isAuthenticated) {
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (currentPath && currentPath !== '/login' && !currentPath.startsWith('/admin')) {
+          sessionStorage.setItem('magic_redirect_after_login', currentPath);
+        }
+        navigateTo('login', '/login');
+      } else if (!isOnboarded && currentView !== 'onboarding') {
+        navigateTo('onboarding', '/onboarding');
+      } else if (isOnboarded && currentView === 'onboarding') {
+        navigateTo('dashboard', '/dashboard');
+      }
+    } else if (isAuthenticated) {
+      if (normalizedRole === 'student' && isOnboarded && ['login', 'register'].includes(currentView)) {
+        const savedRedirect = sessionStorage.getItem('magic_redirect_after_login');
+        if (savedRedirect && savedRedirect !== '/login' && savedRedirect !== '/register') {
+          sessionStorage.removeItem('magic_redirect_after_login');
+          const targetRoute = parseRoute(savedRedirect);
+          setCurrentView(targetRoute.view);
+          if (targetRoute.tab) setActiveTab(targetRoute.tab);
+          if (targetRoute.moduleId) setSelectedModuleId(targetRoute.moduleId);
+          if (targetRoute.lessonId) {
+            lessonsService.getLessonDetails(targetRoute.lessonId).then(({ data }) => {
+              if (data) setActiveLesson(formatLessonForClassroom(data));
+            });
+          }
+          if (targetRoute.songId) {
+            songsService.getSongById(targetRoute.songId).then(({ data }) => {
+              if (data) setActiveSong(normalizeSongForPlayer(data));
+            });
+          }
+          if (window.location.pathname !== savedRedirect) {
+            window.history.pushState({ view: targetRoute.view }, '', savedRedirect);
+          }
+        } else {
+          navigateTo('dashboard', '/dashboard');
+        }
+      }
+    }
+  }, [currentView, isAuthenticated, isOnboarded, isPasswordRecovery, loading, role]);
+
   // Open Classroom Video Lesson View
   const handleOpenClassroom = (lessonData) => {
     if (!lessonData) {
       setActiveLesson(null);
+      navigateTo('classroom', '/classroom');
     } else {
-      const songPayload = lessonData.relatedSong || (lessonData.songId ? { id: lessonData.songId, title: lessonData.title } : null);
-
-      setActiveLesson({
-        id: lessonData.id || 'lesson-active',
-        lessonNumber: lessonData.lessonNumber || `Aula ${lessonData.number || '01'}`,
-        title: lessonData.title || 'Aula Oficial',
-        duration: lessonData.totalDuration || lessonData.duration || '15 min',
-        module: lessonData.module || 'Módulo 1: Primeiros Passos',
-        level: lessonData.level || 'Iniciante',
-        videoThumbnail: lessonData.videoThumbnail || lessonData.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80',
-        videoUrl: lessonData.videoUrl || '',
-        description: lessonData.description || 'Nesta aula prática, você vai dominar as estruturas essenciais do inglês cantando e fixando com o método Magic English.',
-        learningGoals: lessonData.learningGoals || [
-          'Dominar as estruturas e vocabulário essencial',
-          'Compreender o significado de cada verso',
-          'Treinar a pronúncia vocal no Voice Lab',
-          'Fixar o inglês com a Prática Musical'
-        ],
-        videoChapters: lessonData.videoChapters || [
-          { time: '0:00', title: 'Introdução & Contexto' },
-          { time: '0:45', title: 'Vocabulário & Pronúncia' },
-          { time: '1:30', title: 'Fixação Musical & Tradução Reversa' }
-        ],
-        relatedSong: songPayload,
-        exercises: lessonData.exercises || [],
-        pronunciationList: lessonData.pronunciationList || [],
-        downloadableFiles: lessonData.downloadableFiles || []
-      });
+      const formatted = formatLessonForClassroom(lessonData);
+      setActiveLesson(formatted);
+      if (formatted.moduleId) {
+        setSelectedModuleId(formatted.moduleId);
+      }
+      setActiveTab('classes');
+      const targetPath = formatted.id ? `/classroom/${formatted.id}` : '/classroom';
+      navigateTo('classroom', targetPath);
     }
-    setCurrentView('classroom');
-    setActiveTab('classes');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -309,25 +428,67 @@ function MainApp() {
   const handleOpenSongPlayer = (song) => {
     const lessonData = normalizeSongForPlayer(song);
     setActiveSong(lessonData);
-    setCurrentView('song-player');
     setActiveTab('songs');
+    const targetPath = lessonData?.id ? `/songs/${lessonData.id}` : '/songs';
+    navigateTo('song-player', targetPath);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Open 4-Step Musical Practice Lab
   const handleOpenMusicalPractice = (song = null) => {
     if (song) {
-      setActiveSong(normalizeSongForPlayer(song));
+      const normalized = normalizeSongForPlayer(song);
+      setActiveSong(normalized);
+      const targetPath = normalized?.id ? `/musical-practice/${normalized.id}` : '/musical-practice';
+      navigateTo('musical-practice', targetPath);
     } else if (activeLesson?.relatedSong) {
-      setActiveSong(normalizeSongForPlayer(activeLesson.relatedSong));
+      const normalized = normalizeSongForPlayer(activeLesson.relatedSong);
+      setActiveSong(normalized);
+      const targetPath = normalized?.id ? `/musical-practice/${normalized.id}` : '/musical-practice';
+      navigateTo('musical-practice', targetPath);
     } else {
       songsService.getSongs().then(({ data }) => {
         if (data && data.length > 0) {
-          setActiveSong(normalizeSongForPlayer(data[0]));
+          const normalized = normalizeSongForPlayer(data[0]);
+          setActiveSong(normalized);
+          navigateTo('musical-practice', `/musical-practice/${normalized.id}`);
+        } else {
+          navigateTo('musical-practice', '/musical-practice');
         }
       });
     }
-    setCurrentView('musical-practice');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Back Button Handlers (Hierarchy Preservation)
+  const handleBackFromClassroom = () => {
+    if (activeLesson?.moduleId) {
+      setSelectedModuleId(activeLesson.moduleId);
+      navigateTo('my-lessons', `/my-lessons/${activeLesson.moduleId}`);
+    } else if (selectedModuleId) {
+      navigateTo('my-lessons', `/my-lessons/${selectedModuleId}`);
+    } else {
+      setSelectedModuleId(null);
+      navigateTo('my-lessons', '/my-lessons');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromMusicalPractice = () => {
+    if (activeLesson?.id) {
+      navigateTo('classroom', `/classroom/${activeLesson.id}`);
+    } else if (selectedModuleId) {
+      navigateTo('my-lessons', `/my-lessons/${selectedModuleId}`);
+    } else {
+      setSelectedModuleId(null);
+      navigateTo('my-lessons', '/my-lessons');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackFromSongPlayer = () => {
+    navigateTo('dashboard', '/dashboard');
+    setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -339,38 +500,44 @@ function MainApp() {
 
   const handleOpenTracksPage = () => {
     setActiveTab('tracks');
-    setCurrentView('tracks');
+    navigateTo('tracks', '/tracks');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSidebarTabChange = (tabId) => {
     setActiveTab(tabId);
     if (tabId === 'home') {
+      setSelectedModuleId(null);
       navigateTo('dashboard', '/dashboard');
     } else if (tabId === 'classes') {
-      setCurrentView('my-lessons');
+      setSelectedModuleId(null);
+      navigateTo('my-lessons', '/my-lessons');
     } else if (tabId === 'tracks') {
-      setCurrentView('tracks');
+      navigateTo('tracks', '/tracks');
     } else if (tabId === 'songs') {
-      songsService.getSongs().then(({ data }) => {
-        if (data && data.length > 0) {
-          handleOpenSongPlayer(data[0]);
-        } else {
-          handleOpenSongPlayer(null);
-        }
-      });
+      if (activeSong?.id) {
+        navigateTo('song-player', `/songs/${activeSong.id}`);
+      } else {
+        songsService.getSongs().then(({ data }) => {
+          if (data && data.length > 0) {
+            handleOpenSongPlayer(data[0]);
+          } else {
+            handleOpenSongPlayer(null);
+          }
+        });
+      }
     } else if (tabId === 'materials') {
-      setCurrentView('materials');
+      navigateTo('materials', '/materials');
     } else if (tabId === 'pronunciation') {
-      setCurrentView('pronunciation');
+      navigateTo('pronunciation', '/pronunciation');
     } else if (tabId === 'achievements') {
-      setCurrentView('gamification');
+      navigateTo('gamification', '/achievements');
     } else if (tabId === 'ranking') {
-      setCurrentView('ranking');
+      navigateTo('ranking', '/ranking');
     } else if (tabId === 'community') {
       navigateTo('community', '/community');
     } else if (tabId === 'profile') {
-      setCurrentView('profile');
+      navigateTo('profile', '/profile');
     } else {
       navigateTo('dashboard', '/dashboard');
     }
@@ -465,8 +632,30 @@ function MainApp() {
     return (
       <LoginStudent
         onLoginSuccess={() => {
-          navigateTo('dashboard', '/dashboard');
-          setActiveTab('home');
+          const savedRedirect = sessionStorage.getItem('magic_redirect_after_login');
+          if (savedRedirect && savedRedirect !== '/login' && savedRedirect !== '/register') {
+            sessionStorage.removeItem('magic_redirect_after_login');
+            const targetRoute = parseRoute(savedRedirect);
+            setCurrentView(targetRoute.view);
+            if (targetRoute.tab) setActiveTab(targetRoute.tab);
+            if (targetRoute.moduleId) setSelectedModuleId(targetRoute.moduleId);
+            if (targetRoute.lessonId) {
+              lessonsService.getLessonDetails(targetRoute.lessonId).then(({ data }) => {
+                if (data) setActiveLesson(formatLessonForClassroom(data));
+              });
+            }
+            if (targetRoute.songId) {
+              songsService.getSongById(targetRoute.songId).then(({ data }) => {
+                if (data) setActiveSong(normalizeSongForPlayer(data));
+              });
+            }
+            if (window.location.pathname !== savedRedirect) {
+              window.history.pushState({ view: targetRoute.view }, '', savedRedirect);
+            }
+          } else {
+            navigateTo('dashboard', '/dashboard');
+            setActiveTab('home');
+          }
         }}
         onGoToRegister={() => navigateTo('register', '/register')}
         onGoToForgotPassword={() => navigateTo('forgot-password', '/forgot-password')}
@@ -542,7 +731,7 @@ function MainApp() {
               {currentView === 'classroom' ? (
                 <MagicClassroomView
                   lesson={activeLesson}
-                  onBack={() => handleSidebarTabChange('classes')}
+                  onBack={handleBackFromClassroom}
                   onOpenMusicPlayer={(song) => handleOpenMusicalPractice(song)}
                   onNextLesson={() => {
                     handleOpenClassroom({
@@ -552,19 +741,28 @@ function MainApp() {
                     });
                   }}
                   onGainXp={(amount) => {
-                    addXp(amount, 'Aula em Vídeo', { showModal: true });
+                    // Celebration modal & XP are handled safely within MagicClassroomView via addXp('lesson_complete')
                   }}
                 />
               ) : currentView === 'musical-practice' ? (
                 <MusicalPracticeView
                   song={activeSong}
-                  onBack={() => handleSidebarTabChange('classes')}
+                  onBack={handleBackFromMusicalPractice}
                   onGainXp={(amount) => {
-                    addXp(amount, 'Prática Musical Completa', { showModal: true });
+                    // Celebration modal & XP are handled safely within MusicalPracticeView via addXp('practice_complete')
                   }}
                 />
               ) : currentView === 'my-lessons' ? (
                 <MyModulesView
+                  selectedModuleId={selectedModuleId}
+                  onModuleChange={(modId) => {
+                    setSelectedModuleId(modId);
+                    if (modId) {
+                      navigateTo('my-lessons', `/my-lessons/${modId}`);
+                    } else {
+                      navigateTo('my-lessons', '/my-lessons');
+                    }
+                  }}
                   onOpenClassroomLesson={(lesson) => handleOpenClassroom(lesson)}
                   onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
                 />
@@ -595,9 +793,9 @@ function MainApp() {
               ) : currentView === 'song-player' ? (
                 <MagicSongView
                   song={activeSong}
-                  onBack={handleReturnToDashboard}
+                  onBack={handleBackFromSongPlayer}
                   onGainXp={(amount) => {
-                    addXp(amount, 'Magic Song Tocada', { showModal: true });
+                    // Celebration modal & XP are handled safely within PracticeCards via addXp('song_claim')
                   }}
                 />
               ) : currentView === 'tracks' ? (
@@ -619,7 +817,7 @@ function MainApp() {
                 <main className="flex-1 w-full flex flex-col">
                   {/* 1. Full Width Edge-to-Edge Hero Banner (Kiwify / Streaming Style) */}
                   <HeroBanner
-                    onContinue={() => handleOpenClassroom(continueLessonsList[0])}
+                    onContinue={() => handleSidebarTabChange('classes')}
                     onExplore={() => handleSidebarTabChange('classes')}
                   />
 
@@ -632,10 +830,6 @@ function MainApp() {
 
                     {/* Progress Overview Stats */}
                     <ProgressStats />
-
-                    {/* [TEMPORARIAMENTE OCULTO] ContinueSection e NextStepsSection (aguardando persistência de progresso real do aluno) */}
-                    {/* <ContinueSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} /> */}
-                    {/* <NextStepsSection onSelectLesson={(lesson) => handleOpenClassroom(lesson)} /> */}
 
                     {/* "Reforce seu aprendizado com músicas" Section (Magic Songs Fixation) */}
                     <MagicSongsSection onSelectSong={(song) => handleOpenSongPlayer(song)} />

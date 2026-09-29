@@ -51,7 +51,7 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#121524] hover:bg-[#1a1f36] border border-[#22273e] hover:border-purple-500/40 text-slate-300 hover:text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm group"
         >
           <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
-          <span>Voltar para Meus Módulos</span>
+          <span>Voltar</span>
         </button>
 
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300">
@@ -271,53 +271,6 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
             <p className="text-xs text-slate-400">As aulas adicionadas pelo administrador neste módulo aparecerão aqui.</p>
           </div>
         )}
-      </div>
-
-      {/* 5. Section 2: 🎵 Magic Songs & Prática Musical */}
-      <div className="space-y-4 pt-4 border-t border-[#1c2035]">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Music className="w-5 h-5 text-cyan-400" />
-              🎵 Magic Songs de Fixação do Módulo
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Músicas criadas exclusivamente para memorização acelerada com o método das 4 etapas
-            </p>
-          </div>
-        </div>
-
-        {/* Featured Music Practice Card */}
-        <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-[#121528] via-[#0f1224] to-[#0c0e1a] border border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
-          <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 relative border border-cyan-500/30">
-              <img src={module.coverImage} alt={module.title} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <Music className="w-8 h-8 text-cyan-300 animate-pulse" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
-                Prática Musical Completa
-              </span>
-              <h3 className="text-lg font-bold text-white">
-                {module.title} — Hit Musical de Fixação
-              </h3>
-              <p className="text-xs text-slate-300">
-                Ouvir e acompanhar ➔ Tradução reversa ➔ Cantar junto ➔ Cantar sem apoio
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onOpenMusicalPractice}
-            className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-extrabold text-xs uppercase tracking-wider transition-all shadow-lg shadow-cyan-500/30 flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Mic className="w-4 h-4 fill-black" />
-            <span>Iniciar Prática Musical (4 Etapas) ➔</span>
-          </button>
-        </div>
       </div>
 
     </div>

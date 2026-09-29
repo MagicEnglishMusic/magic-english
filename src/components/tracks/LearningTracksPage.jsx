@@ -26,7 +26,7 @@ export default function LearningTracksPage({ onOpenLesson }) {
 
         if (isMounted && dbModules.length > 0) {
           // Build real module and lesson hierarchy for Track 1 ("Inglês do Zero")
-          const realModulesForTrack = dbModules.map((mod, modIdx) => {
+          const realModulesForTrack = dbModules.map((mod) => {
             const modLessons = dbLessons.filter((l) => l.module_id === mod.id);
             const formattedLessons = modLessons.map((l, lIdx) => {
               // Match SSOT song for this lesson
@@ -55,18 +55,18 @@ export default function LearningTracksPage({ onOpenLesson }) {
               id: mod.id,
               title: mod.title,
               description: mod.description || 'Módulo Oficial Magic English',
-              lessons: formattedLessons.length > 0 ? formattedLessons : (tracksData[0].modules[modIdx]?.lessons || [])
+              lessons: formattedLessons // NUNCA usar fallback de mentira
             };
           });
 
           const totalLessons = realModulesForTrack.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
-          const totalSongs = dbSongs.length || 1;
+          const totalSongs = dbSongs.length || 0;
 
           const updatedTrackZero = {
             ...tracksData[0],
             modules: realModulesForTrack,
-            lessonsCount: totalLessons || tracksData[0].lessonsCount,
-            songsCount: totalSongs || tracksData[0].songsCount
+            lessonsCount: totalLessons,
+            songsCount: totalSongs
           };
 
           const newTracks = [updatedTrackZero, ...tracksData.slice(1)];
@@ -82,7 +82,6 @@ export default function LearningTracksPage({ onOpenLesson }) {
   }, []);
 
   const handleSelectTrack = (track) => {
-    // Find enriched version if available
     const enriched = enrichedTracks.find((t) => t.id === track.id) || track;
     setSelectedTrack(enriched);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -94,8 +93,28 @@ export default function LearningTracksPage({ onOpenLesson }) {
   };
 
   const handleLessonSelect = (lesson) => {
-    if (onOpenLesson) {
+    if (onOpenLesson && lesson?.id) {
       onOpenLesson(lesson);
+    }
+  };
+
+  // Find first real lesson of the current track
+  const handleContinueTrack = (track) => {
+    const targetTrack = enrichedTracks.find((t) => t.id === track.id) || track || enrichedTracks[0];
+    let firstRealLesson = null;
+    if (targetTrack?.modules && Array.isArray(targetTrack.modules)) {
+      for (const m of targetTrack.modules) {
+        if (Array.isArray(m.lessons) && m.lessons.length > 0) {
+          firstRealLesson = m.lessons[0];
+          break;
+        }
+      }
+    }
+
+    if (firstRealLesson) {
+      handleLessonSelect(firstRealLesson);
+    } else {
+      handleSelectTrack(targetTrack);
     }
   };
 
@@ -109,8 +128,9 @@ export default function LearningTracksPage({ onOpenLesson }) {
         />
       ) : (
         <TracksListView
+          tracks={enrichedTracks}
           onSelectTrack={handleSelectTrack}
-          onContinueCurrentTrack={() => handleSelectTrack(enrichedTracks[0])}
+          onContinueCurrentTrack={handleContinueTrack}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, CheckCircle2, AlertCircle, Bell } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Sparkles, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import CommunityHeader from './CommunityHeader';
 import WeeklyChallenge from './WeeklyChallenge';
 import SongChallenge from './SongChallenge';
@@ -25,10 +25,12 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
 
   const [posts, setPosts] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const [joinedGroupIds, setJoinedGroupIds] = useState(() => communityService.getJoinedGroups(user?.id));
+  const [joinedGroupIds, setJoinedGroupIds] = useState(() => communityService.getJoinedGroups());
   const [settings, setSettings] = useState(() => communityService.getCommunitySettings());
   const [weeklyHighlights, setWeeklyHighlights] = useState([]);
   const [toastMessage, setToastMessage] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUnavailable, setIsUnavailable] = useState(false);
 
   // Show Toast helper
   const showToast = (message, type = 'success') => {
@@ -40,12 +42,10 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
 
   // Real-time subscribe to community settings and feed changes
   useEffect(() => {
-    // 1. Initial persistent fetch from Supabase SSOT
     communityService.fetchCommunitySettings().then((remoteSettings) => {
       if (remoteSettings) setSettings(remoteSettings);
     });
 
-    // 2. Real-time subscription for live updates
     const unsubSettings = communityService.subscribeToSettings((updatedSettings) => {
       setSettings(updatedSettings);
     });
@@ -55,30 +55,8 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
         setPosts((prev) => [event.post, ...prev.filter((p) => p.id !== event.post.id)]);
       } else if (event.type === 'post_deleted' && event.postId) {
         setPosts((prev) => prev.filter((p) => p.id !== event.postId));
-      } else if (event.type === 'comment_added' && event.postId && event.comment) {
-        setPosts((prev) => prev.map((p) => {
-          if (p.id === event.postId) {
-            const list = (p.commentsList || []).filter((c) => c.id !== event.comment.id);
-            return {
-              ...p,
-              comments: list.length + 1,
-              commentsList: [...list, event.comment]
-            };
-          }
-          return p;
-        }));
-      } else if (event.type === 'comment_deleted' && event.postId && event.commentId) {
-        setPosts((prev) => prev.map((p) => {
-          if (p.id === event.postId) {
-            const list = (p.commentsList || []).filter((c) => c.id !== event.commentId);
-            return {
-              ...p,
-              comments: list.length,
-              commentsList: list
-            };
-          }
-          return p;
-        }));
+      } else if (event.type === 'post_updated' && event.post) {
+        setPosts((prev) => prev.map((p) => (p.id === event.post.id ? { ...p, ...event.post } : p)));
       }
     });
 
@@ -88,41 +66,60 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
     };
   }, []);
 
-  // Load posts and ranking highlights
-  useEffect(() => {
-    let isMounted = true;
+  // Load posts, likes, and ranking highlights
+  const loadCommunityData = useCallback(async () => {
+    setIsLoading(true);
+    setIsUnavailable(false);
 
-    async function loadCommunity() {
-      try {
-        const { data: loadedPosts } = await communityService.getPosts(selectedGroupId);
-        if (isMounted) {
-          setPosts(loadedPosts || []);
-        }
+    try {
+      const [postsRes, likesRes, rankingRes] = await Promise.all([
+        communityService.getPosts(selectedGroupId),
+        communityService.getUserLikedPostIds(user?.id),
+        rankingService.getRankingLeaderboard()
+      ]);
 
-        // Fetch top rankers for weekly highlights
-        const { data: rankingData } = await rankingService.getRankingLeaderboard();
-        if (isMounted && rankingData && rankingData.length > 0) {
-          const topHighlights = rankingData.slice(0, 3).map((r, i) => ({
-            name: r.name,
-            avatar: r.avatar,
-            category: i === 0 ? '🏆 Líder da Semana' : i === 1 ? '🔥 Maior Sequência' : '⭐ Destaque Musical',
-            stat: `${r.weeklyXp || r.xp} XP acumulados`,
-            badge: r.tag || (i === 0 ? '🥇 1º Lugar' : i === 1 ? '🥈 2º Lugar' : '🥉 3º Lugar')
-          }));
-          setWeeklyHighlights(topHighlights);
-        }
-      } catch (err) {
-        console.warn('Error loading community data:', err);
+      if (postsRes.unavailable) {
+        setIsUnavailable(true);
+        setPosts([]);
+      } else {
+        const likedIds = new Set(likesRes.data || []);
+        const loadedPosts = (postsRes.data || []).map((p) => ({
+          ...p,
+          isLiked: likedIds.has(p.id)
+        }));
+        setPosts(loadedPosts);
       }
-    }
 
-    loadCommunity();
-    return () => { isMounted = false; };
+      if (rankingRes && rankingRes.data && rankingRes.data.length > 0) {
+        const topHighlights = rankingRes.data.slice(0, 3).map((r, i) => ({
+          name: r.name,
+          avatar: r.avatar,
+          category: i === 0 ? '🏆 Líder da Semana' : i === 1 ? '🔥 Maior Sequência' : '⭐ Destaque Musical',
+          stat: `${r.weeklyXp || r.xp} XP acumulados`,
+          badge: r.tag || (i === 0 ? '🥇 1º Lugar' : i === 1 ? '🥈 2º Lugar' : '🥉 3º Lugar')
+        }));
+        setWeeklyHighlights(topHighlights);
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar dados da comunidade:', err);
+      setIsUnavailable(true);
+    } finally {
+      setIsLoading(false);
+    }
   }, [selectedGroupId, user?.id]);
+
+  useEffect(() => {
+    loadCommunityData();
+  }, [loadCommunityData]);
 
   // Create Post Handler
   const handleCreatePost = async ({ title, content, type }) => {
-    const { data: newPost } = await communityService.createPost({
+    if (!settings.isPostingEnabled || settings.status === 'maintenance') {
+      showToast('A comunidade está em manutenção temporária. Novas publicações estão pausadas.', 'error');
+      return;
+    }
+
+    const res = await communityService.createPost({
       userId: user?.id,
       authorName: user?.name || 'Você',
       authorAvatar: user?.avatar,
@@ -134,9 +131,24 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
       groupId: selectedGroupId
     });
 
-    if (newPost) {
+    if (res.success && res.data) {
+      const newPost = {
+        ...res.data,
+        author: {
+          name: user?.name || 'Você',
+          avatar: user?.avatar,
+          level: `Nível ${currentLevel?.level || 1}`,
+          streak: streak || 0
+        },
+        likes: 0,
+        comments: 0,
+        commentsList: [],
+        timeAgo: 'Agora'
+      };
       setPosts((prev) => [newPost, ...prev]);
       showToast('Sua mensagem foi publicada no feed da comunidade! 🚀');
+    } else {
+      showToast('Não foi possível publicar. A comunidade pode estar temporariamente indisponível.', 'error');
     }
   };
 
@@ -166,9 +178,13 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 z-50 p-4 rounded-2xl bg-[#161a32] border border-purple-500/60 shadow-2xl text-white text-xs sm:text-sm font-semibold flex items-center gap-3 animate-in slide-in-from-top-4 duration-300 max-w-md">
-          <div className="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-400 flex-shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className={`fixed top-6 right-6 z-50 p-4 rounded-2xl bg-[#161a32] border shadow-2xl text-white text-xs sm:text-sm font-semibold flex items-center gap-3 animate-in slide-in-from-top-4 duration-300 max-w-md ${
+          toastMessage.type === 'error' ? 'border-rose-500/60' : 'border-purple-500/60'
+        }`}>
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            toastMessage.type === 'error' ? 'bg-rose-600/30 text-rose-400' : 'bg-purple-600/30 text-emerald-400'
+          }`}>
+            {toastMessage.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
           </div>
           <span>{toastMessage.message}</span>
         </div>
@@ -203,12 +219,33 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
         
         {/* Left Column: Feed de Evolução */}
         <div className="lg:col-span-7 space-y-6">
-          <CommunityFeed 
-            posts={posts} 
-            onCreatePost={handleCreatePost}
-            isPostingEnabled={settings.isPostingEnabled}
-            user={user}
-          />
+          {isUnavailable ? (
+            <div className="p-8 rounded-3xl bg-[#111425] border border-amber-500/30 text-center space-y-4 shadow-xl">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Mural da Comunidade Temporariamente Indisponível</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  A tabela do mural ainda não está disponível ou a conexão está oscilando. Clique abaixo para tentar novamente.
+                </p>
+              </div>
+              <button
+                onClick={loadCommunityData}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Tentar Novamente</span>
+              </button>
+            </div>
+          ) : (
+            <CommunityFeed 
+              posts={posts} 
+              onCreatePost={handleCreatePost}
+              isPostingEnabled={Boolean(settings.isPostingEnabled && settings.status !== 'maintenance')}
+              user={user}
+            />
+          )}
         </div>
 
         {/* Right Column: Conversation Room & Meu Impacto (5 Cols) */}

@@ -421,7 +421,6 @@ export function AuthProvider({ children }) {
           .from('profiles')
           .update({
             objective: selectedObjective,
-            level: selectedLevel,
             daily_study_time: selectedTime,
             is_onboarded: true,
             updated_at: new Date().toISOString()
@@ -437,7 +436,6 @@ export function AuthProvider({ children }) {
               name: authState.user.name || authState.user.email?.split('@')[0] || 'Aluno',
               email: authState.user.email,
               objective: selectedObjective,
-              level: selectedLevel,
               daily_study_time: selectedTime,
               is_onboarded: true,
               updated_at: new Date().toISOString()

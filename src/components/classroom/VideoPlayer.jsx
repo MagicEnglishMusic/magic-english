@@ -1,88 +1,81 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, 
   Pause, 
   Volume2, 
   VolumeX, 
   Maximize2, 
-  Minimize2, 
-  Subtitles, 
-  Gauge, 
   RotateCcw, 
   RotateCw,
-  Sparkles,
-  Settings,
-  Tv,
+  Tv, 
   HardDrive
 } from 'lucide-react';
 import { isGoogleDriveUrl, getDriveVideoUrl } from '../../utils/googleDriveHelper';
 
-export default function VideoPlayer({ lesson }) {
+export default function VideoPlayer({ lesson, onVideoComplete }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(22); // percent
-  const [currentTime, setCurrentTime] = useState(198); // in seconds (3:18)
-  const [duration, setDuration] = useState(900); // 15 mins = 900s
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(85);
   const [isMuted, setIsMuted] = useState(false);
-  const [captionMode, setCaptionMode] = useState('en'); // 'en' | 'pt' | 'off'
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [showCaptionMenu, setShowCaptionMenu] = useState(false);
+  const videoRef = useRef(null);
 
   const videoSrc = lesson?.videoUrl || '';
   const isDrive = isGoogleDriveUrl(videoSrc);
   const driveEmbedUrl = isDrive ? getDriveVideoUrl(videoSrc) : null;
 
-  // Playback audio narration for interactive simulation if no direct video stream
-  useEffect(() => {
-    let timer = null;
-    if (isPlaying && !isDrive) {
-      if ('speechSynthesis' in window && !window.speechSynthesis.speaking) {
-        const narration = new SpeechSynthesisUtterance(
-          captionMode === 'en' 
-            ? "Hello and welcome to your English lesson! In this class, you will learn essential phrases with music and rhythm."
-            : "Olá e bem-vindo à sua aula de inglês! Nesta aula, você aprenderá estruturas essenciais com música e ritmo."
-        );
-        narration.lang = captionMode === 'en' ? 'en-US' : 'pt-BR';
-        narration.rate = 0.9;
-        window.speechSynthesis.speak(narration);
+  // Duration calculated from lesson or video element
+  const [duration, setDuration] = useState(() => {
+    if (lesson?.duration) {
+      const parts = String(lesson.duration).split(':').map(Number);
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return parts[0] * 60 + parts[1];
       }
-
-      timer = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= duration) {
-            setIsPlaying(false);
-            return duration;
-          }
-          const next = prev + 1;
-          setProgress((next / duration) * 100);
-          return next;
-        });
-      }, 1000 / playbackSpeed);
-    } else {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      clearInterval(timer);
     }
-    return () => {
-      clearInterval(timer);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+    return 600;
+  });
+
+  // Reset playback position on lesson change
+  useEffect(() => {
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+  }, [lesson?.id, lesson?.videoUrl]);
+
+  const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
+    const cur = videoRef.current.currentTime;
+    const dur = videoRef.current.duration || duration;
+    setCurrentTime(cur);
+    if (dur > 0) {
+      const pct = (cur / dur) * 100;
+      setProgress(pct);
+      if (pct >= 90 && onVideoComplete) {
+        onVideoComplete();
       }
-    };
-  }, [isPlaying, duration, playbackSpeed, isDrive, captionMode]);
+    }
+  };
+
+  const handleEnded = () => {
+    setIsPlaying(false);
+    if (onVideoComplete) onVideoComplete();
+  };
 
   const formatTime = (secs) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = Math.floor(secs % 60);
+    const s = Math.max(0, Math.floor(secs || 0));
+    const mins = Math.floor(s / 60);
+    const remainingSecs = Math.floor(s % 60);
     return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
   };
 
   const handleSeek = (e) => {
     const val = parseFloat(e.target.value);
     setProgress(val);
-    setCurrentTime(Math.floor((val / 100) * duration));
+    const newTime = (val / 100) * duration;
+    setCurrentTime(newTime);
+    if (videoRef.current) {
+      videoRef.current.currentTime = newTime;
+    }
   };
 
   const thumbnailSrc = lesson?.videoThumbnail || lesson?.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80';
@@ -90,13 +83,25 @@ export default function VideoPlayer({ lesson }) {
   return (
     <div className="relative w-full rounded-3xl overflow-hidden bg-black border border-purple-500/40 shadow-2xl shadow-purple-950/60 aspect-video group select-none">
       
-      {/* 1. Video Frame / Drive Embed or Thumbnail */}
+      {/* 1. Video Frame / Drive Embed / Native HTML5 Video or Thumbnail */}
       {isDrive && isPlaying ? (
         <iframe
           src={driveEmbedUrl}
           title={lesson?.title || 'Aula'}
           allow="autoplay; fullscreen"
           className="w-full h-full border-0 absolute inset-0 z-10"
+        />
+      ) : videoSrc && isPlaying ? (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          onLoadedMetadata={(e) => {
+            if (e.target.duration) setDuration(e.target.duration);
+          }}
+          autoPlay
+          className="w-full h-full object-contain absolute inset-0 z-10"
         />
       ) : (
         <div className="absolute inset-0 z-0">
@@ -123,10 +128,15 @@ export default function VideoPlayer({ lesson }) {
           )}
         </div>
 
-        {captionMode !== 'off' && !isDrive && (
-          <div className="px-3 py-1 rounded-full bg-purple-600/80 backdrop-blur-md text-white text-xs font-bold border border-purple-400/40 shadow-md">
-            Legendas: {captionMode === 'en' ? '🇺🇸 Inglês' : '🇧🇷 Português'}
-          </div>
+        {isDrive && isPlaying && (
+          <button
+            onClick={() => {
+              if (onVideoComplete) onVideoComplete();
+            }}
+            className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/40 transition-all cursor-pointer border border-emerald-400/40"
+          >
+            <span>✓ Marquei como assistida</span>
+          </button>
         )}
       </div>
 
@@ -140,33 +150,14 @@ export default function VideoPlayer({ lesson }) {
             <Play className="w-8 h-8 fill-white ml-1 text-white" />
           </button>
           <span className="text-sm font-bold text-white bg-black/60 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10">
-            ▶ Assistir aula ({lesson.duration})
+            ▶ Assistir aula {lesson?.duration ? `(${lesson.duration})` : ''}
           </span>
         </div>
       )}
 
-      {/* 4. Active Subtitles / Caption Box in Bottom Center (Only for custom player) */}
-      {isPlaying && !isDrive && captionMode !== 'off' && (
-        <div className="absolute bottom-20 inset-x-0 z-20 flex justify-center px-6 pointer-events-none">
-          <div className="px-5 py-2 rounded-2xl bg-black/85 backdrop-blur-md border border-purple-500/30 text-center shadow-2xl max-w-xl">
-            {captionMode === 'en' ? (
-              <p className="text-sm sm:text-base font-bold text-white">
-                "Hello everyone! Welcome to your first English lesson with music."
-              </p>
-            ) : (
-              <p className="text-sm sm:text-base font-bold text-purple-200">
-                "Olá a todos! Bem-vindos à sua primeira aula de inglês com música."
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 5. Bottom Video Controls Bar (Only when not iframe) */}
-      {!isDrive && (
+      {/* 4. Bottom Video Controls Bar (Only for direct video) */}
+      {!isDrive && videoSrc && isPlaying && (
         <div className="absolute bottom-0 inset-x-0 z-30 p-4 sm:p-5 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-2.5 opacity-95 group-hover:opacity-100 transition-opacity">
-          
-          {/* Progress Scrubber */}
           <div className="relative flex items-center group/scrubber">
             <input
               type="range"
@@ -179,34 +170,49 @@ export default function VideoPlayer({ lesson }) {
           </div>
 
           <div className="flex items-center justify-between text-xs text-white">
-            {/* Left Controls: Play, Skip, Timers */}
             <div className="flex items-center gap-3 sm:gap-4">
               <button
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  if (videoRef.current) {
+                    if (isPlaying) videoRef.current.pause();
+                    else videoRef.current.play();
+                  }
+                  setIsPlaying(!isPlaying);
+                }}
                 className="p-2 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-white transition-colors cursor-pointer"
               >
                 {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
               </button>
 
               <button
-                onClick={() => setCurrentTime((prev) => Math.max(prev - 10, 0))}
-                className="text-slate-300 hover:text-white transition-colors"
+                onClick={() => {
+                  if (videoRef.current) videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 0);
+                }}
+                className="text-slate-300 hover:text-white transition-colors cursor-pointer"
                 title="Voltar 10s"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
 
               <button
-                onClick={() => setCurrentTime((prev) => Math.min(prev + 10, duration))}
-                className="text-slate-300 hover:text-white transition-colors"
+                onClick={() => {
+                  if (videoRef.current) videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, duration);
+                }}
+                className="text-slate-300 hover:text-white transition-colors cursor-pointer"
                 title="Avançar 10s"
               >
                 <RotateCw className="w-4 h-4" />
               </button>
 
-              {/* Volume */}
               <div className="flex items-center gap-2">
-                <button onClick={() => setIsMuted(!isMuted)} className="text-slate-300 hover:text-white">
+                <button 
+                  onClick={() => {
+                    const nextMute = !isMuted;
+                    setIsMuted(nextMute);
+                    if (videoRef.current) videoRef.current.muted = nextMute;
+                  }} 
+                  className="text-slate-300 hover:text-white cursor-pointer"
+                >
                   {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                 </button>
                 <input
@@ -215,10 +221,12 @@ export default function VideoPlayer({ lesson }) {
                   max="100"
                   value={isMuted ? 0 : volume}
                   onChange={(e) => {
-                    setVolume(parseInt(e.target.value));
+                    const v = parseInt(e.target.value, 10);
+                    setVolume(v);
+                    if (videoRef.current) videoRef.current.volume = v / 100;
                     if (isMuted) setIsMuted(false);
                   }}
-                  className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg accent-purple-500"
+                  className="w-14 sm:w-20 h-1 bg-slate-700 rounded-lg accent-purple-500 cursor-pointer"
                 />
               </div>
 
@@ -227,92 +235,17 @@ export default function VideoPlayer({ lesson }) {
               </span>
             </div>
 
-            {/* Right Controls: CC, Speed, Fullscreen */}
-            <div className="flex items-center gap-3 sm:gap-4 relative">
-              {/* CC Captions Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowCaptionMenu(!showCaptionMenu);
-                    setShowSpeedMenu(false);
-                  }}
-                  className={`p-1.5 px-2 rounded-md text-xs font-bold border transition-colors flex items-center gap-1 ${
-                    captionMode !== 'off'
-                      ? 'bg-purple-600 text-white border-purple-400'
-                      : 'bg-black/50 text-slate-400 border-slate-700 hover:text-white'
-                  }`}
-                  title="Legendas"
-                >
-                  <Subtitles className="w-3.5 h-3.5" />
-                  <span>CC</span>
-                </button>
-
-                {showCaptionMenu && (
-                  <div className="absolute right-0 bottom-full mb-2 w-36 bg-[#121526] border border-purple-500/30 rounded-xl p-1.5 shadow-2xl z-50 text-xs space-y-1">
-                    <p className="px-2 py-1 text-[10px] font-bold text-slate-500 uppercase">Legendas</p>
-                    <button
-                      onClick={() => { setCaptionMode('en'); setShowCaptionMenu(false); }}
-                      className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between ${captionMode === 'en' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
-                    >
-                      <span>🇺🇸 Inglês</span>
-                      {captionMode === 'en' && '✓'}
-                    </button>
-                    <button
-                      onClick={() => { setCaptionMode('pt'); setShowCaptionMenu(false); }}
-                      className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between ${captionMode === 'pt' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
-                    >
-                      <span>🇧🇷 Português</span>
-                      {captionMode === 'pt' && '✓'}
-                    </button>
-                    <button
-                      onClick={() => { setCaptionMode('off'); setShowCaptionMenu(false); }}
-                      className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between ${captionMode === 'off' ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
-                    >
-                      <span>Desativado</span>
-                      {captionMode === 'off' && '✓'}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Playback Speed Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowSpeedMenu(!showSpeedMenu);
-                    setShowCaptionMenu(false);
-                  }}
-                  className="p-1.5 px-2 rounded-md text-xs font-semibold bg-black/50 border border-slate-700 text-slate-300 hover:text-white hover:border-purple-500/40 transition-colors flex items-center gap-1"
-                >
-                  <Gauge className="w-3.5 h-3.5 text-purple-400" />
-                  <span>{playbackSpeed}x</span>
-                </button>
-
-                {showSpeedMenu && (
-                  <div className="absolute right-0 bottom-full mb-2 w-28 bg-[#121526] border border-purple-500/30 rounded-xl p-1.5 shadow-2xl z-50 text-xs space-y-1">
-                    <p className="px-2 py-1 text-[10px] font-bold text-slate-500 uppercase">Velocidade</p>
-                    {[0.75, 1.0, 1.25, 1.5, 2.0].map((speed) => (
-                      <button
-                        key={speed}
-                        onClick={() => { setPlaybackSpeed(speed); setShowSpeedMenu(false); }}
-                        className={`w-full text-left px-2 py-1 rounded-lg flex items-center justify-between ${playbackSpeed === speed ? 'bg-purple-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-800'}`}
-                      >
-                        <span>{speed}x</span>
-                        {playbackSpeed === speed && '✓'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Fullscreen Button */}
-              <button
-                className="text-slate-300 hover:text-white transition-colors cursor-pointer"
-                title="Tela cheia"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                if (videoRef.current?.requestFullscreen) {
+                  videoRef.current.requestFullscreen();
+                }
+              }}
+              className="text-slate-300 hover:text-white transition-colors cursor-pointer"
+              title="Tela cheia"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

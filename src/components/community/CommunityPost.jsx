@@ -1,50 +1,81 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Trophy, Flame, Sparkles, Heart, CheckCircle2, MessageCircle, Send } from 'lucide-react';
+import { Award, Trophy, Flame, Sparkles, Heart, CheckCircle2, MessageCircle, Send, Lock } from 'lucide-react';
 import { communityService } from '../../services/communityService.js';
 
-export default function CommunityPost({ post, onLike, onAddComment, user }) {
-  const [likes, setLikes] = useState(post.likes ?? post.claps ?? 0);
-  const [hasLiked, setHasLiked] = useState(post.isLiked || post.isClapped || false);
+export default function CommunityPost({ post, onLike, onAddComment, user, isMaintenance = false }) {
+  const [likes, setLikes] = useState(post.likes ?? 0);
+  const [hasLiked, setHasLiked] = useState(post.isLiked || false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
-  const [commentsList, setCommentsList] = useState(() => post.commentsList || post.comments_list || []);
+  const [commentsList, setCommentsList] = useState(() => post.commentsList || []);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isCommenting, setIsCommenting] = useState(false);
 
   useEffect(() => {
-    setCommentsList(post.commentsList || post.comments_list || []);
-  }, [post.commentsList, post.comments_list]);
+    setCommentsList(post.commentsList || []);
+    setLikes(post.likes ?? 0);
+    setHasLiked(Boolean(post.isLiked));
+  }, [post.commentsList, post.likes, post.isLiked]);
 
-  const handleLike = () => {
-    if (!hasLiked) {
-      setLikes(likes + 1);
-      setHasLiked(true);
-      communityService.likePost(post.id);
-      if (onLike) onLike(post.id);
-    } else {
-      setLikes(Math.max(0, likes - 1));
-      setHasLiked(false);
+  const handleLike = async () => {
+    if (isMaintenance) {
+      alert('A comunidade está temporariamente em manutenção. Curtidas estão pausadas.');
+      return;
+    }
+    if (isLiking) return;
+    setIsLiking(true);
+
+    const previousLiked = hasLiked;
+    const previousLikes = likes;
+    setHasLiked(!previousLiked);
+    setLikes(previousLiked ? Math.max(0, previousLikes - 1) : previousLikes + 1);
+
+    try {
+      const res = await communityService.toggleLike(post.id);
+      if (res.success && res.data) {
+        setLikes(Number(res.data.likes_count) || 0);
+        setHasLiked(Boolean(res.data.liked));
+        if (onLike) onLike(post.id, res.data);
+      } else {
+        setHasLiked(previousLiked);
+        setLikes(previousLikes);
+      }
+    } catch (_) {
+      setHasLiked(previousLiked);
+      setLikes(previousLikes);
+    } finally {
+      setIsLiking(false);
     }
   };
 
   const handleSendComment = async (e) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (isMaintenance) {
+      alert('A comunidade está em manutenção. Novos comentários estão pausados.');
+      return;
+    }
+    if (!commentText.trim() || isCommenting) return;
 
-    const newComment = {
-      id: `comm-${Date.now()}`,
-      author: user?.name || 'Você',
-      text: commentText.trim(),
-      time: 'Agora mesmo'
-    };
-
-    setCommentsList((prev) => [...prev.filter((c) => c.id !== newComment.id), newComment]);
+    setIsCommenting(true);
+    const textToSend = commentText.trim();
     setCommentText('');
-    await communityService.addComment(post.id, newComment);
-    if (onAddComment) onAddComment(post.id, newComment);
+
+    try {
+      const res = await communityService.addComment(post.id, textToSend);
+      if (res.success && res.data) {
+        setCommentsList(res.data);
+        if (onAddComment) onAddComment(post.id, res.data);
+      }
+    } catch (err) {
+      console.error('Erro ao enviar comentário:', err);
+    } finally {
+      setIsCommenting(false);
+    }
   };
 
-  const displayMessage = post.content || post.message || 'Atividade realizada na plataforma!';
+  const displayMessage = post.content || 'Atividade realizada na plataforma!';
   const displayTitle = post.title || '';
-  const displayTime = post.timeAgo || post.time || 'Hoje';
+  const displayTime = post.timeAgo || 'Hoje';
   const authorName = post.author?.name || 'Aluno Magic';
   const authorAvatar = post.author?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
   const authorLevel = post.author?.level || 'Iniciante';
@@ -110,11 +141,15 @@ export default function CommunityPost({ post, onLike, onAddComment, user }) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleLike}
+            disabled={isLiking}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-              hasLiked
+              isMaintenance
+                ? 'opacity-60 cursor-not-allowed bg-[#181c33] text-slate-400 border border-slate-800'
+                : hasLiked
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-1 ring-purple-400/50'
                 : 'bg-[#181c33] text-purple-300 hover:text-white hover:bg-purple-600/30 border border-purple-500/30'
             }`}
+            title={isMaintenance ? 'Curtidas pausadas em manutenção' : 'Parabenizar colega'}
           >
             <span className="text-sm">👏</span>
             <span>{hasLiked ? 'Parabenizado!' : 'Parabenizar'}</span>
@@ -149,8 +184,8 @@ export default function CommunityPost({ post, onLike, onAddComment, user }) {
               commentsList.map((c) => (
                 <div key={c.id} className="p-2.5 rounded-xl bg-[#141728] border border-slate-800 text-xs space-y-1">
                   <div className="flex items-center justify-between text-slate-400">
-                    <strong className="text-purple-300 font-bold">{c.author}</strong>
-                    <span className="text-[10px]">{c.time}</span>
+                    <strong className="text-purple-300 font-bold">{c.author || 'Aluno'}</strong>
+                    <span className="text-[10px]">{c.time || 'Agora'}</span>
                   </div>
                   <p className="text-slate-200">{c.text}</p>
                 </div>
@@ -158,22 +193,29 @@ export default function CommunityPost({ post, onLike, onAddComment, user }) {
             )}
           </div>
 
-          <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-1">
-            <input
-              type="text"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Escreva um comentário de incentivo..."
-              className="flex-1 bg-[#141728] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-            />
-            <button
-              type="submit"
-              disabled={!commentText.trim()}
-              className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-colors disabled:opacity-40 cursor-pointer"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
+          {isMaintenance ? (
+            <div className="p-3 rounded-xl bg-[#141728] border border-amber-500/25 text-center text-xs text-amber-300 flex items-center justify-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Comentários temporariamente pausados durante a manutenção da comunidade.</span>
+            </div>
+          ) : (
+            <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-1">
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="Escreva um comentário de incentivo..."
+                className="flex-1 bg-[#141728] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+              />
+              <button
+                type="submit"
+                disabled={!commentText.trim() || isCommenting}
+                className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-colors disabled:opacity-40 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          )}
         </div>
       )}
 

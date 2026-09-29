@@ -11,6 +11,7 @@ export default function PronunciationManager() {
     word: '',
     phonetic: '',
     translation: '',
+    songId: '',
     song: '',
     tip: ''
   });
@@ -24,7 +25,11 @@ export default function PronunciationManager() {
         ]);
         if (songsRes?.data && songsRes.data.length > 0) {
           setSongsList(songsRes.data);
-          setFormData((prev) => ({ ...prev, song: songsRes.data[0].title }));
+          setFormData((prev) => ({ 
+            ...prev, 
+            songId: songsRes.data[0].id,
+            song: songsRes.data[0].title 
+          }));
         }
         if (wordsRes?.data) {
           setVocabList(wordsRes.data);
@@ -50,11 +55,16 @@ export default function PronunciationManager() {
     e.preventDefault();
     if (!formData.word) return;
 
+    const selectedSong = songsList.find((s) => s.id === formData.songId) || (formData.songId !== 'Geral' ? songsList[0] : null);
+    const targetSongId = formData.songId && formData.songId !== 'Geral' ? formData.songId : (selectedSong?.id || null);
+    const targetSongTitle = formData.songId === 'Geral' ? 'Geral' : (selectedSong?.title || formData.song || 'Geral');
+
     const payload = {
       word: formData.word,
       phonetic: formData.phonetic || `/${formData.word.toLowerCase()}/`,
       translation: formData.translation || '',
-      song: formData.song || (songsList[0]?.title || 'Geral'),
+      song: targetSongTitle,
+      song_id: targetSongId,
       tip: formData.tip || "Articulação natural em inglês nativo.",
       score: 95
     };
@@ -71,6 +81,7 @@ export default function PronunciationManager() {
       word: '',
       phonetic: '',
       translation: '',
+      songId: songsList[0]?.id || '',
       song: songsList[0]?.title || '',
       tip: ''
     });
@@ -243,13 +254,21 @@ export default function PronunciationManager() {
                   Música de Origem:
                 </label>
                 <select
-                  value={formData.song}
-                  onChange={(e) => setFormData({ ...formData, song: e.target.value })}
+                  value={formData.songId || (formData.song === 'Geral' ? 'Geral' : '')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const found = songsList.find((s) => s.id === val);
+                    setFormData({
+                      ...formData,
+                      songId: val === 'Geral' ? '' : val,
+                      song: found ? found.title : (val === 'Geral' ? 'Geral' : '')
+                    });
+                  }}
                   className="w-full bg-[#161a2e] border border-[#242b46] rounded-xl px-3 py-2 text-white text-xs"
                 >
                   <option value="Geral">Geral (Sem música associada)</option>
                   {songsList.map((s) => (
-                    <option key={s.id} value={s.title}>{s.title}</option>
+                    <option key={s.id} value={s.id}>{s.title}</option>
                   ))}
                 </select>
               </div>

@@ -17,7 +17,7 @@ export default function MagicSongView({ song, onBack, onGainXp }) {
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#121524] hover:bg-[#1a1f36] border border-[#22273e] hover:border-purple-500/40 text-slate-300 hover:text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm group"
           >
             <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
-            <span>Voltar para a Dashboard</span>
+            <span>Voltar</span>
           </button>
         </div>
         <div className="p-12 text-center rounded-3xl bg-[#111425] border border-[#1e233b] shadow-xl space-y-4">
@@ -44,7 +44,7 @@ export default function MagicSongView({ song, onBack, onGainXp }) {
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#121524] hover:bg-[#1a1f36] border border-[#22273e] hover:border-purple-500/40 text-slate-300 hover:text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm group"
         >
           <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
-          <span>Voltar para a Dashboard</span>
+          <span>Voltar</span>
         </button>
 
         <div className="flex items-center gap-2.5">
@@ -86,6 +86,7 @@ export default function MagicSongView({ song, onBack, onGainXp }) {
 
       {/* 3. Practice Cards: Treinar pronúncia, Desafio, Ganhar XP */}
       <PracticeCards
+        song={song}
         challenge={song.challenge}
         xpReward={song.xpReward || 50}
         onClaimXp={onGainXp}

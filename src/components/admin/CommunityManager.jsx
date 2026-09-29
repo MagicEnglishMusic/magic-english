@@ -91,19 +91,19 @@ export default function CommunityManager() {
   }, []);
 
   const handleToggleCommunityStatus = async () => {
-    const nextStatus = !settings.isPostingEnabled;
+    const nextEnabled = !settings.isPostingEnabled;
     const updated = {
-      ...settings,
-      isPostingEnabled: nextStatus,
-      maintenanceMessage: nextStatus ? '' : 'O mural da comunidade está em manutenção temporária.'
+      isPostingEnabled: nextEnabled,
+      status: nextEnabled ? 'active' : 'maintenance',
+      maintenanceMessage: nextEnabled ? '' : 'O mural da comunidade está em manutenção temporária.'
     };
     setSettings(updated);
     await communityService.updateCommunitySettings(updated);
     showToast(
-      nextStatus 
-        ? 'Comunidade reativada! Alunos podem publicar normalmente.' 
-        : 'Comunidade colocada em Manutenção! Formulário de post bloqueado para todos os alunos.',
-      nextStatus ? 'success' : 'info'
+      nextEnabled 
+        ? 'Comunidade reativada (Status: active)! Alunos podem publicar normalmente.' 
+        : 'Comunidade colocada em Manutenção (Status: maintenance)! Ações bloqueadas para todos os alunos.',
+      nextEnabled ? 'success' : 'info'
     );
   };
 

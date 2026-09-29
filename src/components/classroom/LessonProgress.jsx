@@ -1,52 +1,41 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Circle, Clock, Zap, Sparkles, Trophy, Tv, Music, Brain, Mic } from 'lucide-react';
-import { useGamification } from '../../context/GamificationContext';
+import React from 'react';
+import { CheckCircle2, Circle, Clock, Zap, Trophy, Tv, Music, Brain, Mic, ArrowRight } from 'lucide-react';
 import { XP_REWARDS } from '../../data/gamificationData';
 
 export default function LessonProgress({ 
+  lessonId,
+  steps = { video: false, song: false, pronunciation: false, practice: false },
+  pronunciationMeta = { done: 0, required: 25 },
+  isCompleted = false,
   onCompleteLesson, 
   onNextLesson, 
-  nextLesson, 
-  lessonId,
-  initialSteps = { video: false, song: false, pronunciation: false, practice: false }
+  nextLesson
 }) {
-  const [completedSteps, setCompletedSteps] = useState(initialSteps);
-  const [isCompleted, setIsCompleted] = useState(false);
-  const { addXp, recordLessonProgress } = useGamification();
+  const reqPronunciation = pronunciationMeta?.required || 25;
+  const donePronunciation = pronunciationMeta?.done || 0;
 
   const stepsList = [
-    { key: 'video', label: '1. Vídeo da Aula', desc: 'Assista ao vídeo explicativo', icon: Tv },
-    { key: 'song', label: '2. Magic Song Fixação', desc: 'Ouça o áudio e acompanhe a letra', icon: Music },
-    { key: 'pronunciation', label: '3. Pronúncia IA', desc: 'Grave e valide sua voz no Voice Lab', icon: Mic },
-    { key: 'practice', label: '4. Prática Musical', desc: 'Faça a tradução reversa dos versos', icon: Brain },
+    { key: 'video', label: '1. Vídeo da Aula', desc: 'Assista ao vídeo da aula até o fim', icon: Tv },
+    { key: 'song', label: '2. Magic Song Fixação', desc: 'Ouça o áudio da canção completa', icon: Music },
+    { 
+      key: 'pronunciation', 
+      label: '3. Pronúncia IA', 
+      desc: reqPronunciation > 0 
+        ? `Valide ${reqPronunciation} termos no Voice Lab (${donePronunciation}/${reqPronunciation})` 
+        : 'Valide os termos da música no Voice Lab', 
+      icon: Mic 
+    },
+    { key: 'practice', label: '4. Prática Musical', desc: 'Conclua a tradução reversa das frases', icon: Brain },
   ];
 
-  const toggleStep = (key) => {
-    if (isCompleted) return;
-    setCompletedSteps((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const completedCount = Object.values(completedSteps).filter(Boolean).length;
+  const completedCount = stepsList.filter((s) => Boolean(steps[s.key])).length;
   const isAllStepsDone = completedCount === 4;
 
   const handleComplete = () => {
     if (!isAllStepsDone || isCompleted) return;
-    setIsCompleted(true);
-    if (recordLessonProgress) {
-      recordLessonProgress(lessonId || 'b0000001-0000-0000-0000-000000000001', 100, true);
+    if (onCompleteLesson) {
+      onCompleteLesson(XP_REWARDS.COMPLETE_LESSON || 100);
     }
-    addXp(XP_REWARDS.COMPLETE_LESSON, 'Aula Oficial Concluída!', {
-      showModal: true,
-      type: 'xp',
-      title: '📚 Aula Concluída com Sucesso!',
-      subtitle: 'Você concluiu o vídeo e todos os 4 passos de fixação.',
-      icon: '🏆',
-      bonusText: `+${XP_REWARDS.COMPLETE_LESSON} Magic XP adicionados à sua jornada!`
-    });
-    if (onCompleteLesson) onCompleteLesson(XP_REWARDS.COMPLETE_LESSON);
   };
 
   return (
@@ -65,25 +54,24 @@ export default function LessonProgress({
         </span>
       </div>
 
-      {/* Progress Checklist */}
+      {/* Progress Checklist (Automático por eventos reais) */}
       <div className="space-y-3">
         {stepsList.map((step) => {
-          const isDone = Boolean(completedSteps[step.key]) || isCompleted;
+          const isDone = Boolean(steps[step.key]) || isCompleted;
           const Icon = step.icon;
           return (
             <div
               key={step.key}
-              onClick={() => toggleStep(step.key)}
-              className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all cursor-pointer select-none group ${
+              className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all select-none ${
                 isDone
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-white'
-                  : 'bg-[#131626] border-slate-800 text-slate-300 hover:border-purple-500/40 hover:bg-[#181c30]'
+                  : 'bg-[#131626] border-slate-800 text-slate-300'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors ${
-                    isDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#181c30] text-purple-400 group-hover:bg-purple-600/20'
+                    isDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#181c30] text-purple-400'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -100,7 +88,7 @@ export default function LessonProgress({
                   <span>Concluído</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 text-xs text-slate-500 font-semibold group-hover:text-purple-300">
+                <div className="flex items-center gap-1 text-xs text-slate-500 font-semibold">
                   <Circle className="w-3.5 h-3.5" />
                   <span>Pendente</span>
                 </div>
@@ -126,12 +114,12 @@ export default function LessonProgress({
           {isCompleted ? (
             <>
               <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-              <span>Aula Concluída (+{XP_REWARDS.COMPLETE_LESSON} XP Resgatados!)</span>
+              <span>Tarefa Concluída (+{XP_REWARDS.COMPLETE_LESSON || 100} XP Resgatados!)</span>
             </>
           ) : isAllStepsDone ? (
             <>
               <Zap className="w-5 h-5 fill-white" />
-              <span>Concluir Aula (+{XP_REWARDS.COMPLETE_LESSON} XP)</span>
+              <span>Concluir Aula (+{XP_REWARDS.COMPLETE_LESSON || 100} XP)</span>
             </>
           ) : (
             <>
@@ -148,26 +136,20 @@ export default function LessonProgress({
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Próxima Aula
           </span>
-
-          <div className="p-3.5 rounded-2xl bg-[#141728] border border-slate-800 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <img
-                src={nextLesson.thumbnail}
-                alt={nextLesson.title}
-                className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
-              />
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold text-purple-400">{nextLesson.number}</span>
-                <p className="text-xs font-bold text-white truncate">{nextLesson.title}</p>
-                <span className="text-[11px] text-slate-400">{nextLesson.duration}</span>
-              </div>
+          <div className="p-3.5 rounded-2xl bg-[#131626] border border-slate-800/80 flex items-center justify-between gap-3">
+            <div className="min-w-0 space-y-0.5">
+              <span className="text-[10px] font-bold text-purple-400">
+                {nextLesson.lessonNumber || 'Próxima'}
+              </span>
+              <p className="text-xs font-bold text-white truncate">
+                {nextLesson.title}
+              </p>
             </div>
-
             <button
               onClick={onNextLesson}
-              className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white text-xs font-bold transition-all whitespace-nowrap cursor-pointer"
+              className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-colors flex-shrink-0 cursor-pointer"
             >
-              Continuar ➔
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
