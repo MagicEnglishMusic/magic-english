@@ -33,6 +33,7 @@ export default function MagicClassroomView({
     pronunciation_done: []
   });
   const [isLessonCompleted, setIsLessonCompleted] = useState(false);
+  const [songLoadError, setSongLoadError] = useState(null);
 
   // Load persistent lesson steps & completed state on mount / lesson change
   useEffect(() => {
@@ -94,7 +95,8 @@ export default function MagicClassroomView({
     async function loadSong() {
       if (!lesson) return;
       try {
-        const { data } = await songsService.getSongForLesson({
+        setSongLoadError(null);
+        const { data, error } = await songsService.getSongForLesson({
           lessonId: lesson.id,
           moduleId: lesson.moduleId,
           lessonTitle: lesson.title,
@@ -102,11 +104,31 @@ export default function MagicClassroomView({
             ? lesson.relatedSong 
             : (lesson.relatedSong?.title || '')
         });
-        if (isMounted && data) {
-          setResolvedSong(data);
+
+        if (error) {
+          const errCode = error.code ? ` (${error.code})` : '';
+          const errMsg = typeof error === 'string' ? error : (error.message || 'Erro ao carregar música');
+          console.error(`Error fetching song for classroom${errCode}:`, error);
+          if (isMounted) {
+            setSongLoadError(`Não foi possível carregar a música da aula: ${errMsg}${errCode}`);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          if (data) {
+            setResolvedSong(data);
+          } else {
+            setResolvedSong(null);
+          }
         }
       } catch (err) {
-        console.warn('Error fetching song for classroom:', err);
+        const errCode = err?.code ? ` (${err.code})` : '';
+        const errMsg = err?.message || String(err);
+        console.error(`Error fetching song for classroom${errCode}:`, err);
+        if (isMounted) {
+          setSongLoadError(`Não foi possível carregar a música da aula: ${errMsg}${errCode}`);
+        }
       }
     }
     loadSong();
@@ -280,6 +302,14 @@ export default function MagicClassroomView({
           {lesson.lessonNumber} — {lesson.title}
         </h1>
       </div>
+
+      {/* Visual Song Error Banner if query failed */}
+      {songLoadError && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm flex items-center gap-3 animate-in fade-in duration-200">
+          <span className="text-base">⚠️</span>
+          <span>{songLoadError}</span>
+        </div>
+      )}
 
       {/* 2. Main 16:9 HD Video Player (Top Focal Element) */}
       <VideoPlayer 
