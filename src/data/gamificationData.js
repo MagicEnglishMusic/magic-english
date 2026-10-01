@@ -113,6 +113,8 @@ export const INITIAL_BADGES = [
     category: "Música",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 1 }
   },
   {
@@ -124,6 +126,8 @@ export const INITIAL_BADGES = [
     category: "Aulas",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 1 }
   },
   {
@@ -135,6 +139,8 @@ export const INITIAL_BADGES = [
     category: "Foco",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 7 }
   },
   {
@@ -146,6 +152,8 @@ export const INITIAL_BADGES = [
     category: "Pronúncia",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 10 }
   },
   {
@@ -157,6 +165,8 @@ export const INITIAL_BADGES = [
     category: "Música",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 20 }
   },
   {
@@ -168,6 +178,8 @@ export const INITIAL_BADGES = [
     category: "Módulos",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 1 }
   },
   {
@@ -179,6 +191,8 @@ export const INITIAL_BADGES = [
     category: "Trilhas",
     unlocked: false,
     unlockedAt: null,
+    claimed: false,
+    claimedAt: null,
     progress: { current: 0, total: 8 }
   }
 ];

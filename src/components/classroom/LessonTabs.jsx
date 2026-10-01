@@ -9,6 +9,8 @@ export default function LessonTabs({
   lesson, 
   pronunciationWords = [],
   pronunciationApprovedIndices = [],
+  isPronunciationCompleted = false,
+  isPracticeCompleted = false,
   onOpenFullMusicPlayer,
   onSongComplete,
   onPronunciationWordApproved,
@@ -140,6 +142,7 @@ export default function LessonTabs({
             songId={lesson?.relatedSong?.id || lesson?.songId}
             lessonId={lesson?.id}
             initialApprovedIndices={pronunciationApprovedIndices}
+            isCompletedInitially={isPronunciationCompleted}
             onWordApproved={onPronunciationWordApproved}
             onCompleteStep={onPronunciationComplete}
           />
@@ -150,7 +153,9 @@ export default function LessonTabs({
           <MusicalPracticeTab
             song={lesson?.relatedSong}
             lyrics={lesson?.relatedSong?.lyricsTimestamps || lesson?.relatedSong?.lyrics || lesson?.relatedSong?.timestamps}
-            songId={lesson?.relatedSong?.id || "song-lesson"}
+            songId={lesson?.relatedSong?.id || lesson?.songId || "song-lesson"}
+            lessonId={lesson?.id}
+            isCompletedInitially={isPracticeCompleted}
             onComplete={onPracticeComplete}
           />
         )}

@@ -5,8 +5,11 @@ import { tracksData } from '../../data/tracksData';
 import { modulesService } from '../../services/modulesService';
 import { lessonsService } from '../../services/lessonsService';
 import { songsService } from '../../services/songsService';
+import { progressService } from '../../services/progressService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LearningTracksPage({ onOpenLesson }) {
+  const { user } = useAuth();
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [enrichedTracks, setEnrichedTracks] = useState(tracksData);
 
@@ -14,15 +17,17 @@ export default function LearningTracksPage({ onOpenLesson }) {
     let isMounted = true;
     async function loadRealTrackData() {
       try {
-        const [modsRes, lessonsRes, songsRes] = await Promise.all([
+        const [modsRes, lessonsRes, songsRes, progRes] = await Promise.all([
           modulesService.getModules(),
           lessonsService.getAllLessons(),
-          songsService.getSongs()
+          songsService.getSongs(),
+          user?.id ? progressService.getUserProgress(user.id) : Promise.resolve({ data: [] })
         ]);
 
         const dbModules = modsRes.data || [];
         const dbLessons = lessonsRes.data || [];
         const dbSongs = songsRes.data || [];
+        const dbProgress = progRes?.data || [];
 
         if (isMounted && dbModules.length > 0) {
           // Build real module and lesson hierarchy for Track 1 ("Inglês do Zero")
@@ -55,18 +60,27 @@ export default function LearningTracksPage({ onOpenLesson }) {
               id: mod.id,
               title: mod.title,
               description: mod.description || 'Módulo Oficial Magic English',
-              lessons: formattedLessons // NUNCA usar fallback de mentira
+              lessons: formattedLessons
             };
           });
 
           const totalLessons = realModulesForTrack.reduce((acc, m) => acc + (m.lessons?.length || 0), 0);
+          
+          // Cálculo do percentual real baseado em user_progress (completed === true ou progress_percent === 100)
+          const allTrackLessonIds = new Set(dbLessons.filter((l) => dbModules.some((m) => m.id === l.module_id)).map((l) => l.id));
+          const totalCompletedLessons = (dbProgress || []).filter((p) => 
+            allTrackLessonIds.has(p.lesson_id) && (p.completed === true || p.progress_percent === 100)
+          ).length;
+
           const totalSongs = dbSongs.length || 0;
+          const realProgressPercent = totalLessons > 0 ? Math.round((totalCompletedLessons / totalLessons) * 100) : 0;
 
           const updatedTrackZero = {
             ...tracksData[0],
             modules: realModulesForTrack,
             lessonsCount: totalLessons,
-            songsCount: totalSongs
+            songsCount: totalSongs,
+            progress: realProgressPercent
           };
 
           const newTracks = [updatedTrackZero, ...tracksData.slice(1)];
@@ -79,7 +93,7 @@ export default function LearningTracksPage({ onOpenLesson }) {
 
     loadRealTrackData();
     return () => { isMounted = false; };
-  }, []);
+  }, [user?.id]);
 
   const handleSelectTrack = (track) => {
     const enriched = enrichedTracks.find((t) => t.id === track.id) || track;

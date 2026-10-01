@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Brain, 
   Sparkles, 
@@ -8,10 +8,14 @@ import {
   RotateCcw, 
   Trophy, 
   Zap, 
-  Mic 
+  Mic,
+  Loader2
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
+import { progressService } from '../../services/progressService';
 import { XP_REWARDS } from '../../data/gamificationData';
+import CompletionCelebration from '../common/CompletionCelebration';
 
 const DEFAULT_VERSES = [
   { id: 1, en: "Hello, hello, good morning my friend!", pt: "Olá, olá, bom dia meu amigo!", hint: "Comece com 'Hello' e use 'good morning'" },
@@ -21,8 +25,100 @@ const DEFAULT_VERSES = [
   { id: 5, en: "Nice to meet you, welcome to the show.", pt: "Prazer em conhecer você, bem-vindo ao show.", hint: "'Nice to meet you' para apresentações" }
 ];
 
-export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = "song-hello" }) {
+const getStorageKey = (userId, targetSongId, targetLessonId) => {
+  return `magic_english_practice_verse_${userId || 'guest'}_${targetSongId || targetLessonId || 'default'}`;
+};
+
+const getRetakeKey = (userId, targetSongId, targetLessonId) => {
+  return `magic_english_practice_retake_${userId || 'guest'}_${targetSongId || targetLessonId || 'default'}`;
+};
+
+const checkIsRetaking = (userId, targetSongId, targetLessonId) => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const cleanSongId = String(targetSongId || '').trim().toLowerCase();
+    const key = getRetakeKey(userId, cleanSongId, targetLessonId);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed.retaking);
+    }
+  } catch (_) {}
+  return false;
+};
+
+export default function MusicalPracticeTab({ 
+  lyrics, 
+  song, 
+  onComplete, 
+  songId = "song-hello",
+  lessonId,
+  isCompletedInitially = false 
+}) {
+  const { user } = useAuth();
+  const { addXp, updateSongMasteryStep, resetSongMastery, songMasteryList } = useGamification();
+
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const isPracticingAgainRef = useRef(false);
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    if (typeof window !== 'undefined' && user?.id) {
+      try {
+        const cleanSongId = String(songId || '').trim().toLowerCase();
+        const key = getStorageKey(user.id, cleanSongId, lessonId);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.currentIndex === 'number' && parsed.currentIndex >= 0) {
+            return parsed.currentIndex;
+          }
+        }
+      } catch (_) {}
+    }
+    return 0;
+  });
+  const [typedAnswer, setTypedAnswer] = useState('');
+  const [status, setStatus] = useState(null); // 'correct' | 'wrong' | null
+
+  // Persistent official completion (keeps badge & DB achievement)
+  const [isOfficiallyCompleted, setIsOfficiallyCompleted] = useState(() => {
+    if (isCompletedInitially) return true;
+    if (typeof window !== 'undefined' && user?.id) {
+      try {
+        const cleanSongId = String(songId || '').trim().toLowerCase();
+        const key = getStorageKey(user.id, cleanSongId, lessonId);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.isCompleted) return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  });
+
+  // Controls whether we show the Finished Trophy Screen or the Interactive Practice Form
+  const [isViewingFinished, setIsViewingFinished] = useState(() => {
+    if (checkIsRetaking(user?.id, songId, lessonId)) return false;
+    if (isCompletedInitially) return true;
+    if (typeof window !== 'undefined' && user?.id) {
+      try {
+        const cleanSongId = String(songId || '').trim().toLowerCase();
+        const key = getStorageKey(user.id, cleanSongId, lessonId);
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.isCompleted) return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  });
+
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const verses = React.useMemo(() => {
     // 1. Array passed directly
@@ -67,28 +163,135 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
     return DEFAULT_VERSES;
   }, [lyrics, song]);
 
-  const { addXp, updateSongMasteryStep, resetSongMastery, songMasteryList } = useGamification();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [typedAnswer, setTypedAnswer] = useState('');
-  const [status, setStatus] = useState(null); // 'correct' | 'wrong' | null
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  // Sync if isCompletedInitially becomes true from parent
+  useEffect(() => {
+    if (isCompletedInitially) {
+      setIsOfficiallyCompleted(true);
+      const isRetaking = checkIsRetaking(user?.id, songId, lessonId);
+      if (!isRetaking && !isPracticingAgainRef.current) {
+        setIsViewingFinished(true);
+      }
+    }
+  }, [isCompletedInitially, user?.id, songId, lessonId]);
+
+  // Restore saved progress from Supabase and LocalStorage on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function restoreSavedProgress() {
+      if (!user?.id) return;
+
+      try {
+        const cleanSongId = String(songId || '').trim().toLowerCase();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanSongId);
+
+        // 1. Fetch user_progress for lesson
+        let lessonPracticeDone = false;
+        let lessonPracticeVerse = null;
+        if (lessonId) {
+          const { data: progressList } = await progressService.getUserProgress(user.id);
+          if (isMounted && Array.isArray(progressList)) {
+            const match = progressList.find((p) => p.lesson_id === lessonId);
+            if (match) {
+              if (match.completed || match.steps?.practice) {
+                lessonPracticeDone = true;
+              }
+              if (match.steps?.practice_verse !== undefined && match.steps?.practice_verse !== null) {
+                lessonPracticeVerse = parseInt(match.steps.practice_verse, 10);
+              }
+            }
+          }
+        }
+
+        // 2. Fetch song_mastery
+        let masteryReverseDone = false;
+        let masteryChallengeIndex = null;
+        if (isUuid) {
+          const { data: masteryList } = await progressService.getSongMastery(user.id);
+          if (isMounted && Array.isArray(masteryList)) {
+            const match = masteryList.find((m) => m.song_id === cleanSongId);
+            if (match) {
+              if (match.step_reverse_translation) {
+                masteryReverseDone = true;
+              }
+              if (match.challenge_index !== undefined && match.challenge_index !== null) {
+                masteryChallengeIndex = parseInt(match.challenge_index, 10);
+              }
+            }
+          }
+        }
+
+        // 3. LocalStorage fallback
+        let localVerseIdx = null;
+        let localDone = false;
+        try {
+          const key = getStorageKey(user.id, cleanSongId, lessonId);
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.isCompleted) localDone = true;
+            if (typeof parsed.currentIndex === 'number') localVerseIdx = parsed.currentIndex;
+          }
+        } catch (_) {}
+
+        if (!isMounted) return;
+
+        const isRetaking = checkIsRetaking(user.id, cleanSongId, lessonId);
+
+        if (lessonPracticeDone || masteryReverseDone || localDone) {
+          setIsOfficiallyCompleted(true);
+          if (!isRetaking && !isPracticingAgainRef.current) {
+            setIsViewingFinished(true);
+          }
+        }
+
+        // Restore candidate index if not practicing again / not retaking
+        if (!isRetaking && !isPracticingAgainRef.current) {
+          const candidateIdx = [lessonPracticeVerse, masteryChallengeIndex, localVerseIdx].find(
+            (n) => typeof n === 'number' && !isNaN(n) && n >= 0
+          );
+
+          if (candidateIdx !== undefined && candidateIdx !== null) {
+            const clamped = Math.min(candidateIdx, Math.max(0, verses.length - 1));
+            setCurrentIndex(clamped);
+          }
+        }
+      } catch (err) {
+        console.warn('[MusicalPracticeTab] Erro ao restaurar progresso:', err);
+      }
+    }
+
+    restoreSavedProgress();
+    return () => { isMounted = false; };
+  }, [user?.id, songId, lessonId, verses.length]);
 
   const isMastered = React.useMemo(() => {
-    const s = songMasteryList.find((item) => item.songId === songId || item.id === songId);
+    if (isOfficiallyCompleted) return true;
+    const cleanSongId = String(songId || '').trim().toLowerCase();
+    const s = songMasteryList.find((item) => (item.songId && String(item.songId).toLowerCase() === cleanSongId) || (item.id && String(item.id).toLowerCase() === cleanSongId));
     return Boolean(s?.checklist?.reverse_translation || s?.checklist?.reverse);
-  }, [songMasteryList, songId]);
+  }, [isOfficiallyCompleted, songMasteryList, songId]);
 
   const currentVerse = verses[currentIndex] || verses[0] || DEFAULT_VERSES[0];
 
   const handleReset = () => {
+    isPracticingAgainRef.current = true;
     setCurrentIndex(0);
     setTypedAnswer('');
     setStatus(null);
     setShowResetConfirm(false);
+    setShowCelebration(false);
+    setIsViewingFinished(false);
+    try {
+      const cleanSongId = String(songId || '').trim().toLowerCase();
+      const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
+      localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
+      const key = getStorageKey(user?.id, cleanSongId, lessonId);
+      localStorage.setItem(key, JSON.stringify({ currentIndex: 0, isCompleted: isOfficiallyCompleted }));
+    } catch (_) {}
   };
 
   const toggleSpeak = (text) => {
+    if (!text) return;
     if ('speechSynthesis' in window) {
       if (isSpeaking || window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
@@ -118,17 +321,77 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    setSaveError(null);
+    const nextIdx = currentIndex + 1;
+    const cleanSongId = String(songId || '').trim().toLowerCase();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanSongId);
+
     if (currentIndex < verses.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
+      setCurrentIndex(nextIdx);
       setTypedAnswer('');
       setStatus(null);
+
+      // 1. Save immediately to LocalStorage
+      try {
+        const key = getStorageKey(user?.id, cleanSongId, lessonId);
+        localStorage.setItem(key, JSON.stringify({ currentIndex: nextIdx, isCompleted: false }));
+      } catch (_) {}
+
+      // 2. Persist to Supabase with await
+      if (user?.id) {
+        setIsSaving(true);
+        try {
+          if (lessonId) {
+            const resProgress = await progressService.saveLessonProgressSteps(user.id, lessonId, { practice_verse: nextIdx });
+            if (resProgress?.error) {
+              console.warn('[MusicalPracticeTab] Falha ao sincronizar frase em user_progress:', resProgress.error);
+            }
+          }
+          if (isUuid) {
+            const resMastery = await progressService.updateSongMastery(user.id, cleanSongId, { challenge_index: nextIdx });
+            if (resMastery?.error) {
+              console.warn('[MusicalPracticeTab] Falha ao sincronizar frase em song_mastery:', resMastery.error);
+            }
+          }
+        } catch (err) {
+          console.warn('[MusicalPracticeTab] Exceção ao salvar progresso da frase:', err);
+          setSaveError('Aviso: Não foi possível sincronizar o progresso com o servidor.');
+        } finally {
+          setIsSaving(false);
+        }
+      }
     } else {
-      setIsCompleted(true);
-      const cleanSongId = String(songId || '').trim().toLowerCase();
-      // 1. Atualiza song_mastery no Supabase primeiro
+      setIsOfficiallyCompleted(true);
+      setIsViewingFinished(true);
+      setShowCelebration(true);
+      isPracticingAgainRef.current = false;
+
+      // 0. Remove retake flag from LocalStorage
+      try {
+        const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
+        localStorage.removeItem(rKey);
+      } catch (_) {}
+
+      // 1. Save completion immediately to LocalStorage
+      try {
+        const key = getStorageKey(user?.id, cleanSongId, lessonId);
+        localStorage.setItem(key, JSON.stringify({ currentIndex: verses.length - 1, isCompleted: true }));
+      } catch (_) {}
+
+      // 2. Update song_mastery in Supabase with await
+      if (user?.id && isUuid) {
+        try {
+          await progressService.updateSongMastery(user.id, cleanSongId, { step_reverse_translation: true });
+        } catch (err) {
+          console.warn('[MusicalPracticeTab] Falha ao atualizar song_mastery:', err);
+        }
+      }
+
+      // 3. Update song_mastery in context
       updateSongMasteryStep(songId, 'reverse_translation', true);
-      // 2. Concede XP de prática musical com ref do song_id em minúsculo
+
+      // 4. Grant XP
       addXp('practice_complete', cleanSongId, {
         showModal: true,
         type: 'xp',
@@ -137,6 +400,8 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
         icon: '🎵',
         bonusText: `+75 Magic XP conquistados!`
       });
+
+      // 5. Notify parent (MagicClassroomView saves steps.practice = true in user_progress)
       if (onComplete) onComplete(XP_REWARDS.COMPLETE_MUSICAL_PRACTICE);
     }
   };
@@ -144,6 +409,18 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
   return (
     <div className="p-6 sm:p-9 rounded-3xl bg-[#0e101f] border border-[#1e233b] space-y-6 max-w-3xl mx-auto shadow-2xl animate-in fade-in duration-300">
       
+      {/* Completion Celebration Overlay (shows once upon completing all phrases) */}
+      <CompletionCelebration
+        show={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        title="🎉 Parabéns!"
+        subtitle="Você concluiu a Prática Musical!"
+        description="Você recuperou e fixou todas as frases da canção. Continue praticando e evoluindo no Magic English!"
+        type="musical_practice"
+        ctaText="Ver Resultado da Prática ➔"
+        onCtaClick={() => setShowCelebration(false)}
+      />
+
       {/* Top Header info */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
@@ -198,7 +475,7 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
         </div>
       </div>
 
-      {!isCompleted ? (
+      {!isViewingFinished ? (
         <div className="space-y-6">
           
           {/* Step 1: Frase Original & Tradução Preview */}
@@ -313,12 +590,19 @@ export default function MusicalPracticeTab({ lyrics, song, onComplete, songId = 
           <div className="pt-2">
             <button
               onClick={() => {
+                isPracticingAgainRef.current = true;
+                setIsViewingFinished(false);
                 setCurrentIndex(0);
-                setIsCompleted(false);
+                setShowCelebration(false);
                 setStatus(null);
                 setTypedAnswer('');
+                try {
+                  const cleanSongId = String(songId || '').trim().toLowerCase();
+                  const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
+                  localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
+                } catch (_) {}
               }}
-              className="px-6 py-3 rounded-xl bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 cursor-pointer"
+              className="px-6 py-3 rounded-xl bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 cursor-pointer hover:bg-purple-500 transition-all"
             >
               Refazer Prática
             </button>

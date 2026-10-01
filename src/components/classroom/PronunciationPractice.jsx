@@ -1,19 +1,43 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Mic, MicOff, Volume2, CheckCircle2, Sparkles, Award, Zap, RotateCcw } from 'lucide-react';
+import { Mic, MicOff, Volume2, CheckCircle2, Sparkles, Award, Zap, RotateCcw, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 import { calculateWordSimilarity } from '../../hooks/useSpeechEvaluator';
 import { 
   getRequiredPronunciationCount, 
   getLocalPronunciationDone, 
-  saveLocalPronunciationDone 
+  saveLocalPronunciationDone,
+  getLocalLabPronunciationDone,
+  saveLocalLabPronunciationDone,
+  getLocalPronunciationCompleted,
+  saveLocalPronunciationCompleted
 } from '../../utils/pronunciationProgress';
+
+const getPronunciationRetakeKey = (userId, targetSongId, targetLessonId) => {
+  return `magic_english_pronunciation_retake_${userId || 'guest'}_${targetSongId || targetLessonId || 'default'}`;
+};
+
+const checkIsPronunciationRetaking = (userId, targetSongId, targetLessonId) => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const cleanSongId = String(targetSongId || '').trim().toLowerCase();
+    const key = getPronunciationRetakeKey(userId, cleanSongId, targetLessonId);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed.retaking);
+    }
+  } catch (_) {}
+  return false;
+};
 
 export default function PronunciationPractice({ 
   items = [], 
   songId, 
   lessonId, 
+  context,
   initialApprovedIndices = [], 
+  isCompletedInitially = false, 
   onWordApproved, 
   onCompleteStep 
 }) {
@@ -24,11 +48,49 @@ export default function PronunciationPractice({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [scores, setScores] = useState({});
   const [recognitionFeedback, setRecognitionFeedback] = useState(null);
+  const [isSubmittingComplete, setIsSubmittingComplete] = useState(false);
+  const [completeError, setCompleteError] = useState(null);
   const recognitionRef = useRef(null);
   const initialIndexComputed = useRef(false);
+  const isRetakingRef = useRef(false);
 
-  // Normalize input items without fake fallbacks for real lessons
-  const [lastGrantedXp, setLastGrantedXp] = useState(20);
+  const isLessonMode = Boolean(lessonId);
+  const labContext = context || songId || 'general';
+
+  // Permanent completion state (DB union + localStorage)
+  const [isOfficiallyCompleted, setIsOfficiallyCompleted] = useState(() => {
+    if (isCompletedInitially) return true;
+    return getLocalPronunciationCompleted(user?.id, songId, lessonId, labContext);
+  });
+
+  // Controls visual display of completed state vs active practice
+  const [isViewingCompleted, setIsViewingCompleted] = useState(() => {
+    if (checkIsPronunciationRetaking(user?.id, songId, lessonId || labContext)) return false;
+    if (isCompletedInitially) return true;
+    return getLocalPronunciationCompleted(user?.id, songId, lessonId, labContext);
+  });
+
+  useEffect(() => {
+    if (isCompletedInitially) {
+      setIsOfficiallyCompleted(true);
+      const isRetakingNow = checkIsPronunciationRetaking(user?.id, songId, lessonId || labContext) || isRetakingRef.current;
+      if (!isRetakingNow) {
+        setIsViewingCompleted(true);
+      }
+    }
+  }, [isCompletedInitially, user?.id, songId, lessonId, labContext]);
+
+  useEffect(() => {
+    if (user?.id) {
+      if (getLocalPronunciationCompleted(user.id, songId, lessonId, labContext)) {
+        setIsOfficiallyCompleted(true);
+        const isRetakingNow = checkIsPronunciationRetaking(user.id, songId, lessonId || labContext) || isRetakingRef.current;
+        if (!isRetakingNow) {
+          setIsViewingCompleted(true);
+        }
+      }
+    }
+  }, [user?.id, songId, lessonId, labContext]);
 
   // Stable signature for input items to prevent unnecessary recomputations
   const itemsSignature = useMemo(() => {
@@ -69,15 +131,34 @@ export default function PronunciationPractice({
   const totalWords = normalizedItems.length;
   const requiredCount = getRequiredPronunciationCount(totalWords);
 
-  // State of approved word sort_orders (persisted in DB and LocalStorage)
+  // State of approved word sort_orders (persisted in DB or Lab LocalStorage)
   const [approvedSortOrders, setApprovedSortOrders] = useState(() => {
-    const local = getLocalPronunciationDone(user?.id, lessonId);
+    const local = isLessonMode
+      ? getLocalPronunciationDone(user?.id, lessonId)
+      : getLocalLabPronunciationDone(user?.id, labContext);
     const combined = new Set([
       ...(Array.isArray(initialApprovedIndices) ? initialApprovedIndices : []),
       ...local
     ]);
     return Array.from(combined);
   });
+
+  // Session approved list for retaking mode
+  const [sessionApprovedSortOrders, setSessionApprovedSortOrders] = useState(() => {
+    if (checkIsPronunciationRetaking(user?.id, songId, lessonId || labContext)) return [];
+    const local = isLessonMode
+      ? getLocalPronunciationDone(user?.id, lessonId)
+      : getLocalLabPronunciationDone(user?.id, labContext);
+    const combined = new Set([
+      ...(Array.isArray(initialApprovedIndices) ? initialApprovedIndices : []),
+      ...local
+    ]);
+    return Array.from(combined);
+  });
+
+  const isRetaking = checkIsPronunciationRetaking(user?.id, songId, lessonId || labContext) || isRetakingRef.current;
+  const activeApproved = isRetaking ? sessionApprovedSortOrders : approvedSortOrders;
+  const hasReachedTarget = activeApproved.length >= requiredCount;
 
   // Sync approved sort_orders if prop updates (union only)
   useEffect(() => {
@@ -93,9 +174,15 @@ export default function PronunciationPractice({
   useEffect(() => {
     if (normalizedItems.length > 0 && !initialIndexComputed.current) {
       initialIndexComputed.current = true;
-      const firstUnapprovedIdx = normalizedItems.findIndex((item) => {
+      if (checkIsPronunciationRetaking(user?.id, songId, lessonId || labContext)) {
+        setSelectedWordIndex(0);
+        return;
+      }
+      const firstUnapprovedIdx = normalizedItems.findIndex((item, idx) => {
         const isDb = item.is_db_word === true && typeof item.sort_order === 'number';
-        const key = isDb ? item.sort_order : (item.id || item.word);
+        const key = isLessonMode
+          ? (isDb ? item.sort_order : (item.id || item.word))
+          : (item.id || item.word || idx);
         return !approvedSortOrders.includes(key);
       });
       if (firstUnapprovedIdx !== -1) {
@@ -104,7 +191,7 @@ export default function PronunciationPractice({
         setSelectedWordIndex(normalizedItems.length - 1);
       }
     }
-  }, [normalizedItems, approvedSortOrders]);
+  }, [normalizedItems, approvedSortOrders, user?.id, songId, lessonId, labContext, isLessonMode]);
 
   useEffect(() => {
     if (totalWords === 0 && songId) {
@@ -157,7 +244,7 @@ export default function PronunciationPractice({
         recognition.lang = 'en-US';
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.maxAlternatives = 3;
+        recognition.maxAlternatives = 5;
 
         recognition.onstart = () => {
           setIsRecording(true);
@@ -165,8 +252,31 @@ export default function PronunciationPractice({
 
         recognition.onresult = async (event) => {
           setIsRecording(false);
-          const transcript = event.results[0][0]?.transcript || '';
-          const calculatedScore = calculateWordSimilarity(currentItem.word, transcript);
+
+          let bestScore = 0;
+          let bestTranscript = '';
+
+          if (event.results && event.results.length > 0) {
+            const firstResult = event.results[0];
+            for (let i = 0; i < firstResult.length; i++) {
+              const altTranscript = firstResult[i]?.transcript || '';
+              if (!altTranscript.trim()) continue;
+              const altScore = calculateWordSimilarity(currentItem.word, altTranscript);
+              if (altScore > bestScore || !bestTranscript) {
+                bestScore = altScore;
+                bestTranscript = altTranscript;
+              }
+              if (bestScore === 100) break;
+            }
+          }
+
+          if (!bestTranscript && event.results?.[0]?.[0]?.transcript) {
+            bestTranscript = event.results[0][0].transcript;
+            bestScore = calculateWordSimilarity(currentItem.word, bestTranscript);
+          }
+
+          const calculatedScore = bestScore;
+          const transcript = bestTranscript;
 
           if (calculatedScore >= 80) {
             setScores((prev) => ({
@@ -178,58 +288,52 @@ export default function PronunciationPractice({
               status: 'success',
               transcript,
               score: calculatedScore,
-              message: `Excelente! Você pronunciou "${transcript}" com ${calculatedScore}% de precisão.`
+              message: `Excelente! Entendi: "${transcript}" com ${calculatedScore}% de precisão.`
             });
 
             const isDbWord = currentItem.is_db_word === true && typeof currentItem.sort_order === 'number';
-            const currentKey = isDbWord ? currentItem.sort_order : (currentItem.id || selectedWordIndex);
+            const currentKey = isLessonMode
+              ? (isDbWord ? currentItem.sort_order : (currentItem.id || selectedWordIndex))
+              : (currentItem.id || currentItem.word || selectedWordIndex);
+
+            // 1. Update session list for retake mode
+            let nextSessionApproved = sessionApprovedSortOrders;
+            if (!sessionApprovedSortOrders.includes(currentKey)) {
+              nextSessionApproved = [...sessionApprovedSortOrders, currentKey];
+              setSessionApprovedSortOrders(nextSessionApproved);
+            }
+
+            // 2. Update persistent approvedSortOrders and database/localStorage (always union, never delete)
             const isNewApproval = !approvedSortOrders.includes(currentKey);
             let nextApproved = approvedSortOrders;
 
             if (isNewApproval) {
               nextApproved = Array.from(new Set([...approvedSortOrders, currentKey]));
               setApprovedSortOrders(nextApproved);
-              saveLocalPronunciationDone(user?.id, lessonId, nextApproved);
+
+              if (isLessonMode) {
+                saveLocalPronunciationDone(user?.id, lessonId, nextApproved);
+              } else {
+                saveLocalLabPronunciationDone(user?.id, labContext, nextApproved);
+              }
 
               if (onWordApproved) {
                 onWordApproved(currentKey, nextApproved);
               }
-
-              if (nextApproved.length >= requiredCount && onCompleteStep) {
-                onCompleteStep();
-              }
-
-              // Only call grant_xp for real database words with sort_order
-              if (isDbWord) {
-                const cleanSongId = String(songId || '').trim().toLowerCase();
-                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanSongId);
-
-                if (isUuid) {
-                  const xpRes = await addXp('pronunciation_item', `${cleanSongId}:${currentItem.sort_order}`, {
-                    showModal: true,
-                    type: 'xp',
-                    title: '🎤 Pronúncia Aprovada!',
-                    subtitle: `Precisão de ${calculatedScore}% na palavra "${currentItem.word}".`,
-                    icon: '🎤',
-                    bonusText: `+${lastGrantedXp || 20} Magic XP conquistados no Voice Lab!`
-                  });
-                  if (xpRes && typeof xpRes.amount === 'number') {
-                    setLastGrantedXp(xpRes.amount);
-                  }
-                } else if (!cleanSongId) {
-                  console.warn('[PronunciationPractice] ID da música não configurado para envio de XP.');
-                }
-              }
             }
 
-            // Auto-advance to the next unapproved word after feedback display
+            const activeProgressionList = isRetaking ? nextSessionApproved : nextApproved;
+
+            // Auto-advance to the next unapproved word in active session
             setTimeout(() => {
               setSelectedWordIndex((currentIdx) => {
                 const nextUnapprovedIdx = normalizedItems.findIndex((item, idx) => {
                   if (idx <= currentIdx) return false;
                   const isDb = item.is_db_word === true && typeof item.sort_order === 'number';
-                  const key = isDb ? item.sort_order : (item.id || idx);
-                  return !nextApproved.includes(key);
+                  const key = isLessonMode
+                    ? (isDb ? item.sort_order : (item.id || idx))
+                    : (item.id || item.word || idx);
+                  return !activeProgressionList.includes(key);
                 });
 
                 if (nextUnapprovedIdx !== -1) {
@@ -238,10 +342,12 @@ export default function PronunciationPractice({
                 }
 
                 // If no unapproved words ahead, look from start
-                const wrapUnapprovedIdx = normalizedItems.findIndex((item) => {
+                const wrapUnapprovedIdx = normalizedItems.findIndex((item, idx) => {
                   const isDb = item.is_db_word === true && typeof item.sort_order === 'number';
-                  const key = isDb ? item.sort_order : (item.id || item.word);
-                  return !nextApproved.includes(key);
+                  const key = isLessonMode
+                    ? (isDb ? item.sort_order : (item.id || item.word))
+                    : (item.id || item.word || idx);
+                  return !activeProgressionList.includes(key);
                 });
 
                 if (wrapUnapprovedIdx !== -1) {
@@ -257,14 +363,14 @@ export default function PronunciationPractice({
               status: 'warning',
               transcript,
               score: calculatedScore,
-              message: `Quase lá (${calculatedScore}%)! Você disse "${transcript}". Tente falar com mais clareza: "${currentItem.word}".`
+              message: `Quase lá (${calculatedScore}%)! Entendi: "${transcript}". Tente falar com mais clareza: "${currentItem.word}".`
             });
           } else {
             setRecognitionFeedback({
               status: 'error',
               transcript,
               score: calculatedScore,
-              message: `Você disse "${transcript || 'não identificado'}". A palavra esperada era "${currentItem.word}". Ouça o áudio e tente novamente!`
+              message: `Entendi: "${transcript || 'não identificado'}" (${calculatedScore}%). A palavra esperada era "${currentItem.word}". Ouça o áudio e tente novamente!`
             });
           }
         };
@@ -315,6 +421,80 @@ export default function PronunciationPractice({
     }
   };
 
+  const handleResetTraining = () => {
+    isRetakingRef.current = true;
+    setSelectedWordIndex(0);
+    setRecognitionFeedback(null);
+    setScores({});
+    setSessionApprovedSortOrders([]);
+    setIsViewingCompleted(false);
+    if (isSpeaking) {
+      window.speechSynthesis?.cancel();
+      setIsSpeaking(false);
+    }
+    try {
+      const cleanSongId = String(songId || '').trim().toLowerCase();
+      const rKey = getPronunciationRetakeKey(user?.id, cleanSongId, lessonId || labContext);
+      localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
+    } catch (_) {}
+  };
+
+  // Conclude pronunciation step (Grants 20 XP once per context, then marks permanently complete)
+  const handleConcludePronunciation = async () => {
+    if (isViewingCompleted || isSubmittingComplete) return;
+    setIsSubmittingComplete(true);
+    setCompleteError(null);
+
+    const cleanSongId = String(songId || '').trim().toLowerCase();
+    const cleanLessonId = String(lessonId || '').trim().toLowerCase();
+    const cleanLabContext = String(labContext || '').trim().toLowerCase();
+
+    // Determina a referência conforme contexto: songId se existir, senão lessonId, senão labContext, senão 'general'
+    const targetRef = cleanSongId || cleanLessonId || cleanLabContext || 'general';
+
+    try {
+      // (a) Grant XP via server RPC
+      const xpRes = await addXp('pronunciation_complete', targetRef, {
+        showModal: true,
+        type: 'xp',
+        title: '🎤 Pronúncia Concluída!',
+        subtitle: isLessonMode
+          ? 'Parabéns! Você concluiu todos os termos fonéticos desta aula.'
+          : 'Parabéns! Você concluiu todos os termos fonéticos do Laboratório de Pronúncia.',
+        icon: '🎤',
+        bonusText: '+20 Magic XP adicionados à sua jornada!'
+      });
+
+      if (!xpRes?.success) {
+        console.warn('[PronunciationPractice] Aviso ao validar XP no servidor:', xpRes?.error);
+      }
+    } catch (err) {
+      console.warn('[PronunciationPractice] Erro ao tentar conceder XP:', err);
+    } finally {
+      // (b) Grava como concluído e nunca bloqueia o término da prática pelo aluno
+      setIsOfficiallyCompleted(true);
+      setIsViewingCompleted(true);
+      isRetakingRef.current = false;
+      saveLocalPronunciationCompleted(user?.id, cleanSongId, lessonId, labContext);
+
+      // Remove retaking flag upon conclusion
+      try {
+        const rKey = getPronunciationRetakeKey(user?.id, cleanSongId, lessonId || labContext);
+        localStorage.removeItem(rKey);
+      } catch (_) {}
+
+      if (onCompleteStep) {
+        try {
+          onCompleteStep();
+        } catch (e) {
+          console.error('[PronunciationPractice] Erro no callback onCompleteStep:', e);
+        }
+      }
+
+      setIsSubmittingComplete(false);
+    }
+  };
+
   // If 0 words exist for this song: show message and do not block lesson
   if (totalWords === 0) {
     return (
@@ -327,8 +507,6 @@ export default function PronunciationPractice({
       </div>
     );
   }
-
-  const isStepCompleted = approvedSortOrders.length >= requiredCount;
 
   return (
     <div className="space-y-6">
@@ -344,26 +522,40 @@ export default function PronunciationPractice({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-            isStepCompleted 
-              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-              : 'bg-purple-500/15 border-purple-500/30 text-purple-300'
-          }`}>
-            {isStepCompleted ? '✓ Passo 3 Concluído' : `Termos: ${approvedSortOrders.length} / ${requiredCount}`}
-          </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {isViewingCompleted ? (
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Pronúncia Concluída</span>
+            </span>
+          ) : hasReachedTarget ? (
+            <button
+              onClick={handleConcludePronunciation}
+              disabled={isSubmittingComplete}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            >
+              {isSubmittingComplete ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Validando...</span>
+                </>
+              ) : (
+                <>
+                  <Award className="w-4 h-4 text-amber-300" />
+                  <span>Concluir Pronúncia (+20 XP)</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <span className="text-xs font-bold px-3 py-1 rounded-full border bg-purple-500/15 border-purple-500/30 text-purple-300">
+              Termos: {activeApproved.length} / {requiredCount}
+            </span>
+          )}
 
           <button
-            onClick={() => {
-              setSelectedWordIndex(0);
-              setRecognitionFeedback(null);
-              if (isSpeaking) {
-                window.speechSynthesis?.cancel();
-                setIsSpeaking(false);
-              }
-            }}
+            onClick={handleResetTraining}
             className="px-3 py-1.5 rounded-xl bg-[#14182a] hover:bg-[#1c223c] text-slate-400 hover:text-white border border-slate-700/60 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-            title="Voltar ao início do treino visual sem perder termos já aprovados"
+            title="Reiniciar treino visual de pronúncia sem perder termos já aprovados no banco"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Resetar Treino</span>
@@ -371,13 +563,31 @@ export default function PronunciationPractice({
         </div>
       </div>
 
+      {/* Complete Error Banner if XP grant failed */}
+      {completeError && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚠️</span>
+            <span>{completeError}</span>
+          </div>
+          <button
+            onClick={handleConcludePronunciation}
+            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold text-[11px] cursor-pointer flex-shrink-0"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      )}
+
       {/* Word Selector Chips */}
       <div className="flex flex-wrap items-center gap-2.5 max-h-48 overflow-y-auto p-1">
         {normalizedItems.map((item, idx) => {
           const isSelected = selectedWordIndex === idx;
           const isDb = item.is_db_word === true && typeof item.sort_order === 'number';
-          const itemKey = isDb ? item.sort_order : (item.id || idx);
-          const isApproved = approvedSortOrders.includes(itemKey);
+          const itemKey = isLessonMode
+            ? (isDb ? item.sort_order : (item.id || idx))
+            : (item.id || item.word || idx);
+          const isApproved = activeApproved.includes(itemKey);
           const score = scores[idx];
 
           return (
@@ -459,12 +669,6 @@ export default function PronunciationPractice({
                   </p>
                 </div>
               </div>
-
-              {recognitionFeedback.status === 'success' && currentItem.is_db_word && (
-                <span className="text-xs font-extrabold text-amber-400 bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1 flex-shrink-0">
-                  <Zap className="w-3 h-3 fill-amber-400" /> +{lastGrantedXp || 20} XP
-                </span>
-              )}
             </div>
           )}
 

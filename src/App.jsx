@@ -9,7 +9,7 @@ import MagicSongsSection from './components/dashboard/MagicSongsSection';
 import LearningTracksSection from './components/dashboard/LearningTracksSection';
 import LoginStudent from './components/auth/LoginStudent';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import RewardModal from './components/gamification/RewardModal';
+import CompletionCelebration from './components/common/CompletionCelebration';
 import ItemModal from './components/ui/ItemModal';
 import MagicLoadingScreen from './components/ui/MagicLoadingScreen';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -802,14 +802,18 @@ function MainApp() {
                 <LearningTracksPage
                   onOpenLesson={(lesson) => {
                     handleOpenClassroom({
+                      ...lesson,
                       id: lesson.id,
+                      moduleId: lesson.moduleId,
                       number: lesson.number,
                       lessonNumber: `Aula ${lesson.number}`,
                       title: lesson.title,
                       duration: lesson.duration,
-                      module: "Inglês do Zero",
+                      module: lesson.module || "Inglês do Zero",
                       songId: lesson.songId,
-                      videoThumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80'
+                      videoUrl: lesson.videoUrl || lesson.video_url || '',
+                      relatedSong: lesson.relatedSong || null,
+                      videoThumbnail: lesson.videoThumbnail || lesson.thumbnail_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80'
                     });
                   }}
                 />
@@ -846,13 +850,14 @@ function MainApp() {
         {/* 3. Fixed Right Panel */}
         <RightPanel onOpenGamification={() => handleSidebarTabChange('ranking')} />
 
-        {/* Global Celebratory Reward Modal */}
-        <RewardModal
+        {/* Global Celebratory Premium Reward Modal */}
+        <CompletionCelebration
           isOpen={rewardModal.isOpen}
           onClose={closeRewardModal}
           type={rewardModal.type}
           title={rewardModal.title}
           subtitle={rewardModal.subtitle}
+          description={rewardModal.subtitle}
           xp={rewardModal.xp}
           icon={rewardModal.icon}
           bonusText={rewardModal.bonusText}

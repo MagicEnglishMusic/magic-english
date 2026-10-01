@@ -42,7 +42,9 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
     dailyChallenges,
     songMasteryList,
     claimDailyChallenge,
-    updateSongMasteryStep
+    updateSongMasteryStep,
+    claimSongMastery,
+    claimAchievement
   } = useGamification();
 
   const [activeTab, setActiveTab] = useState('badges'); // 'badges' | 'levels' | 'mastery' | 'daily'
@@ -250,6 +252,7 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
               <AchievementCard
                 key={badge.id}
                 badge={badge}
+                onClaim={(b) => claimAchievement(b.id)}
               />
             ))}
           </div>
@@ -360,15 +363,24 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {songMasteryList.map((song) => (
-              <SongMasteryWidget
-                key={song.songId}
-                songMastery={song}
-                onToggleStep={(songId, stepKey, val) => updateSongMasteryStep(songId, stepKey, val)}
-              />
-            ))}
-          </div>
+          {(songMasteryList || []).length === 0 ? (
+            <div className="p-8 text-center rounded-2xl bg-[#121524] border border-[#1f243a] text-slate-400 space-y-2">
+              <Music className="w-10 h-10 text-purple-400 mx-auto opacity-50" />
+              <p className="text-sm font-bold text-white">Nenhuma música cadastrada no momento</p>
+              <p className="text-xs text-slate-400">As músicas cadastradas na plataforma aparecerão aqui para você acompanhar o domínio e resgatar +100 XP.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {(songMasteryList || []).map((song) => (
+                <SongMasteryWidget
+                  key={song.songId || song.id}
+                  songMastery={song}
+                  onToggleStep={(songId, stepKey, val) => updateSongMasteryStep(songId, stepKey, val)}
+                  onClaimXp={(songId) => claimSongMastery(songId)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

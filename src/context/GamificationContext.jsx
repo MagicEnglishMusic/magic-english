@@ -3,19 +3,20 @@ import { useAuth } from './AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { progressService } from '../services/progressService';
 import { rankingService } from '../services/rankingService';
+import { songsService } from '../services/songsService';
 import { 
   XP_REWARDS, 
   LEVELS_CONFIG, 
   INITIAL_USER_GAMIFICATION, 
   INITIAL_BADGES, 
   INITIAL_DAILY_CHALLENGES, 
-  INITIAL_SONG_MASTERY,
   SONG_MASTERY_CHECKLIST,
   CLEAN_USER_GAMIFICATION,
   CLEAN_BADGES,
-  CLEAN_DAILY_CHALLENGES,
-  CLEAN_SONG_MASTERY
+  CLEAN_DAILY_CHALLENGES
 } from '../data/gamificationData';
+
+import { getLocalLabPronunciationDone } from '../utils/pronunciationProgress';
 
 // Dynamic weekly days generator based on America/Sao_Paulo date & real activity dates
 const getSaoPauloDate = (dateObj = new Date()) => {
@@ -53,6 +54,284 @@ const generateWeeklyDays = (activityDates = new Set()) => {
   });
 };
 
+/**
+ * Sincroniza e auto-repara o step_video de song_mastery com base estrita no vínculo:
+ * user_progress.lesson_id -> songs.lesson_id -> songs.id (UUID)
+ * GARANTIA: Utiliza EXCLUSIVAMENTE o songs.id UUID da tabela public.songs, NUNCA títulos de música.
+ */
+export async function syncVideoStepToSongMastery(userId, songsData = [], userProgressData = [], masteryData = []) {
+  if (!userId || !Array.isArray(songsData) || songsData.length === 0 || !Array.isArray(userProgressData)) {
+    return masteryData || [];
+  }
+
+  const updatedMasteryList = [...(masteryData || [])];
+
+  // 1. Percorre cada registro de progresso do aluno
+  for (const prog of userProgressData) {
+    const isVideoWatched = Boolean(
+      prog.completed || 
+      prog.steps?.video ||
+      (prog.progress_percent && prog.progress_percent >= 20)
+    );
+
+    if (!isVideoWatched || !prog.lesson_id) continue;
+
+    const cleanLessonId = String(prog.lesson_id).trim().toLowerCase();
+
+    // 2. Localiza a música vinculada: songs.lesson_id === user_progress.lesson_id
+    const targetSong = songsData.find((s) => {
+      const sLessonId = String(s.lesson_id || '').trim().toLowerCase();
+      const sSongId = String(s.id || '').trim().toLowerCase();
+      return (sLessonId && sLessonId === cleanLessonId) || sSongId === cleanLessonId;
+    });
+
+    if (!targetSong || !targetSong.id || typeof targetSong.id !== 'string') continue;
+
+    const realSongUuid = targetSong.id; // UUID real (ex: 0aed5144-07d7-4c04-9410-34d035a7577d)
+    const cleanSongUuid = realSongUuid.trim().toLowerCase();
+
+    const existingMasteryIndex = updatedMasteryList.findIndex(
+      (m) => String(m.song_id || '').trim().toLowerCase() === cleanSongUuid
+    );
+
+    const existingMastery = existingMasteryIndex !== -1 ? updatedMasteryList[existingMasteryIndex] : null;
+
+    // 3. Se step_video ainda não estiver true, sincroniza no banco e memória
+    if (!existingMastery?.step_video) {
+      if (existingMasteryIndex !== -1) {
+        updatedMasteryList[existingMasteryIndex] = {
+          ...updatedMasteryList[existingMasteryIndex],
+          step_video: true
+        };
+      } else {
+        updatedMasteryList.push({
+          user_id: userId,
+          song_id: realSongUuid,
+          step_video: true,
+          step_song: false,
+          step_reverse_translation: false,
+          step_sing_along: false,
+          step_final_challenge: false,
+          challenge_index: 0
+        });
+      }
+
+      console.log('[syncVideoStepToSongMastery] Sincronização de step_video via lesson_id:', {
+        userId,
+        lesson_id: prog.lesson_id,
+        song_id: realSongUuid,
+        song_title: targetSong.title,
+        action: 'step_video synchronized to true'
+      });
+
+      // Executa atualização assíncrona no Supabase usando estritamente o songs.id UUID
+      progressService.updateSongMastery(userId, realSongUuid, { step_video: true }).catch((err) => {
+        console.warn('[syncVideoStepToSongMastery] Erro ao sincronizar step_video:', err);
+      });
+    }
+  }
+
+  return updatedMasteryList;
+}
+
+// Alias para compatibilidade retroativa
+export const syncSongMasteryProgress = syncVideoStepToSongMastery;
+
+/**
+ * Constrói a lista dinâmica de maestria de músicas reais cruzando public.songs com public.song_mastery, xp_events e user_progress
+ */
+export function buildSongMasteryList(songsData = [], masteryData = [], xpEvents = [], userProgressList = []) {
+  if (!Array.isArray(songsData) || songsData.length === 0) {
+    return [];
+  }
+
+  return songsData.map((song) => {
+    const cleanId = String(song.id || '').trim().toLowerCase();
+    const match = (masteryData || []).find((r) => {
+      const rId = String(r.song_id || '').trim().toLowerCase();
+      return rId === cleanId;
+    });
+
+    // Fallback defensivo com cruzamento de user_progress
+    const matchingProg = (userProgressList || []).find((p) => {
+      const pLesId = String(p.lesson_id || '').trim().toLowerCase();
+      const sLesId = String(song.lesson_id || '').trim().toLowerCase();
+      return (sLesId && pLesId && sLesId === pLesId) || (pLesId === cleanId);
+    });
+
+    const isVideo = Boolean(match?.step_video || matchingProg?.steps?.video || matchingProg?.completed);
+    const isSong = Boolean(match?.step_song);
+    const isReverse = Boolean(match?.step_reverse_translation);
+    const isSing = Boolean(match?.step_sing_along);
+    const isChallenge = Boolean(match?.step_final_challenge);
+
+    const count = [isVideo, isSong, isReverse, isSing, isChallenge].filter(Boolean).length;
+    let status = 'not_started';
+    if (count === 5) status = 'mastered';
+    else if (count >= 3) status = 'practicing';
+    else if (count >= 1) status = 'learning';
+
+    const isClaimedInDb = Boolean(match?.xp_claimed_at);
+    const isClaimedInEvents = (xpEvents || []).some(
+      (ev) => ev.source === 'song_mastery' && String(ev.ref || '').trim().toLowerCase() === cleanId
+    );
+    const isClaimed = isClaimedInDb || isClaimedInEvents;
+
+    return {
+      id: song.id,
+      songId: song.id,
+      title: song.title || 'Música Magic',
+      subtitle: song.artist || 'Magic Song',
+      image: song.cover_url || song.coverUrl || song.image || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
+      status,
+      checklist: {
+        watched_lesson: isVideo,
+        listened_full: isSong,
+        reverse_translation: isReverse,
+        sing_along: isSing,
+        final_challenge: isChallenge
+      },
+      masteryPercent: Math.round((count / 5) * 100),
+      xpClaimed: isClaimed,
+      xpClaimedAt: match?.xp_claimed_at || null,
+      masteredAt: status === 'mastered' ? 'Concluído' : null
+    };
+  });
+}
+
+/**
+ * Motor Avaliador de Conquistas e Badges
+ * Calcula o progresso dinâmico e status de desbloqueio com base no progresso real do aluno.
+ */
+export function evaluateAchievements({
+  baseBadges = CLEAN_BADGES,
+  songMasteryList = [],
+  userProgressList = [],
+  streak = 0,
+  weeklyDays = [],
+  labApprovedWords = [],
+  unlockedRewards = [],
+  claimedBadgeIds = new Set()
+}) {
+  // 1. Músicas com qualquer progresso ou conclusão
+  const songsWithProgress = (songMasteryList || []).filter((s) => {
+    const checklist = s?.checklist || {};
+    return Boolean(
+      s?.status === 'mastered' ||
+      s?.masteryPercent > 0 ||
+      checklist.challenge ||
+      checklist.final_challenge ||
+      checklist.listen ||
+      checklist.listened_full ||
+      checklist.reverse ||
+      checklist.reverse_translation ||
+      checklist.sing ||
+      checklist.sing_along ||
+      s?.step_song ||
+      s?.step_final_challenge
+    );
+  }).length;
+
+  // 2. Músicas dominadas (100% ou 5 steps)
+  const masteredSongsCount = (songMasteryList || []).filter((s) => s?.status === 'mastered').length;
+
+  // 3. Aulas assistidas ou concluídas
+  const completedLessons = (userProgressList || []).filter((p) => {
+    return Boolean(p?.completed || p?.steps?.video || p?.steps?.song || p?.steps?.practice || (p?.progress_percent && p.progress_percent > 0));
+  }).length;
+
+  // 4. Práticas de pronúncia
+  let pronunciationCount = 0;
+  (userProgressList || []).forEach((p) => {
+    if (Array.isArray(p?.steps?.pronunciation_done) && p.steps.pronunciation_done.length > 0) {
+      pronunciationCount += p.steps.pronunciation_done.length;
+    } else if (p?.steps?.pronunciation || p?.steps?.pronunciation_completed) {
+      pronunciationCount += 1;
+    }
+  });
+  if (Array.isArray(labApprovedWords) && labApprovedWords.length > 0) {
+    pronunciationCount += labApprovedWords.length;
+  }
+
+  // 5. Sequência de dias de estudo
+  const currentStreak = Number(streak) || 0;
+  const activeWeeklyDaysCount = (weeklyDays || []).filter((d) => d?.completed).length;
+  const maxDays = Math.max(currentStreak, activeWeeklyDaysCount);
+
+  // 6. Módulos finalizados (se o aluno completou pelo menos 4 aulas ou completou um módulo)
+  const completedModules = completedLessons >= 4 ? 1 : 0;
+
+  // 7. Traveler Ready (concluir trilha ou aulas)
+  const travelerProgress = Math.min(8, completedLessons);
+
+  return baseBadges.map((badge) => {
+    let current = 0;
+    let total = badge.progress?.total || 1;
+    let isUnlocked = Boolean(badge.unlocked);
+
+    // Se já constar na tabela rewards do Supabase
+    if (Array.isArray(unlockedRewards) && unlockedRewards.some((r) => r.title === badge.title || r.badge_id === badge.id)) {
+      isUnlocked = true;
+    }
+
+    switch (badge.id) {
+      case 'badge-first-song':
+        current = Math.min(total, songsWithProgress);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-first-step':
+        current = Math.min(total, completedLessons);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-perfect-week':
+        current = Math.min(total, maxDays);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-voice-evolution':
+        current = Math.min(total, pronunciationCount);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-music-master':
+        current = Math.min(total, masteredSongsCount);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-module-complete':
+        current = Math.min(total, completedModules);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      case 'badge-traveler-ready':
+        current = Math.min(total, travelerProgress);
+        isUnlocked = isUnlocked || current >= total;
+        break;
+
+      default:
+        current = badge.progress?.current || 0;
+        break;
+    }
+
+    const isClaimed = Boolean(badge.claimed || (claimedBadgeIds && (claimedBadgeIds.has(badge.id) || claimedBadgeIds.has(badge.title))));
+    const finalUnlocked = isUnlocked || isClaimed;
+
+    return {
+      ...badge,
+      unlocked: finalUnlocked,
+      unlockedAt: finalUnlocked ? (badge.unlockedAt || 'Desbloqueado') : null,
+      claimed: isClaimed,
+      claimedAt: isClaimed ? (badge.claimedAt || 'Resgatado') : null,
+      progress: {
+        current,
+        total
+      }
+    };
+  });
+}
+
 const GamificationContext = createContext(null);
 
 export function GamificationProvider({ children }) {
@@ -62,8 +341,10 @@ export function GamificationProvider({ children }) {
   const [streak, setStreak] = useState(() => user?.streak || 0);
   const [weeklyDays, setWeeklyDays] = useState(() => generateWeeklyDays());
   const [badges, setBadges] = useState(CLEAN_BADGES);
+  const [claimedBadgeIds, setClaimedBadgeIds] = useState(new Set());
   const [dailyChallenges, setDailyChallenges] = useState(CLEAN_DAILY_CHALLENGES);
-  const [songMasteryList, setSongMasteryList] = useState(CLEAN_SONG_MASTERY);
+  const [songMasteryList, setSongMasteryList] = useState([]);
+  const [userProgressList, setUserProgressList] = useState([]);
 
   // Sync with Auth user when user profile changes
   useEffect(() => {
@@ -71,7 +352,9 @@ export function GamificationProvider({ children }) {
       setXp(0);
       setStreak(0);
       setBadges(CLEAN_BADGES);
-      setSongMasteryList(CLEAN_SONG_MASTERY);
+      setClaimedBadgeIds(new Set());
+      setSongMasteryList([]);
+      setUserProgressList([]);
       setDailyChallenges(CLEAN_DAILY_CHALLENGES);
       setWeeklyDays(generateWeeklyDays());
       return;
@@ -80,63 +363,60 @@ export function GamificationProvider({ children }) {
     // Real authenticated user - start clean and sync with Supabase
     setXp(user.xp || 0);
     setStreak(user.streak || 0);
-    setBadges(CLEAN_BADGES);
-    setSongMasteryList(CLEAN_SONG_MASTERY);
     setDailyChallenges(CLEAN_DAILY_CHALLENGES);
 
     if (isSupabaseConfigured && user.id) {
-      // 1. Fetch unlocked rewards
-      supabase
-        .from('rewards')
-        .select('*')
-        .eq('user_id', user.id)
-        .then(({ data: rewardsData }) => {
-          if (rewardsData && rewardsData.length > 0) {
-            setBadges((prev) =>
-              prev.map((b) => {
-                const hasUnlocked = rewardsData.some((r) => r.title === b.title);
-                return hasUnlocked ? { ...b, unlocked: true, unlockedAt: 'Desbloqueado' } : b;
-              })
-            );
-          }
-        });
+      Promise.all([
+        songsService.getSongs(),
+        progressService.getUserProgress(user.id),
+        progressService.getSongMastery(user.id),
+        progressService.getUserXpEvents(user.id),
+        supabase.from('rewards').select('*').eq('user_id', user.id)
+      ]).then(async ([
+        { data: songsData },
+        { data: progData },
+        { data: songMasteryData },
+        { data: eventsData },
+        { data: rewardsData }
+      ]) => {
+        const safeProgData = progData || [];
+        setUserProgressList(safeProgData);
 
-      // 2. Fetch song mastery
-      progressService.getSongMastery(user.id).then(({ data: songMasteryData }) => {
-        if (songMasteryData && songMasteryData.length > 0) {
-          setSongMasteryList((prev) =>
-            prev.map((s) => {
-              const match = songMasteryData.find((r) => r.song_id === s.songId || r.song_id === s.id);
-              if (match) {
-                const checklist = {
-                  video: Boolean(match.step_video),
-                  listen: Boolean(match.step_song),
-                  reverse: Boolean(match.step_reverse_translation),
-                  sing: Boolean(match.step_sing_along),
-                  challenge: Boolean(match.step_final_challenge),
-                  watched_lesson: Boolean(match.step_video),
-                  listened_full: Boolean(match.step_song),
-                  reverse_translation: Boolean(match.step_reverse_translation),
-                  sing_along: Boolean(match.step_sing_along),
-                  final_challenge: Boolean(match.step_final_challenge)
-                };
-                const count = [match.step_video, match.step_song, match.step_reverse_translation, match.step_sing_along, match.step_final_challenge].filter(Boolean).length;
-                let status = 'not_started';
-                if (count === 5) status = 'mastered';
-                else if (count >= 3) status = 'practicing';
-                else if (count >= 1) status = 'learning';
-                return { ...s, checklist, status, masteryPercent: match.mastery_percent || Math.round((count / 5) * 100) };
-              }
-              return s;
+        // 1. Sincronização e reparação retroativa robusta: cruza user_progress com songs reais pelo UUID
+        const syncedMastery = await syncSongMasteryProgress(
+          user.id,
+          songsData || [],
+          safeProgData,
+          songMasteryData || []
+        );
+
+        // 2. Constrói a lista de maestria com base no estado sincronizado e no progresso do usuário
+        const list = buildSongMasteryList(
+          songsData || [],
+          syncedMastery || [],
+          eventsData || [],
+          safeProgData
+        );
+        setSongMasteryList(list);
+
+        // 3. Atualiza medalhas desbloqueadas a partir de rewards
+        if (rewardsData && rewardsData.length > 0) {
+          setBadges((prev) =>
+            prev.map((b) => {
+              const hasUnlocked = rewardsData.some((r) => r.title === b.title || r.badge_id === b.id);
+              return hasUnlocked ? { ...b, unlocked: true, unlockedAt: b.unlockedAt || 'Desbloqueado' } : b;
             })
           );
         }
-      });
 
-      // 3. Fetch real activity dates from xp_events for calendar
-      progressService.getUserXpEvents(user.id).then(({ data: events }) => {
+        // 4. Identifica conquistas resgatadas a partir de xp_events
+        const badgeEvents = (eventsData || []).filter((ev) => ev.source === 'badge_claim');
+        const badgeIdsSet = new Set(badgeEvents.map((ev) => ev.ref));
+        setClaimedBadgeIds(badgeIdsSet);
+
+        // 5. Atualiza calendário semanal de atividade
         const datesSet = new Set();
-        (events || []).forEach((ev) => {
+        (eventsData || []).forEach((ev) => {
           if (ev.created_at) {
             const spDate = getSaoPauloDate(new Date(ev.created_at));
             const iso = `${spDate.getFullYear()}-${String(spDate.getMonth() + 1).padStart(2, '0')}-${String(spDate.getDate()).padStart(2, '0')}`;
@@ -144,11 +424,33 @@ export function GamificationProvider({ children }) {
           }
         });
         setWeeklyDays(generateWeeklyDays(datesSet));
+      }).catch((err) => {
+        console.warn('[GamificationContext] Erro ao sincronizar dados de gamificação:', err);
       });
     } else {
       setWeeklyDays(generateWeeklyDays());
     }
   }, [user?.id, user?.xp, user?.streak]);
+
+  // Re-evaluate achievements dynamically whenever progress changes
+  useEffect(() => {
+    if (!user) {
+      setBadges(CLEAN_BADGES);
+      return;
+    }
+    const labApproved = getLocalLabPronunciationDone(user?.id, 'general');
+    setBadges((prev) =>
+      evaluateAchievements({
+        baseBadges: prev.length > 0 ? prev : CLEAN_BADGES,
+        songMasteryList,
+        userProgressList,
+        streak,
+        weeklyDays,
+        labApprovedWords: labApproved,
+        claimedBadgeIds
+      })
+    );
+  }, [user?.id, songMasteryList, userProgressList, streak, weeklyDays, claimedBadgeIds]);
 
   // Celebratory Reward Modal State
   const [rewardModal, setRewardModal] = useState({
@@ -203,10 +505,11 @@ export function GamificationProvider({ children }) {
     const VALID_SOURCES = [
       'lesson_complete',
       'song_claim',
-      'pronunciation_item',
+      'pronunciation_complete',
       'practice_complete',
       'daily_challenge',
-      'song_mastery'
+      'song_mastery',
+      'badge_claim'
     ];
 
     if (!VALID_SOURCES.includes(cleanSource)) {
@@ -346,6 +649,25 @@ export function GamificationProvider({ children }) {
     let willBeMastered = false;
     let songTitle = 'a música';
 
+    const canonicalKeyMap = {
+      video: 'watched_lesson',
+      watched_lesson: 'watched_lesson',
+      step_video: 'watched_lesson',
+      listen: 'listened_full',
+      listened_full: 'listened_full',
+      step_song: 'listened_full',
+      reverse: 'reverse_translation',
+      reverse_translation: 'reverse_translation',
+      step_reverse_translation: 'reverse_translation',
+      sing: 'sing_along',
+      sing_along: 'sing_along',
+      step_sing_along: 'sing_along',
+      challenge: 'final_challenge',
+      final_challenge: 'final_challenge',
+      step_final_challenge: 'final_challenge'
+    };
+    const cKey = canonicalKeyMap[stepKey] || stepKey;
+
     setSongMasteryList((prev) => {
       return prev.map((song) => {
         if (song.songId !== songId && song.id !== songId) return song;
@@ -353,14 +675,19 @@ export function GamificationProvider({ children }) {
 
         const updatedChecklist = {
           ...song.checklist,
-          [stepKey]: isCompleted
+          [cKey]: isCompleted
         };
 
-        const totalSteps = SONG_MASTERY_CHECKLIST.length;
-        const completedCount = Object.values(updatedChecklist).filter(Boolean).length;
+        const isVideo = Boolean(updatedChecklist.watched_lesson);
+        const isSong = Boolean(updatedChecklist.listened_full);
+        const isReverse = Boolean(updatedChecklist.reverse_translation);
+        const isSing = Boolean(updatedChecklist.sing_along);
+        const isChallenge = Boolean(updatedChecklist.final_challenge);
 
-        let newStatus = song.status;
-        if (completedCount === totalSteps) {
+        const completedCount = [isVideo, isSong, isReverse, isSing, isChallenge].filter(Boolean).length;
+
+        let newStatus = 'not_started';
+        if (completedCount === 5) {
           newStatus = 'mastered'; // 🟢 Dominada
         } else if (completedCount >= 3) {
           newStatus = 'practicing'; // 🟣 Em prática
@@ -378,6 +705,7 @@ export function GamificationProvider({ children }) {
           ...song,
           checklist: updatedChecklist,
           status: newStatus,
+          masteryPercent: Math.round((completedCount / 5) * 100),
           masteredAt: newStatus === 'mastered' ? 'Hoje' : song.masteredAt
         };
       });
@@ -444,6 +772,190 @@ export function GamificationProvider({ children }) {
     });
   };
 
+  // Claim Achievement / Badge Reward (+XP)
+  const claimAchievement = async (badgeId) => {
+    if (!user?.id || !badgeId) {
+      return { success: false, error: 'Usuário não autenticado ou conquista inválida.' };
+    }
+
+    const cleanBadgeId = String(badgeId).trim();
+    const badge = badges.find((b) => b.id === cleanBadgeId);
+
+    if (!badge) {
+      return { success: false, error: 'Conquista não encontrada.' };
+    }
+
+    if (!badge.unlocked) {
+      return { success: false, error: 'Esta conquista ainda não foi desbloqueada.' };
+    }
+
+    if (badge.claimed || claimedBadgeIds.has(cleanBadgeId)) {
+      setRewardModal({
+        isOpen: true,
+        type: 'xp',
+        title: 'Recompensa Já Resgatada',
+        subtitle: `O XP da conquista "${badge.title}" já foi resgatado anteriormente.`,
+        xp: 0,
+        icon: 'ℹ️',
+        bonusText: `Seu saldo atual é de ${xp} Magic XP.`
+      });
+      return { success: true, granted: false, newXp: xp };
+    }
+
+    try {
+      // 1. Concede XP via RPC grant_xp com trava anti-duplicidade atômica
+      const res = await progressService.grantXp('badge_claim', cleanBadgeId);
+
+      if (!res.success) {
+        setRewardModal({
+          isOpen: true,
+          type: 'xp',
+          title: 'Aviso de Resgate',
+          subtitle: res.error || 'Não foi possível resgatar a recompensa no momento.',
+          xp: 0,
+          icon: '⚠️',
+          bonusText: 'Tente novamente mais tarde.'
+        });
+        return { success: false, error: res.error };
+      }
+
+      const isNewlyGranted = res.data?.granted !== false;
+      const granted = res.data?.amount || badge.rewardXp || 50;
+      const newXp = res.data?.total_xp ?? (isNewlyGranted ? xp + granted : xp);
+
+      // 2. Atualiza saldo de XP
+      setXp(newXp);
+
+      // 3. Atualiza estado local de claimedBadgeIds e badges imediatamente
+      setClaimedBadgeIds((prev) => new Set([...prev, cleanBadgeId]));
+      setBadges((prev) =>
+        prev.map((b) =>
+          b.id === cleanBadgeId
+            ? { ...b, unlocked: true, claimed: true, claimedAt: new Date().toISOString() }
+            : b
+        )
+      );
+
+      // 4. Salva registro na tabela rewards para histórico persistente do aluno
+      if (isSupabaseConfigured && isNewlyGranted) {
+        rankingService.unlockReward(user.id, {
+          title: badge.title,
+          description: badge.condition,
+          xp: granted,
+          icon: badge.icon,
+          category: badge.category,
+          badge_id: cleanBadgeId
+        }).catch((err) => {
+          console.warn('[GamificationContext] Aviso ao registrar reward no Supabase:', err);
+        });
+      }
+
+      // 5. Exibe Modal de Celebração
+      if (isNewlyGranted) {
+        setRewardModal({
+          isOpen: true,
+          type: 'badge',
+          title: '🏆 Recompensa Resgatada!',
+          subtitle: `Parabéns por conquistar "${badge.title}"!`,
+          icon: badge.icon || '🏆',
+          badge: { ...badge, claimed: true },
+          xp: granted,
+          bonusText: `+${granted} Magic XP adicionados à sua jornada!`
+        });
+      } else {
+        setRewardModal({
+          isOpen: true,
+          type: 'xp',
+          title: 'Atividade Já Pontuada',
+          subtitle: res.data?.message || 'A recompensa desta conquista já foi resgatada.',
+          xp: 0,
+          icon: 'ℹ️',
+          bonusText: `Seu saldo atual é de ${newXp} Magic XP.`
+        });
+      }
+
+      return { success: true, granted: isNewlyGranted, newXp };
+    } catch (err) {
+      console.error('[GamificationContext] Erro ao resgatar conquista:', err);
+      return { success: false, error: err?.message || err };
+    }
+  };
+
+  // Claim Song Mastery Reward (+100 XP)
+  const claimSongMastery = async (songId) => {
+    if (!user?.id || !songId) {
+      return { success: false, error: 'Usuário não autenticado ou música inválida.' };
+    }
+
+    const cleanSongId = String(songId || '').trim().toLowerCase();
+    const song = songMasteryList.find((s) => s.songId === songId || s.id === songId);
+
+    if (song?.xpClaimed) {
+      setRewardModal({
+        isOpen: true,
+        type: 'xp',
+        title: 'Atividade Já Pontuada',
+        subtitle: `O XP de domínio de "${song?.title || 'esta música'}" já foi resgatado anteriormente.`,
+        xp: 0,
+        icon: 'ℹ️',
+        bonusText: `Seu saldo atual é de ${xp} Magic XP.`
+      });
+      return { success: true, granted: false, newXp: xp };
+    }
+
+    try {
+      // 1. Grava no banco xp_claimed_at em song_mastery
+      if (isSupabaseConfigured) {
+        await progressService.claimSongXp(user.id, songId);
+      }
+
+      // 2. Concede +100 XP via RPC grant_xp
+      const res = await progressService.grantXp('song_mastery', cleanSongId);
+
+      const isNewlyGranted = res.data?.granted !== false;
+      const granted = res.data?.amount || 100;
+      const newXp = res.data?.total_xp ?? (isNewlyGranted ? xp + granted : xp);
+      setXp(newXp);
+
+      // 3. Atualiza estado local de songMasteryList
+      setSongMasteryList((prev) =>
+        prev.map((s) =>
+          (s.songId === songId || s.id === songId)
+            ? { ...s, xpClaimed: true, xpClaimedAt: new Date().toISOString(), masteredAt: 'Resgatado' }
+            : s
+        )
+      );
+
+      // 4. Modal de celebração
+      if (isNewlyGranted) {
+        setRewardModal({
+          isOpen: true,
+          type: 'song_mastery',
+          title: '🏆 Recompensa Resgatada!',
+          subtitle: `Você dominou "${song?.title || 'a canção'}" e resgatou +100 XP!`,
+          icon: '🏆',
+          xp: granted,
+          bonusText: `+${granted} Magic XP adicionados à sua jornada!`
+        });
+      } else {
+        setRewardModal({
+          isOpen: true,
+          type: 'xp',
+          title: 'Atividade Já Pontuada',
+          subtitle: res.data?.message || 'O XP desta música já foi resgatado anteriormente.',
+          xp: 0,
+          icon: 'ℹ️',
+          bonusText: `Seu saldo atual é de ${newXp} Magic XP.`
+        });
+      }
+
+      return { success: true, granted: isNewlyGranted, newXp };
+    } catch (err) {
+      console.error('[GamificationContext] Erro ao resgatar XP da música:', err);
+      return { success: false, error: err?.message || err };
+    }
+  };
+
   // Reset Song Mastery helper (no-op: repeating practice never regresses steps or clears badges)
   const resetSongMastery = (_songId) => {
     // Intentionally no-op to preserve step_* flags, challenge_index, and xp_claimed_at
@@ -451,6 +963,15 @@ export function GamificationProvider({ children }) {
 
   // Record Lesson Progress directly to Supabase
   const recordLessonProgress = async (lessonId, progressPercent = 100, completed = true) => {
+    setUserProgressList((prev) => {
+      const idx = prev.findIndex((p) => p.lesson_id === lessonId);
+      if (idx !== -1) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], progress_percent: progressPercent, completed };
+        return updated;
+      }
+      return [...prev, { lesson_id: lessonId, progress_percent: progressPercent, completed }];
+    });
     if (isSupabaseConfigured && user?.id) {
       return progressService.saveLessonProgress(user.id, lessonId, progressPercent, completed);
     }
@@ -468,13 +989,19 @@ export function GamificationProvider({ children }) {
     badges,
     dailyChallenges,
     songMasteryList,
+    userProgressList,
     rewardModal,
     closeRewardModal,
     addXp,
     claimDailyChallenge,
     updateSongMasteryStep,
+    claimSongMastery,
+    claimAchievement,
     resetSongMastery,
     unlockBadge,
+    evaluateAchievements,
+    syncSongMasteryProgress,
+    syncVideoStepToSongMastery,
     recordLessonProgress
   };
 

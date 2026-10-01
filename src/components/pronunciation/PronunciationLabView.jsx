@@ -49,7 +49,7 @@ export default function PronunciationLabView() {
           <p className="text-sm text-slate-400">Carregando termos fonéticos...</p>
         </div>
       ) : items.length > 0 ? (
-        <PronunciationPractice items={items} />
+        <PronunciationPractice items={items} context="general" />
       ) : (
         <div className="p-12 text-center rounded-3xl bg-[#111425] border border-[#1e233b] shadow-xl space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 mx-auto">

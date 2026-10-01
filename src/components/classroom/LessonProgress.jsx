@@ -4,32 +4,58 @@ import { XP_REWARDS } from '../../data/gamificationData';
 
 export default function LessonProgress({ 
   lessonId,
-  steps = { video: false, song: false, pronunciation: false, practice: false },
+  steps = { video: false, song: false, pronunciation: false, pronunciation_completed: false, practice: false },
   pronunciationMeta = { done: 0, required: 25 },
   isCompleted = false,
   onCompleteLesson, 
   onNextLesson, 
   nextLesson
 }) {
-  const reqPronunciation = pronunciationMeta?.required || 25;
+  const reqPronunciation = pronunciationMeta?.required || 0;
   const donePronunciation = pronunciationMeta?.done || 0;
+  const isPronunciationApplicable = reqPronunciation > 0;
+  const isPronunciationDone = isPronunciationApplicable
+    ? Boolean(steps.pronunciation_completed || steps.pronunciation || isCompleted)
+    : true;
 
   const stepsList = [
-    { key: 'video', label: '1. Vídeo da Aula', desc: 'Assista ao vídeo da aula até o fim', icon: Tv },
-    { key: 'song', label: '2. Magic Song Fixação', desc: 'Ouça o áudio da canção completa', icon: Music },
+    { 
+      key: 'video', 
+      label: '1. Vídeo da Aula', 
+      desc: 'Assista ao vídeo da aula até o fim', 
+      icon: Tv,
+      isDone: Boolean(steps.video) || isCompleted
+    },
+    { 
+      key: 'song', 
+      label: '2. Magic Song Fixação', 
+      desc: 'Ouça o áudio da canção completa', 
+      icon: Music,
+      isDone: Boolean(steps.song) || isCompleted
+    },
     { 
       key: 'pronunciation', 
       label: '3. Pronúncia IA', 
-      desc: reqPronunciation > 0 
-        ? `Valide ${reqPronunciation} termos no Voice Lab (${donePronunciation}/${reqPronunciation})` 
-        : 'Valide os termos da música no Voice Lab', 
-      icon: Mic 
+      desc: !isPronunciationApplicable
+        ? 'Passo não aplicável para esta aula (sem palavras)'
+        : (isPronunciationDone 
+            ? 'Todos os termos fonéticos validados com sucesso'
+            : `Valide ${reqPronunciation} termos no Voice Lab (${donePronunciation}/${reqPronunciation})`),
+      icon: Mic,
+      isDone: isPronunciationDone,
+      isNotApplicable: !isPronunciationApplicable
     },
-    { key: 'practice', label: '4. Prática Musical', desc: 'Conclua a tradução reversa das frases', icon: Brain },
+    { 
+      key: 'practice', 
+      label: '4. Prática Musical', 
+      desc: 'Conclua a tradução reversa das frases', 
+      icon: Brain,
+      isDone: Boolean(steps.practice) || isCompleted
+    },
   ];
 
-  const completedCount = stepsList.filter((s) => Boolean(steps[s.key])).length;
-  const isAllStepsDone = completedCount === 4;
+  const completedCount = stepsList.filter((s) => s.isDone).length;
+  const isAllStepsDone = completedCount === stepsList.length;
 
   const handleComplete = () => {
     if (!isAllStepsDone || isCompleted) return;
@@ -50,14 +76,14 @@ export default function LessonProgress({
             ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
             : 'text-purple-300 bg-purple-500/10 border-purple-500/20'
         }`}>
-          {isCompleted ? '100% Concluída' : `${completedCount}/4 Passos`}
+          {isCompleted ? '100% Concluída' : `${completedCount}/${stepsList.length} Passos`}
         </span>
       </div>
 
       {/* Progress Checklist (Automático por eventos reais) */}
       <div className="space-y-3">
         {stepsList.map((step) => {
-          const isDone = Boolean(steps[step.key]) || isCompleted;
+          const isDone = step.isDone;
           const Icon = step.icon;
           return (
             <div
@@ -82,7 +108,11 @@ export default function LessonProgress({
                 </div>
               </div>
 
-              {isDone ? (
+              {step.isNotApplicable ? (
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                  <span>Opcional</span>
+                </div>
+              ) : isDone ? (
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Concluído</span>

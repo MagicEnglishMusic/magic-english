@@ -4,15 +4,17 @@ import {
   normalizeEnglishSentence,
   levenshteinDistance,
   SIMILARITY_THRESHOLD,
-  numberToWords
-} from '../utils/speechEvaluation';
+  numberToWords,
+  areHomophones
+} from '../utils/speechEvaluation.js';
 
 export {
   evaluateSpeechAccuracy,
   normalizeEnglishSentence,
   levenshteinDistance,
   SIMILARITY_THRESHOLD,
-  numberToWords
+  numberToWords,
+  areHomophones
 };
 
 /**

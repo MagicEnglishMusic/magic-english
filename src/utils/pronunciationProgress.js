@@ -129,3 +129,91 @@ export function saveLocalPronunciationDone(userId, lessonId, newIndices = []) {
     return [];
   }
 }
+
+/**
+ * Chave de persistência exclusiva para o modo Laboratório de Pronúncia avulso.
+ */
+export function getLabPronunciationStorageKey(userId, context = 'general') {
+  return `magic_english_pronunciation_lab_${userId || 'guest'}_${context || 'general'}`;
+}
+
+/**
+ * Lê as palavras/IDs aprovadas no Laboratório avulso (aceita strings, UUIDs e números).
+ */
+export function getLocalLabPronunciationDone(userId, context = 'general') {
+  try {
+    const key = getLabPronunciationStorageKey(userId, context);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return Array.from(new Set(parsed.filter(Boolean)));
+      }
+      if (parsed && Array.isArray(parsed.approvedWords)) {
+        return Array.from(new Set(parsed.approvedWords.filter(Boolean)));
+      }
+    }
+  } catch (_) {}
+  return [];
+}
+
+/**
+ * Salva as palavras/IDs aprovadas no Laboratório avulso.
+ */
+export function saveLocalLabPronunciationDone(userId, context = 'general', newWordsOrIds = []) {
+  try {
+    const key = getLabPronunciationStorageKey(userId, context);
+    const current = getLocalLabPronunciationDone(userId, context);
+    const set = new Set([...current, ...(newWordsOrIds || []).filter(Boolean)]);
+    const merged = Array.from(set);
+    localStorage.setItem(key, JSON.stringify({ approvedWords: merged }));
+    return merged;
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
+ * Lê o estado de conclusão permanente da pronúncia (por música, aula ou laboratório geral).
+ */
+export function getLocalPronunciationCompleted(userId, songId, lessonId, context = null) {
+  if (!userId) return false;
+  try {
+    if (songId) {
+      const songKey = `magic_english_pronunciation_completed_${userId}_${songId}`;
+      if (localStorage.getItem(songKey) === 'true') return true;
+    }
+    if (lessonId) {
+      const lessonKey = `magic_english_pronunciation_completed_${userId}_${lessonId}`;
+      if (localStorage.getItem(lessonKey) === 'true') return true;
+    }
+    const fallbackContext = context || (!songId && !lessonId ? 'general' : null);
+    if (fallbackContext) {
+      const contextKey = `magic_english_pronunciation_completed_${userId}_${fallbackContext}`;
+      if (localStorage.getItem(contextKey) === 'true') return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
+ * Salva permanentemente a conclusão da pronúncia no localStorage.
+ */
+export function saveLocalPronunciationCompleted(userId, songId, lessonId, context = null) {
+  if (!userId) return;
+  try {
+    if (songId) {
+      const songKey = `magic_english_pronunciation_completed_${userId}_${songId}`;
+      localStorage.setItem(songKey, 'true');
+    }
+    if (lessonId) {
+      const lessonKey = `magic_english_pronunciation_completed_${userId}_${lessonId}`;
+      localStorage.setItem(lessonKey, 'true');
+    }
+    const fallbackContext = context || (!songId && !lessonId ? 'general' : null);
+    if (fallbackContext) {
+      const contextKey = `magic_english_pronunciation_completed_${userId}_${fallbackContext}`;
+      localStorage.setItem(contextKey, 'true');
+    }
+  } catch (_) {}
+}

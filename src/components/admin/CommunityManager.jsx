@@ -47,6 +47,11 @@ export default function CommunityManager() {
   useEffect(() => {
     loadPosts();
 
+    // Carregamento inicial das configurações reais do Supabase
+    communityService.fetchCommunitySettings().then((remoteSettings) => {
+      if (remoteSettings) setSettings(remoteSettings);
+    });
+
     // Subscribe to real-time changes
     const unsubFeed = communityService.subscribeToFeed((event) => {
       if (event.type === 'post_created' && event.post) {

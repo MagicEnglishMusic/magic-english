@@ -11,7 +11,9 @@ import { useGamification } from '../../context/GamificationContext';
 import { 
   getRequiredPronunciationCount, 
   getLocalPronunciationDone, 
-  saveLocalPronunciationDone 
+  saveLocalPronunciationDone,
+  getLocalPronunciationCompleted,
+  saveLocalPronunciationCompleted
 } from '../../utils/pronunciationProgress';
 
 export default function MagicClassroomView({ 
@@ -22,13 +24,14 @@ export default function MagicClassroomView({
   onGainXp 
 }) {
   const { user } = useAuth();
-  const { addXp } = useGamification();
+  const { addXp, songMasteryList } = useGamification();
   const [resolvedSong, setResolvedSong] = useState(null);
   const [pronunciationWords, setPronunciationWords] = useState([]);
   const [lessonSteps, setLessonSteps] = useState({
     video: false,
     song: false,
     pronunciation: false,
+    pronunciation_completed: false,
     practice: false,
     pronunciation_done: []
   });
@@ -42,15 +45,44 @@ export default function MagicClassroomView({
       if (!lesson?.id || !user?.id) return;
       try {
         const { data } = await progressService.getUserProgress(user.id);
+
         if (isMounted && data && Array.isArray(data)) {
           const match = data.find((p) => p.lesson_id === lesson.id);
           const localDone = getLocalPronunciationDone(user.id, lesson.id);
+          const localPronunciationCompleted = getLocalPronunciationCompleted(
+            user.id, 
+            lesson.relatedSong?.id || lesson.songId, 
+            lesson.id
+          );
+
+          // Sincronização da Etapa 2: Concluída se match.steps.song for true OU se a música tiver step_song true em songMasteryList
+          const targetSongId = lesson?.relatedSong?.id || lesson?.songId || resolvedSong?.id;
+          const cleanSongId = targetSongId ? String(targetSongId).trim().toLowerCase() : null;
+
+          const matchingContextSong = (songMasteryList || []).find((s) => {
+            const sId = String(s.songId || s.id || '').trim().toLowerCase();
+            return cleanSongId && sId === cleanSongId;
+          });
+
+          const isSongDone = Boolean(
+            match?.completed ||
+            match?.steps?.song ||
+            matchingContextSong?.checklist?.listened_full ||
+            matchingContextSong?.checklist?.step_song ||
+            matchingContextSong?.step_song
+          );
 
           if (match) {
             const rawDone = Array.isArray(match.steps?.pronunciation_done) 
               ? match.steps.pronunciation_done 
               : [];
             const mergedDone = Array.from(new Set([...rawDone, ...localDone])).map(Number).filter(n => !isNaN(n));
+            const isPronunciationDone = Boolean(
+              match.completed ||
+              match.steps?.pronunciation_completed ||
+              match.steps?.pronunciation ||
+              localPronunciationCompleted
+            );
 
             if (match.completed) {
               setIsLessonCompleted(true);
@@ -58,22 +90,27 @@ export default function MagicClassroomView({
                 video: true,
                 song: true,
                 pronunciation: true,
+                pronunciation_completed: true,
                 practice: true,
                 pronunciation_done: mergedDone
               });
             } else if (match.steps && typeof match.steps === 'object') {
               setLessonSteps({
                 video: Boolean(match.steps.video),
-                song: Boolean(match.steps.song),
-                pronunciation: Boolean(match.steps.pronunciation),
+                song: isSongDone,
+                pronunciation: isPronunciationDone,
+                pronunciation_completed: isPronunciationDone,
                 practice: Boolean(match.steps.practice),
                 pronunciation_done: mergedDone
               });
             }
-          } else if (localDone.length > 0) {
+          } else {
             setLessonSteps((prev) => ({
               ...prev,
-              pronunciation_done: localDone
+              song: isSongDone || prev.song,
+              pronunciation_done: localDone,
+              pronunciation: localPronunciationCompleted || prev.pronunciation,
+              pronunciation_completed: localPronunciationCompleted || prev.pronunciation_completed
             }));
           }
         }
@@ -83,7 +120,7 @@ export default function MagicClassroomView({
     }
     loadProgress();
     return () => { isMounted = false; };
-  }, [lesson?.id, user?.id]);
+  }, [lesson?.id, user?.id, songMasteryList]);
 
   const lessonRelatedSongKey = typeof lesson?.relatedSong === 'string' 
     ? lesson.relatedSong 
@@ -118,6 +155,28 @@ export default function MagicClassroomView({
         if (isMounted) {
           if (data) {
             setResolvedSong(data);
+
+            // Sincronização reativa com songMasteryList do contexto
+            if (user?.id && data?.id) {
+              const cleanId = String(data.id).trim().toLowerCase();
+
+              const matchingContextSong = (songMasteryList || []).find((s) => {
+                const sId = String(s.songId || s.id || '').trim().toLowerCase();
+                return cleanId && sId === cleanId;
+              });
+
+              if (matchingContextSong?.checklist?.listened_full || matchingContextSong?.checklist?.step_song || matchingContextSong?.step_song) {
+                setLessonSteps((prev) => (prev.song ? prev : { ...prev, song: true }));
+              }
+
+              // Se o vídeo já foi assistido anteriormente, sincroniza imediatamente com o UUID real da música
+              progressService.getUserProgress(user.id).then(({ data: progData }) => {
+                const match = (progData || []).find((p) => p.lesson_id === lesson.id);
+                if (match?.completed || match?.steps?.video) {
+                  progressService.updateSongMastery(user.id, data.id, { step_video: true }).catch(() => {});
+                }
+              });
+            }
           } else {
             setResolvedSong(null);
           }
@@ -133,7 +192,24 @@ export default function MagicClassroomView({
     }
     loadSong();
     return () => { isMounted = false; };
-  }, [lesson?.id, lesson?.moduleId, lesson?.title, lessonRelatedSongKey]);
+  }, [lesson?.id, lesson?.moduleId, lesson?.title, lessonRelatedSongKey, songMasteryList]);
+
+  // Helper para obter estritamente o UUID real da música (NUNCA strings de título)
+  const getRealSongId = () => {
+    if (resolvedSong?.id && typeof resolvedSong.id === 'string' && resolvedSong.id.length > 10) {
+      return resolvedSong.id;
+    }
+    if (typeof lesson?.relatedSong === 'object' && !Array.isArray(lesson?.relatedSong) && lesson?.relatedSong?.id) {
+      return lesson.relatedSong.id;
+    }
+    if (Array.isArray(lesson?.relatedSong) && lesson.relatedSong[0]?.id) {
+      return lesson.relatedSong[0].id;
+    }
+    if (lesson?.songId && typeof lesson.songId === 'string' && lesson.songId.length > 10) {
+      return lesson.songId;
+    }
+    return null;
+  };
 
   // Load Real Pronunciation Words for this lesson's song (stable dependencies)
   useEffect(() => {
@@ -161,43 +237,152 @@ export default function MagicClassroomView({
     return () => { isMounted = false; };
   }, [resolvedSong?.id, lesson?.songId, lessonRelatedSongKey]);
 
+  // Auto-reparação: Se o vídeo já foi assistido anteriormente, garante a sincronização com song_mastery.step_video
+  useEffect(() => {
+    if (!user?.id || !lessonSteps.video) return;
+    const realSongId = getRealSongId();
+
+    if (realSongId) {
+      progressService.updateSongMastery(user.id, realSongId, { step_video: true }).catch((err) => {
+        console.warn('[MagicClassroomView] Auto-repair step_video error:', err);
+      });
+    } else if (lesson) {
+      songsService.getSongForLesson({
+        lessonId: lesson.id,
+        moduleId: lesson.moduleId,
+        lessonTitle: lesson.title,
+        songTitle: typeof lesson.relatedSong === 'string' ? lesson.relatedSong : (lesson.relatedSong?.title || '')
+      }).then(({ data: fetchedSong }) => {
+        if (fetchedSong?.id && user?.id) {
+          progressService.updateSongMastery(user.id, fetchedSong.id, { step_video: true }).catch(() => {});
+        }
+      });
+    }
+  }, [user?.id, lessonSteps.video, resolvedSong?.id, lesson?.id]);
+
   const [saveStepWarning, setSaveStepWarning] = useState(null);
 
-  // Helper to mark a step complete and persist in user_progress
-  const handleUpdateStep = (stepKey) => {
+  // Helper to mark a step complete and persist in user_progress and song_mastery
+  const handleUpdateStep = async (stepKey) => {
     setLessonSteps((prev) => {
       if (prev[stepKey]) return prev;
-      const updated = { ...prev, [stepKey]: true };
-      if (user?.id && lesson?.id) {
-        progressService.saveLessonProgressSteps(user.id, lesson.id, updated).then((res) => {
-          if (res?.error) {
-            setSaveStepWarning('Aviso: Progresso salvo apenas localmente.');
+      return { ...prev, [stepKey]: true };
+    });
+
+    if (!user?.id || !lesson?.id) return;
+
+    const realSongId = getRealSongId();
+
+    // Sincroniza a conclusão do vídeo diretamente em song_mastery.step_video com UUID garantido
+    if (stepKey === 'video') {
+      if (realSongId) {
+        progressService.updateSongMastery(user.id, realSongId, { step_video: true }).catch((err) => {
+          console.warn('[MagicClassroomView] Erro ao sincronizar step_video em song_mastery:', err);
+        });
+      } else {
+        songsService.getSongForLesson({
+          lessonId: lesson.id,
+          moduleId: lesson.moduleId,
+          lessonTitle: lesson.title,
+          songTitle: typeof lesson.relatedSong === 'string' ? lesson.relatedSong : (lesson.relatedSong?.title || '')
+        }).then(({ data: fetchedSong }) => {
+          if (fetchedSong?.id) {
+            progressService.updateSongMastery(user.id, fetchedSong.id, { step_video: true }).catch(() => {});
           }
         });
       }
-      return updated;
-    });
+    }
+
+    try {
+      const res = await progressService.saveLessonProgressSteps(user.id, lesson.id, { [stepKey]: true });
+      if (res?.error) {
+        const errCode = res.error.code ? ` (${res.error.code})` : '';
+        const errMsg = typeof res.error === 'string' ? res.error : (res.error.message || 'Erro ao sincronizar passo');
+        console.error(`Erro ao salvar passo "${stepKey}" no Supabase${errCode}:`, res.error);
+        setSaveStepWarning(`Aviso: Falha ao sincronizar passo no banco: ${errMsg}${errCode}`);
+      } else {
+        setSaveStepWarning(null);
+      }
+    } catch (err) {
+      const errCode = err?.code ? ` (${err.code})` : '';
+      const errMsg = err?.message || String(err);
+      console.error(`Erro ao salvar passo "${stepKey}" no Supabase${errCode}:`, err);
+      setSaveStepWarning(`Aviso: Falha ao sincronizar passo no banco: ${errMsg}${errCode}`);
+    }
   };
 
-  // Callback when a word is approved in Voice Lab
-  const handlePronunciationWordApproved = (wordIndex, allApprovedIndices) => {
-    const required = getRequiredPronunciationCount(pronunciationWords.length);
-    const isStepDone = pronunciationWords.length > 0 && allApprovedIndices.length >= required;
+  // Callback when a word is approved in Voice Lab (merges pronunciation_done and awaits Supabase save)
+  const handlePronunciationWordApproved = async (wordIndex, allApprovedIndices) => {
+    const cleanDone = Array.from(
+      new Set((allApprovedIndices || []).map(Number).filter((n) => !isNaN(n)))
+    ).sort((a, b) => a - b);
 
-    setLessonSteps((prev) => {
-      const updated = {
-        ...prev,
-        pronunciation_done: allApprovedIndices,
-        pronunciation: isStepDone || prev.pronunciation
-      };
+    // 1. Update UI state immediately
+    setLessonSteps((prev) => ({
+      ...prev,
+      pronunciation_done: cleanDone
+    }));
 
-      if (user?.id && lesson?.id) {
-        saveLocalPronunciationDone(user.id, lesson.id, allApprovedIndices);
-        progressService.saveLessonProgressSteps(user.id, lesson.id, updated).catch(() => {});
+    if (!user?.id || !lesson?.id) return;
+
+    // 2. Persist to localStorage
+    saveLocalPronunciationDone(user.id, lesson.id, cleanDone);
+
+    // 3. Persist to Supabase with await and explicit error feedback
+    try {
+      const res = await progressService.saveLessonProgressSteps(user.id, lesson.id, {
+        pronunciation_done: cleanDone
+      });
+
+      if (res?.error) {
+        const errCode = res.error.code ? ` (${res.error.code})` : '';
+        const errMsg = typeof res.error === 'string' ? res.error : (res.error.message || 'Erro ao sincronizar progresso no banco');
+        console.error(`Erro ao salvar progresso de pronúncia no Supabase${errCode}:`, res.error);
+        setSaveStepWarning(`Aviso: Falha ao gravar palavra aprovada no banco: ${errMsg}${errCode}`);
+      } else {
+        setSaveStepWarning(null);
       }
+    } catch (err) {
+      const errCode = err?.code ? ` (${err.code})` : '';
+      const errMsg = err?.message || String(err);
+      console.error(`Erro ao salvar progresso de pronúncia no Supabase${errCode}:`, err);
+      setSaveStepWarning(`Aviso: Falha ao gravar palavra aprovada no banco: ${errMsg}${errCode}`);
+    }
+  };
 
-      return updated;
-    });
+  // Callback when pronunciation step is concluded via Voice Lab button
+  const handlePronunciationComplete = async () => {
+    setLessonSteps((prev) => ({
+      ...prev,
+      pronunciation: true,
+      pronunciation_completed: true
+    }));
+
+    if (!user?.id || !lesson?.id) return;
+
+    const targetSongId = resolvedSong?.id || lesson?.relatedSong?.id || lesson?.songId;
+    saveLocalPronunciationCompleted(user.id, targetSongId, lesson.id);
+
+    try {
+      const res = await progressService.saveLessonProgressSteps(user.id, lesson.id, {
+        pronunciation: true,
+        pronunciation_completed: true
+      });
+
+      if (res?.error) {
+        const errCode = res.error.code ? ` (${res.error.code})` : '';
+        const errMsg = typeof res.error === 'string' ? res.error : (res.error.message || 'Erro ao salvar conclusão de pronúncia');
+        console.error(`Erro ao salvar conclusão de pronúncia no Supabase${errCode}:`, res.error);
+        setSaveStepWarning(`Aviso: Conclusão salva apenas localmente: ${errMsg}${errCode}`);
+      } else {
+        setSaveStepWarning(null);
+      }
+    } catch (err) {
+      const errCode = err?.code ? ` (${err.code})` : '';
+      const errMsg = err?.message || String(err);
+      console.error(`Erro ao salvar conclusão de pronúncia no Supabase${errCode}:`, err);
+      setSaveStepWarning(`Aviso: Conclusão salva apenas localmente: ${errMsg}${errCode}`);
+    }
   };
 
   const handleCompleteLessonAction = async (xpAmount = 100) => {
@@ -311,6 +496,22 @@ export default function MagicClassroomView({
         </div>
       )}
 
+      {/* Visual Step Save Warning Banner if saving failed */}
+      {saveStepWarning && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="text-base">⚠️</span>
+            <span>{saveStepWarning}</span>
+          </div>
+          <button
+            onClick={() => setSaveStepWarning(null)}
+            className="text-xs text-amber-400 hover:text-white px-2 py-1 rounded bg-amber-500/20 cursor-pointer"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* 2. Main 16:9 HD Video Player (Top Focal Element) */}
       <VideoPlayer 
         lesson={enrichedLesson} 
@@ -326,6 +527,8 @@ export default function MagicClassroomView({
             lesson={enrichedLesson}
             pronunciationWords={pronunciationWords}
             pronunciationApprovedIndices={lessonSteps.pronunciation_done || []}
+            isPronunciationCompleted={Boolean(lessonSteps.pronunciation_completed || lessonSteps.pronunciation)}
+            isPracticeCompleted={Boolean(lessonSteps.practice)}
             onOpenFullMusicPlayer={(song) => {
               if (onOpenMusicPlayer) {
                 onOpenMusicPlayer(song || resolvedSong || enrichedLesson.relatedSong);
@@ -333,7 +536,7 @@ export default function MagicClassroomView({
             }}
             onSongComplete={() => handleUpdateStep('song')}
             onPronunciationWordApproved={handlePronunciationWordApproved}
-            onPronunciationComplete={() => handleUpdateStep('pronunciation')}
+            onPronunciationComplete={handlePronunciationComplete}
             onPracticeComplete={() => handleUpdateStep('practice')}
           />
         </div>

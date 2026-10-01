@@ -32,6 +32,7 @@ import {
   canAdvanceStep,
   INITIAL_STEPS_DONE 
 } from '../../utils/stepsDone';
+import CompletionCelebration from '../common/CompletionCelebration';
 
 export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
   const { user } = useAuth();
@@ -164,6 +165,7 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
 
   const [currentStep, setCurrentStep] = useState(1); // 1 | 2 | 3 | 4
   const [stepsDone, setStepsDone] = useState(INITIAL_STEPS_DONE);
+  const [celebrationConfig, setCelebrationConfig] = useState(null);
 
   // Step 1 State: Audio listening completion
   const [isStep1Listened, setIsStep1Listened] = useState(false);
@@ -179,6 +181,7 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
   const [singingLine, setSingingLine] = useState(0);
   const [sungVerses, setSungVerses] = useState([]);
   const [singingRecordingId, setSingingRecordingId] = useState(null);
+  const [singingFeedback, setSingingFeedback] = useState(null);
 
   // Step 4 State: Challenge Without Support
   const [challengeIndex, setChallengeIndex] = useState(0);
@@ -333,37 +336,123 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
           });
         }
       }
-      setCurrentStep(3);
+      setCelebrationConfig({
+        title: '🧠 Etapa 2 Concluída!',
+        subtitle: 'Seu cérebro resgatou todas as estruturas em inglês.',
+        description: 'Sua memória foi ativada com sucesso. Agora prepare sua voz para a Etapa 3!',
+        type: 'step_reverse_translation',
+        ctaText: 'Ir para Etapa 3: Cantar Junto ➔',
+        onCtaClick: () => {
+          setCelebrationConfig(null);
+          setCurrentStep(3);
+        }
+      });
     }
   };
 
   // Sing Verse Recording for Step 3
   const handleSingVerse = (verse) => {
-    setSingingRecordingId(verse.id);
-    const cleanSongId = String((song || dbSong)?.id || '').trim().toLowerCase();
-
-    const finishSinging = () => {
-      const updated = saveLocalSungVerse(user?.id, cleanSongId, verse.id);
-      setSungVerses(updated);
+    if (singingRecordingId === verse.id) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
       setSingingRecordingId(null);
-    };
+      return;
+    }
+
+    setSingingRecordingId(verse.id);
+    setSingingFeedback(null);
+    const cleanSongId = String((song || dbSong)?.id || '').trim().toLowerCase();
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       try {
         const rec = new SpeechRecognition();
+        recognitionRef.current = rec;
         rec.lang = 'en-US';
         rec.continuous = false;
         rec.interimResults = false;
-        rec.onresult = () => finishSinging();
-        rec.onerror = () => finishSinging();
-        rec.onend = () => finishSinging();
+        rec.maxAlternatives = 5;
+
+        rec.onstart = () => {
+          setSingingRecordingId(verse.id);
+        };
+
+        rec.onresult = (event) => {
+          setSingingRecordingId(null);
+
+          let bestScore = 0;
+          let bestTranscript = '';
+
+          for (let i = 0; i < event.results.length; i++) {
+            const resultList = event.results[i];
+            for (let j = 0; j < resultList.length; j++) {
+              const altTranscript = resultList[j]?.transcript || '';
+              const evalRes = evaluateSpeechAccuracy(verse.en, altTranscript);
+              if (evalRes.score >= bestScore) {
+                bestScore = evalRes.score;
+                bestTranscript = altTranscript;
+              }
+            }
+          }
+
+          if (!bestTranscript && event.results[0]?.[0]?.transcript) {
+            bestTranscript = event.results[0][0].transcript;
+            const evalRes = evaluateSpeechAccuracy(verse.en, bestTranscript);
+            bestScore = evalRes.score;
+          }
+
+          if (bestScore >= SIMILARITY_THRESHOLD) {
+            const updated = saveLocalSungVerse(user?.id, cleanSongId, verse.id);
+            setSungVerses(updated);
+            setSingingFeedback({
+              verseId: verse.id,
+              status: 'success',
+              message: `Você cantou: "${bestTranscript}" — Excelente (${bestScore}%)!`,
+              score: bestScore
+            });
+          } else {
+            setSingingFeedback({
+              verseId: verse.id,
+              status: 'error',
+              message: `Entendi: "${bestTranscript || 'não identificado'}" (${bestScore}%). Esperado: "${verse.en}". Cante novamente!`,
+              score: bestScore
+            });
+          }
+        };
+
+        rec.onerror = (event) => {
+          setSingingRecordingId(null);
+          setSingingFeedback({
+            verseId: verse.id,
+            status: 'error',
+            message: event.error === 'no-speech'
+              ? 'Nenhum som detectado pelo microfone. Cante a frase após clicar em Cantar.'
+              : `Erro na captura de áudio (${event.error}). Tente novamente.`
+          });
+        };
+
+        rec.onend = () => {
+          setSingingRecordingId(null);
+        };
+
         rec.start();
-      } catch (_) {
-        setTimeout(finishSinging, 2500);
+      } catch (err) {
+        console.warn('SpeechRecognition failed to start for singing:', err);
+        setSingingRecordingId(null);
+        setSingingFeedback({
+          verseId: verse.id,
+          status: 'error',
+          message: 'Não foi possível acessar o microfone. Permita o microfone no navegador.'
+        });
       }
     } else {
-      setTimeout(finishSinging, 2500);
+      setSingingRecordingId(null);
+      setSingingFeedback({
+        verseId: verse.id,
+        status: 'error',
+        message: 'Use o Google Chrome ou Microsoft Edge para cantar e validar com microfone.'
+      });
     }
   };
 
@@ -403,6 +492,17 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
       });
       if (onGainXp) onGainXp(75);
     }
+
+    setCelebrationConfig({
+      title: '🏆 Canção Dominada com Sucesso!',
+      subtitle: 'Você concluiu todas as etapas da Prática Musical (+75 XP)!',
+      description: 'Parabéns! Você alcançou a maestria completa desta canção.',
+      type: 'final_mastery',
+      ctaText: 'Ver Resultado da Maestria ➔',
+      onCtaClick: () => {
+        setCelebrationConfig(null);
+      }
+    });
   };
 
   // Step 4 Repeat Handler (D2)
@@ -741,7 +841,17 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
                       });
                     }
                   }
-                  setCurrentStep(2);
+                  setCelebrationConfig({
+                    title: '🎧 Etapa 1 Concluída!',
+                    subtitle: 'Você acompanhou o ritmo e a letra da música.',
+                    description: 'Excelente ritmo! Agora vamos testar sua retenção na Tradução Reversa.',
+                    type: 'step_song',
+                    ctaText: 'Ir para Etapa 2: Tradução Reversa ➔',
+                    onCtaClick: () => {
+                      setCelebrationConfig(null);
+                      setCurrentStep(2);
+                    }
+                  });
                 }}
                 className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all ${
                   canAdvance1
@@ -903,13 +1013,27 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
                         : 'bg-[#121526] border-[#1f243c]'
                     }`}
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1 flex-1">
                       <p className={`text-base sm:text-lg font-black ${isSung ? 'text-emerald-200' : 'text-white'}`}>
                         {verse.en}
                       </p>
                       <p className="text-xs sm:text-sm text-slate-400 font-medium">
                         {verse.pt}
                       </p>
+                      {singingFeedback && singingFeedback.verseId === verse.id && (
+                        <div className={`mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in duration-200 ${
+                          singingFeedback.status === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                        }`}>
+                          {singingFeedback.status === 'success' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          ) : (
+                            <MicOff className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                          )}
+                          <span>{singingFeedback.message}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -971,7 +1095,17 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
                       });
                     }
                   }
-                  setCurrentStep(4);
+                  setCelebrationConfig({
+                    title: '🎤 Etapa 3 Concluída!',
+                    subtitle: 'Você cantou todos os versos com validação de voz.',
+                    description: 'Pronúncia afinada no ritmo da música! Chegou a hora do Desafio Final.',
+                    type: 'step_sing_along',
+                    ctaText: 'Ir para Etapa 4: Cantar Sem Apoio ➔',
+                    onCtaClick: () => {
+                      setCelebrationConfig(null);
+                      setCurrentStep(4);
+                    }
+                  });
                 }}
                 className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm shadow-lg transition-all ${
                   canAdvance3
@@ -1113,6 +1247,20 @@ export default function MusicalPracticeView({ song, data, onBack, onGainXp }) {
 
           </div>
         </div>
+      )}
+
+      {/* Modal de Celebração de Conclusão por Etapa */}
+      {celebrationConfig && (
+        <CompletionCelebration
+          show={Boolean(celebrationConfig)}
+          onClose={() => setCelebrationConfig(null)}
+          title={celebrationConfig.title}
+          subtitle={celebrationConfig.subtitle}
+          description={celebrationConfig.description}
+          type={celebrationConfig.type}
+          ctaText={celebrationConfig.ctaText}
+          onCtaClick={celebrationConfig.onCtaClick}
+        />
       )}
 
     </div>

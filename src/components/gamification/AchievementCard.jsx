@@ -7,6 +7,7 @@ export default function AchievementCard({
   className = ""
 }) {
   const {
+    id = "",
     title = "Conquista",
     icon = "🏆",
     condition = "Condição para desbloquear",
@@ -14,15 +15,16 @@ export default function AchievementCard({
     category = "Geral",
     unlocked = false,
     unlockedAt = "",
+    claimed = false,
+    claimedAt = "",
     progress = null
   } = badge || {};
 
-  const isComplete = unlocked || (progress && progress.current >= progress.total);
   const progressPercent = progress ? Math.min(100, Math.round((progress.current / progress.total) * 100)) : (unlocked ? 100 : 0);
 
   return (
     <div
-      className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 group ${
+      className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 group flex flex-col justify-between ${
         unlocked
           ? 'bg-gradient-to-br from-[#151829] via-[#111320] to-[#0c0e18] border-purple-500/30 hover:border-purple-500/60 shadow-lg shadow-purple-950/20'
           : 'bg-[#0f111d]/70 border-[#1f243a] opacity-80 hover:opacity-100 hover:border-slate-700'
@@ -61,19 +63,31 @@ export default function AchievementCard({
                 {category}
               </span>
               {unlocked && (
-                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Desbloqueada
+                <span className={`text-[10px] font-semibold flex items-center gap-1 ${
+                  claimed ? 'text-emerald-400' : 'text-amber-400'
+                }`}>
+                  {claimed ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Resgatada
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 text-amber-400" /> Desbloqueada
+                    </>
+                  )}
                 </span>
               )}
             </div>
 
             {/* XP Reward Pill */}
             <span className={`text-[11px] font-extrabold flex items-center gap-1 px-2 py-0.5 rounded-full border ${
-              unlocked
+              claimed
+                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                : unlocked
                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                 : 'bg-slate-800/60 text-slate-400 border-slate-700/60'
             }`}>
-              <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+              <Zap className={`w-3 h-3 ${claimed ? 'text-emerald-400 fill-emerald-400' : 'text-amber-400 fill-amber-400'}`} />
               +{rewardXp} XP
             </span>
           </div>
@@ -109,6 +123,28 @@ export default function AchievementCard({
           )}
         </div>
       </div>
+
+      {/* Action Area: Claim Button or Claimed Status */}
+      {unlocked && (
+        <div className="mt-3 pt-2.5 border-t border-purple-500/10 relative z-10">
+          {!claimed ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onClaim) onClaim(badge);
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-98 transition-all cursor-pointer"
+            >
+              <span>🎁 Resgatar +{rewardXp} XP</span>
+            </button>
+          ) : (
+            <div className="w-full py-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>✓ Recompensa Resgatada</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

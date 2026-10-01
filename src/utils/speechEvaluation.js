@@ -128,6 +128,10 @@ export function levenshteinDistance(s1 = '', s2 = '') {
   return d[s1.length][s2.length];
 }
 
+import { areHomophones } from './pronunciationHomophones.js';
+
+export { areHomophones };
+
 export function evaluateSpeechAccuracy(targetText = '', spokenText = '') {
   const normTarget = normalizeEnglishSentence(targetText);
   const normSpoken = normalizeEnglishSentence(spokenText);
@@ -141,7 +145,7 @@ export function evaluateSpeechAccuracy(targetText = '', spokenText = '') {
     };
   }
 
-  if (normTarget === normSpoken) {
+  if (normTarget === normSpoken || areHomophones(targetText, spokenText) || areHomophones(normTarget, normSpoken)) {
     return {
       score: 100,
       passed: true,
@@ -171,7 +175,7 @@ export function evaluateSpeechAccuracy(targetText = '', spokenText = '') {
 
     for (let i = 0; i < spokenPool.length; i++) {
       const sWord = spokenPool[i];
-      if (sWord === tWord) {
+      if (sWord === tWord || areHomophones(tWord, sWord)) {
         bestMatchIdx = i;
         bestMatchScore = 1.0;
         break;

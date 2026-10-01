@@ -79,55 +79,123 @@ export const progressService = {
     }
   },
 
-  // Save or update lesson steps in user_progress (Keeps completed = false until explicit action)
+  // Save or update lesson steps in user_progress (Keeps completed = false until explicit action, merges steps cleanly)
   async saveLessonProgressSteps(userId, lessonId, steps = {}) {
     const key = `${LOCAL_PROGRESS_PREFIX}${userId || 'guest'}`;
     const allSteps = ['video', 'song', 'pronunciation', 'practice'];
-    const completedCount = allSteps.filter((k) => Boolean(steps[k])).length;
-    const progressPercent = Math.round((completedCount / allSteps.length) * 100);
 
-    // Retrieve existing to maintain completed status if already marked
-    let existingCompleted = false;
+    // Retrieve existing from localStorage as optimistic fallback
+    let localCompleted = false;
+    let localExistingSteps = {};
     try {
       const current = JSON.parse(localStorage.getItem(key) || '[]');
       const found = current.find((p) => p.lesson_id === lessonId);
-      if (found && found.completed) existingCompleted = true;
+      if (found) {
+        if (found.completed) localCompleted = true;
+        if (found.steps && typeof found.steps === 'object') localExistingSteps = found.steps;
+      }
     } catch (_) {}
+
+    // 1. Supabase (source of truth)
+    if (isSupabaseConfigured && userId && userId !== 'guest' && lessonId) {
+      try {
+        // Fetch existing row from Supabase to merge without losing data
+        const { data: existingRow, error: fetchErr } = await supabase
+          .from('user_progress')
+          .select('steps, completed, progress_percent')
+          .eq('user_id', userId)
+          .eq('lesson_id', lessonId)
+          .maybeSingle();
+
+        if (fetchErr) {
+          console.warn('Aviso ao consultar progresso existente no Supabase:', fetchErr.message);
+        }
+
+        const dbSteps = (existingRow?.steps && typeof existingRow.steps === 'object') ? existingRow.steps : {};
+        const isCompleted = Boolean(existingRow?.completed || localCompleted);
+
+        // Merge steps
+        const mergedSteps = {
+          ...dbSteps,
+          ...localExistingSteps,
+          ...steps
+        };
+
+        // Merge pronunciation_done array without duplicates
+        const dbDone = Array.isArray(dbSteps.pronunciation_done) ? dbSteps.pronunciation_done : [];
+        const localDone = Array.isArray(localExistingSteps.pronunciation_done) ? localExistingSteps.pronunciation_done : [];
+        const incomingDone = Array.isArray(steps?.pronunciation_done) ? steps.pronunciation_done : [];
+        const cleanDone = Array.from(
+          new Set([...dbDone, ...localDone, ...incomingDone].map(Number).filter((n) => !isNaN(n)))
+        ).sort((a, b) => a - b);
+        mergedSteps.pronunciation_done = cleanDone;
+
+        const completedCount = allSteps.filter((k) => Boolean(mergedSteps[k])).length;
+        const progressPercent = isCompleted ? 100 : Math.round((completedCount / allSteps.length) * 100);
+
+        const payload = {
+          user_id: userId,
+          lesson_id: lessonId,
+          steps: mergedSteps,
+          progress_percent: progressPercent,
+          completed: isCompleted,
+          last_accessed: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+          .from('user_progress')
+          .upsert(payload, { onConflict: 'user_id,lesson_id' })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Erro ao salvar passos da aula no Supabase:', error);
+          return { data: null, error: error };
+        }
+
+        // Sync local storage on success
+        try {
+          const current = JSON.parse(localStorage.getItem(key) || '[]');
+          const filtered = current.filter((p) => p.lesson_id !== lessonId);
+          const updated = [...filtered, data || payload];
+          localStorage.setItem(key, JSON.stringify(updated));
+        } catch (_) {}
+
+        return { data: data || payload, error: null };
+      } catch (err) {
+        console.error('Erro ao salvar passos da aula no Supabase:', err);
+        return { data: null, error: err.message || err };
+      }
+    }
+
+    // Local fallback when offline
+    const mergedSteps = { ...localExistingSteps, ...steps };
+    if (steps?.pronunciation_done) {
+      const cleanDone = Array.from(
+        new Set([...(localExistingSteps.pronunciation_done || []), ...steps.pronunciation_done].map(Number).filter((n) => !isNaN(n)))
+      ).sort((a, b) => a - b);
+      mergedSteps.pronunciation_done = cleanDone;
+    }
+    const completedCount = allSteps.filter((k) => Boolean(mergedSteps[k])).length;
+    const progressPercent = localCompleted ? 100 : Math.round((completedCount / allSteps.length) * 100);
 
     const payload = {
       user_id: userId || 'guest',
       lesson_id: lessonId,
-      steps: steps,
+      steps: mergedSteps,
       progress_percent: progressPercent,
+      completed: localCompleted,
       last_accessed: new Date().toISOString()
     };
 
-    // 1. LocalStorage
     try {
       const current = JSON.parse(localStorage.getItem(key) || '[]');
       const filtered = current.filter((p) => p.lesson_id !== lessonId);
-      const updated = [...filtered, { ...payload, completed: existingCompleted }];
+      const updated = [...filtered, payload];
       localStorage.setItem(key, JSON.stringify(updated));
     } catch (_) {}
 
-    // 2. Supabase
-    if (!isSupabaseConfigured || !userId || userId === 'guest') {
-      return { data: { ...payload, completed: existingCompleted }, error: null };
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('user_progress')
-        .upsert(payload, { onConflict: 'user_id,lesson_id' })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return { data: data || { ...payload, completed: existingCompleted }, error: null };
-    } catch (err) {
-      console.error('Erro ao salvar passos da aula no Supabase:', err);
-      return { data: null, error: err.message };
-    }
+    return { data: payload, error: null };
   },
 
   // Complete lesson atomically (WHERE completed = false RETURNING *)
@@ -324,23 +392,23 @@ export const progressService = {
     }
 
     try {
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from('song_mastery')
         .update({
-          xp_claimed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          xp_claimed_at: now,
+          updated_at: now
         })
         .eq('user_id', userId)
         .eq('song_id', songId)
         .is('xp_claimed_at', null)
-        .eq('step_final_challenge', true)
         .select();
 
       if (error) throw error;
-      if (data && data.length === 1) {
+      if (data && data.length >= 1) {
         return { success: true, data: data[0], error: null };
       }
-      return { success: false, data: null, error: 'XP já resgatado ou desafio não concluído.' };
+      return { success: true, data: null, error: null };
     } catch (err) {
       console.error('Erro ao resgatar XP da música no Supabase:', err);
       return { success: false, error: err.message };
@@ -367,7 +435,7 @@ export const progressService = {
     }
 
     let normalizedRef = String(ref || '').trim();
-    if (['lesson_complete', 'song_claim', 'song_mastery', 'practice_complete'].includes(source)) {
+    if (['lesson_complete', 'song_claim', 'song_mastery', 'practice_complete', 'pronunciation_complete'].includes(source)) {
       normalizedRef = normalizedRef.toLowerCase();
     } else if (source === 'daily_challenge') {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -375,13 +443,6 @@ export const progressService = {
         ? normalizedRef.split(':').slice(1).join(':').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)
         : '';
       normalizedRef = suffix ? `${today}:${suffix}` : today;
-    } else if (source === 'pronunciation_item') {
-      const parts = normalizedRef.split(':');
-      const songId = (parts[0] || '').trim().toLowerCase();
-      const rawIdx = parts[1] !== undefined ? parts[1].trim() : '0';
-      const verseIdx = parseInt(rawIdx, 10);
-      const cleanIdx = isNaN(verseIdx) ? 0 : Math.min(79, Math.max(0, verseIdx));
-      normalizedRef = `${songId}:${cleanIdx}`;
     }
 
     try {

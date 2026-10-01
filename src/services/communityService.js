@@ -12,10 +12,7 @@ export const communityService = {
     try {
       let query = supabase
         .from('community_posts')
-        .select(`
-          *,
-          profiles (name, avatar_url, level, streak)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (groupId) {

@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { Trophy, Lock, CheckCircle2, Zap, Sparkles, Filter } from 'lucide-react';
 import AchievementCard from '../gamification/AchievementCard';
+import { useGamification } from '../../context/GamificationContext';
 
 export default function BadgeGallery({
   badges = [],
+  onClaim,
   className = ""
 }) {
+  const { claimAchievement } = useGamification();
+  const handleClaim = onClaim || ((b) => claimAchievement?.(b.id));
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'unlocked' | 'locked'
 
   const unlockedBadges = badges.filter((b) => b.unlocked);
@@ -73,6 +77,7 @@ export default function BadgeGallery({
           <AchievementCard
             key={badge.id}
             badge={badge}
+            onClaim={handleClaim}
           />
         ))}
       </div>
