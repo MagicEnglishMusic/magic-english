@@ -59,7 +59,7 @@ export default function MusicalPracticeTab({
   const { addXp, updateSongMasteryStep, resetSongMastery, songMasteryList } = useGamification();
 
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const isPracticingAgainRef = useRef(false);
+  const [isRetaking, setIsRetaking] = useState(false);
 
   const [currentIndex, setCurrentIndex] = useState(() => {
     if (typeof window !== 'undefined' && user?.id) {
@@ -120,6 +120,23 @@ export default function MusicalPracticeTab({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  const handleRestartPractice = () => {
+    setIsRetaking(true);
+    setIsViewingFinished(false);
+    setCurrentIndex(0);
+    setTypedAnswer('');
+    setStatus(null);
+    setShowResetConfirm(false);
+    setShowCelebration(false);
+    try {
+      const cleanSongId = String(songId || '').trim().toLowerCase();
+      const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
+      localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
+      const key = getStorageKey(user?.id, cleanSongId, lessonId);
+      localStorage.setItem(key, JSON.stringify({ currentIndex: 0, isCompleted: isOfficiallyCompleted }));
+    } catch (_) {}
+  };
+
   const verses = React.useMemo(() => {
     // 1. Array passed directly
     if (Array.isArray(lyrics) && lyrics.length > 0) {
@@ -167,12 +184,12 @@ export default function MusicalPracticeTab({
   useEffect(() => {
     if (isCompletedInitially) {
       setIsOfficiallyCompleted(true);
-      const isRetaking = checkIsRetaking(user?.id, songId, lessonId);
-      if (!isRetaking && !isPracticingAgainRef.current) {
+      const hasRetakeFlag = checkIsRetaking(user?.id, songId, lessonId);
+      if (!isRetaking && !hasRetakeFlag) {
         setIsViewingFinished(true);
       }
     }
-  }, [isCompletedInitially, user?.id, songId, lessonId]);
+  }, [isCompletedInitially, isRetaking, user?.id, songId, lessonId]);
 
   // Restore saved progress from Supabase and LocalStorage on mount
   useEffect(() => {
@@ -235,17 +252,17 @@ export default function MusicalPracticeTab({
 
         if (!isMounted) return;
 
-        const isRetaking = checkIsRetaking(user.id, cleanSongId, lessonId);
+        const hasRetakeFlag = checkIsRetaking(user.id, cleanSongId, lessonId);
 
         if (lessonPracticeDone || masteryReverseDone || localDone) {
           setIsOfficiallyCompleted(true);
-          if (!isRetaking && !isPracticingAgainRef.current) {
+          if (!isRetaking && !hasRetakeFlag) {
             setIsViewingFinished(true);
           }
         }
 
-        // Restore candidate index if not practicing again / not retaking
-        if (!isRetaking && !isPracticingAgainRef.current) {
+        // Restore candidate index if not retaking
+        if (!isRetaking && !hasRetakeFlag) {
           const candidateIdx = [lessonPracticeVerse, masteryChallengeIndex, localVerseIdx].find(
             (n) => typeof n === 'number' && !isNaN(n) && n >= 0
           );
@@ -262,7 +279,7 @@ export default function MusicalPracticeTab({
 
     restoreSavedProgress();
     return () => { isMounted = false; };
-  }, [user?.id, songId, lessonId, verses.length]);
+  }, [user?.id, songId, lessonId, verses.length, isRetaking]);
 
   const isMastered = React.useMemo(() => {
     if (isOfficiallyCompleted) return true;
@@ -272,23 +289,6 @@ export default function MusicalPracticeTab({
   }, [isOfficiallyCompleted, songMasteryList, songId]);
 
   const currentVerse = verses[currentIndex] || verses[0] || DEFAULT_VERSES[0];
-
-  const handleReset = () => {
-    isPracticingAgainRef.current = true;
-    setCurrentIndex(0);
-    setTypedAnswer('');
-    setStatus(null);
-    setShowResetConfirm(false);
-    setShowCelebration(false);
-    setIsViewingFinished(false);
-    try {
-      const cleanSongId = String(songId || '').trim().toLowerCase();
-      const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
-      localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
-      const key = getStorageKey(user?.id, cleanSongId, lessonId);
-      localStorage.setItem(key, JSON.stringify({ currentIndex: 0, isCompleted: isOfficiallyCompleted }));
-    } catch (_) {}
-  };
 
   const toggleSpeak = (text) => {
     if (!text) return;
@@ -365,7 +365,7 @@ export default function MusicalPracticeTab({
       setIsOfficiallyCompleted(true);
       setIsViewingFinished(true);
       setShowCelebration(true);
-      isPracticingAgainRef.current = false;
+      setIsRetaking(false);
 
       // 0. Remove retake flag from LocalStorage
       try {
@@ -455,7 +455,7 @@ export default function MusicalPracticeTab({
             <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#1a1024] border border-rose-500/40 animate-in fade-in duration-200">
               <span className="text-[10px] text-rose-300 px-1.5 font-medium">Resetar?</span>
               <button
-                onClick={handleReset}
+                onClick={handleRestartPractice}
                 className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold cursor-pointer"
               >
                 Sim
@@ -589,19 +589,7 @@ export default function MusicalPracticeTab({
           </p>
           <div className="pt-2">
             <button
-              onClick={() => {
-                isPracticingAgainRef.current = true;
-                setIsViewingFinished(false);
-                setCurrentIndex(0);
-                setShowCelebration(false);
-                setStatus(null);
-                setTypedAnswer('');
-                try {
-                  const cleanSongId = String(songId || '').trim().toLowerCase();
-                  const rKey = getRetakeKey(user?.id, cleanSongId, lessonId);
-                  localStorage.setItem(rKey, JSON.stringify({ retaking: true }));
-                } catch (_) {}
-              }}
+              onClick={handleRestartPractice}
               className="px-6 py-3 rounded-xl bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-600/30 cursor-pointer hover:bg-purple-500 transition-all"
             >
               Refazer Prática

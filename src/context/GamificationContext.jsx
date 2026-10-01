@@ -19,10 +19,68 @@ import {
 import { getLocalLabPronunciationDone } from '../utils/pronunciationProgress';
 
 // Dynamic weekly days generator based on America/Sao_Paulo date & real activity dates
-const getSaoPauloDate = (dateObj = new Date()) => {
+export const STUDY_SOURCES = [
+  'lesson_complete',
+  'song_claim',
+  'song_mastery',
+  'practice_complete',
+  'pronunciation_complete',
+  'daily_challenge'
+];
+
+export const getSaoPauloDate = (dateObj = new Date()) => {
   const spDateString = dateObj.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" });
   return new Date(spDateString);
 };
+
+export const formatIsoDate = (d) => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+/**
+ * Calcula a sequência de dias consecutivos de estudo (streak)
+ * com base nas datas de atividades pedagógicas no fuso America/Sao_Paulo.
+ */
+export function calculateStudyStreak(activityDates = new Set(), fallbackStreak = 0) {
+  if (!activityDates || activityDates.size === 0) {
+    return Math.max(0, Number(fallbackStreak) || 0);
+  }
+
+  const now = getSaoPauloDate();
+  const todayStr = formatIsoDate(now);
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayStr = formatIsoDate(yesterday);
+
+  // Se o aluno estudou hoje, a contagem consecutiva inicia a partir de hoje.
+  // Se ainda não estudou hoje, mas estudou ontem, a sequência anterior ainda está ativa.
+  // Se não estudou nem hoje nem ontem, a sequência foi interrompida (0).
+  let checkDate = new Date(now);
+  if (!activityDates.has(todayStr)) {
+    if (activityDates.has(yesterdayStr)) {
+      checkDate = yesterday;
+    } else {
+      return 0;
+    }
+  }
+
+  let streakCount = 0;
+  while (true) {
+    const iso = formatIsoDate(checkDate);
+    if (activityDates.has(iso)) {
+      streakCount += 1;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streakCount;
+}
 
 const generateWeeklyDays = (activityDates = new Set()) => {
   const now = getSaoPauloDate();
@@ -36,12 +94,9 @@ const generateWeeklyDays = (activityDates = new Set()) => {
   return dayNames.map((dayName, idx) => {
     const dayDate = new Date(monday);
     dayDate.setDate(monday.getDate() + idx);
-    const yyyy = dayDate.getFullYear();
-    const mm = String(dayDate.getMonth() + 1).padStart(2, '0');
-    const dd = String(dayDate.getDate()).padStart(2, '0');
-    const isoDateStr = `${yyyy}-${mm}-${dd}`;
-    const dayNum = dd;
-    const monthNum = mm;
+    const isoDateStr = formatIsoDate(dayDate);
+    const dayNum = String(dayDate.getDate()).padStart(2, '0');
+    const monthNum = String(dayDate.getMonth() + 1).padStart(2, '0');
 
     const hasPracticed = activityDates.has(isoDateStr);
 
@@ -345,6 +400,7 @@ export function GamificationProvider({ children }) {
   const [dailyChallenges, setDailyChallenges] = useState(CLEAN_DAILY_CHALLENGES);
   const [songMasteryList, setSongMasteryList] = useState([]);
   const [userProgressList, setUserProgressList] = useState([]);
+  const [isGamificationLoaded, setIsGamificationLoaded] = useState(false);
 
   // Sync with Auth user when user profile changes
   useEffect(() => {
@@ -357,6 +413,7 @@ export function GamificationProvider({ children }) {
       setUserProgressList([]);
       setDailyChallenges(CLEAN_DAILY_CHALLENGES);
       setWeeklyDays(generateWeeklyDays());
+      setIsGamificationLoaded(true);
       return;
     }
 
@@ -364,6 +421,7 @@ export function GamificationProvider({ children }) {
     setXp(user.xp || 0);
     setStreak(user.streak || 0);
     setDailyChallenges(CLEAN_DAILY_CHALLENGES);
+    setIsGamificationLoaded(false);
 
     if (isSupabaseConfigured && user.id) {
       Promise.all([
@@ -414,21 +472,27 @@ export function GamificationProvider({ children }) {
         const badgeIdsSet = new Set(badgeEvents.map((ev) => ev.ref));
         setClaimedBadgeIds(badgeIdsSet);
 
-        // 5. Atualiza calendário semanal de atividade
-        const datesSet = new Set();
+        // 5. Atualiza calendário semanal e streak dinâmico baseado estritamente em STUDY_SOURCES
+        const studyDatesSet = new Set();
         (eventsData || []).forEach((ev) => {
-          if (ev.created_at) {
+          if (ev.created_at && ev.source && STUDY_SOURCES.includes(ev.source)) {
             const spDate = getSaoPauloDate(new Date(ev.created_at));
-            const iso = `${spDate.getFullYear()}-${String(spDate.getMonth() + 1).padStart(2, '0')}-${String(spDate.getDate()).padStart(2, '0')}`;
-            datesSet.add(iso);
+            const iso = formatIsoDate(spDate);
+            studyDatesSet.add(iso);
           }
         });
-        setWeeklyDays(generateWeeklyDays(datesSet));
+
+        const calculatedStreak = calculateStudyStreak(studyDatesSet, user.streak || 0);
+        setStreak(calculatedStreak);
+        setWeeklyDays(generateWeeklyDays(studyDatesSet));
+        setIsGamificationLoaded(true);
       }).catch((err) => {
         console.warn('[GamificationContext] Erro ao sincronizar dados de gamificação:', err);
+        setIsGamificationLoaded(true);
       });
     } else {
       setWeeklyDays(generateWeeklyDays());
+      setIsGamificationLoaded(true);
     }
   }, [user?.id, user?.xp, user?.streak]);
 
@@ -541,6 +605,11 @@ export function GamificationProvider({ children }) {
     const newXp = res.data?.total_xp ?? (isNewlyGranted ? prevXp + granted : prevXp);
     setXp(newXp);
 
+    if (isNewlyGranted && STUDY_SOURCES.includes(cleanSource)) {
+      setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
+      setStreak((prev) => (prev > 0 ? prev : 1));
+    }
+
     if (!isNewlyGranted) {
       if (options.showModal) {
         setRewardModal({
@@ -608,6 +677,8 @@ export function GamificationProvider({ children }) {
       if (res.data?.total_xp !== undefined) setXp(res.data.total_xp);
 
       if (res.data?.granted !== false) {
+        setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
+        setStreak((prev) => (prev > 0 ? prev : 1));
         setRewardModal({
           isOpen: true,
           type: 'challenge',
@@ -724,6 +795,10 @@ export function GamificationProvider({ children }) {
       if (res.success && res.data) {
         if (res.data.total_xp !== undefined) {
           setXp(res.data.total_xp);
+        }
+        if (res.data.granted !== false) {
+          setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
+          setStreak((prev) => (prev > 0 ? prev : 1));
         }
         setRewardModal({
           isOpen: true,
@@ -917,6 +992,11 @@ export function GamificationProvider({ children }) {
       const newXp = res.data?.total_xp ?? (isNewlyGranted ? xp + granted : xp);
       setXp(newXp);
 
+      if (isNewlyGranted) {
+        setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
+        setStreak((prev) => (prev > 0 ? prev : 1));
+      }
+
       // 3. Atualiza estado local de songMasteryList
       setSongMasteryList((prev) =>
         prev.map((s) =>
@@ -990,6 +1070,7 @@ export function GamificationProvider({ children }) {
     dailyChallenges,
     songMasteryList,
     userProgressList,
+    isGamificationLoaded,
     rewardModal,
     closeRewardModal,
     addXp,

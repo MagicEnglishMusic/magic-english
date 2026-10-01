@@ -8,7 +8,7 @@ export default function BadgeGallery({
   onClaim,
   className = ""
 }) {
-  const { claimAchievement } = useGamification();
+  const { claimAchievement, isGamificationLoaded } = useGamification();
   const handleClaim = onClaim || ((b) => claimAchievement?.(b.id));
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'unlocked' | 'locked'
 
@@ -78,6 +78,7 @@ export default function BadgeGallery({
             key={badge.id}
             badge={badge}
             onClaim={handleClaim}
+            isLoading={!isGamificationLoaded}
           />
         ))}
       </div>

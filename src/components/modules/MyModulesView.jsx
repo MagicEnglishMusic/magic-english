@@ -4,6 +4,9 @@ import ModuleBannerCard from './ModuleBannerCard';
 import ModuleDetailView from './ModuleDetailView';
 import ProgressBar from '../tracks/ProgressBar';
 import { modulesService } from '../../services/modulesService';
+import { lessonsService } from '../../services/lessonsService';
+import { progressService } from '../../services/progressService';
+import { useAuth } from '../../context/AuthContext';
 import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function MyModulesView({ 
@@ -12,6 +15,7 @@ export default function MyModulesView({
   onOpenClassroomLesson, 
   onOpenMusicalPractice 
 }) {
+  const { user } = useAuth();
   const [selectedModule, setSelectedModule] = useState(null);
   const [modules, setModules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,38 +33,67 @@ export default function MyModulesView({
   }, [selectedModuleId, modules]);
 
   useEffect(() => {
+    let isMounted = true;
     async function loadModules() {
       setIsLoading(true);
       try {
-        const { data } = await modulesService.getModules();
-        if (data) {
-          const formatted = data.map((m, idx) => ({
-            id: m.id,
-            moduleNumber: `MÓDULO ${m.order_index || idx + 1}`,
-            title: m.title || 'Módulo Sem Nome',
-            shortDescription: m.subtitle || m.description || 'Módulo oficial do curso.',
-            fullDescription: m.description || m.subtitle || 'Módulo oficial do curso.',
-            coverImage: getDriveImageUrl(m.banner_url || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80'),
-            lessonsCount: m.lessons_count ?? 0,
-            songsCount: m.songs_count ?? 0,
-            progress: 0,
-            status: m.status || 'published',
-            isLocked: false
-          }));
+        const [modsRes, lessonsRes, progRes] = await Promise.all([
+          modulesService.getModules(),
+          lessonsService.getAllLessons(),
+          user?.id ? progressService.getUserProgress(user.id) : Promise.resolve({ data: [] })
+        ]);
+
+        const dbModules = modsRes.data || [];
+        const dbLessons = lessonsRes.data || [];
+        const dbProgress = progRes?.data || [];
+
+        if (isMounted && dbModules.length > 0) {
+          const formatted = dbModules.map((m, idx) => {
+            const modLessons = dbLessons.filter((l) => l.module_id === m.id);
+            const totalLessons = modLessons.length || m.lessons_count || 0;
+            
+            const completedLessons = modLessons.filter((l) => {
+              const prog = (dbProgress || []).find((p) => p.lesson_id === l.id);
+              return Boolean(prog?.completed === true || prog?.progress_percent === 100);
+            }).length;
+
+            const realProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+            return {
+              id: m.id,
+              moduleNumber: `MÓDULO ${m.order_index || idx + 1}`,
+              title: m.title || 'Módulo Sem Nome',
+              shortDescription: m.subtitle || m.description || 'Módulo oficial do curso.',
+              fullDescription: m.description || m.subtitle || 'Módulo oficial do curso.',
+              coverImage: getDriveImageUrl(m.banner_url || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80'),
+              lessonsCount: totalLessons,
+              songsCount: m.songs_count ?? 0,
+              progress: realProgress,
+              status: m.status || 'published',
+              isLocked: false
+            };
+          });
+
           setModules(formatted);
           if (selectedModuleId) {
             const found = formatted.find((m) => m.id === selectedModuleId || m.moduleNumber?.toLowerCase() === String(selectedModuleId).toLowerCase());
             if (found) setSelectedModule(found);
+          } else {
+            setSelectedModule((prev) => {
+              if (!prev) return null;
+              return formatted.find((m) => m.id === prev.id) || prev;
+            });
           }
         }
       } catch (err) {
         console.warn('Error fetching modules in MyModulesView:', err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     }
     loadModules();
-  }, [selectedModuleId]);
+    return () => { isMounted = false; };
+  }, [selectedModuleId, user?.id]);
 
   const handleSelectModule = (mod) => {
     setSelectedModule(mod);

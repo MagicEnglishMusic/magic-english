@@ -4,6 +4,7 @@ import { Lock, CheckCircle2, Zap, Sparkles } from 'lucide-react';
 export default function AchievementCard({
   badge,
   onClaim,
+  isLoading = false,
   className = ""
 }) {
   const {
@@ -64,9 +65,13 @@ export default function AchievementCard({
               </span>
               {unlocked && (
                 <span className={`text-[10px] font-semibold flex items-center gap-1 ${
-                  claimed ? 'text-emerald-400' : 'text-amber-400'
+                  isLoading ? 'text-slate-400' : claimed ? 'text-emerald-400' : 'text-amber-400'
                 }`}>
-                  {claimed ? (
+                  {isLoading ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" /> Concluída
+                    </>
+                  ) : claimed ? (
                     <>
                       <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Resgatada
                     </>
@@ -124,10 +129,15 @@ export default function AchievementCard({
         </div>
       </div>
 
-      {/* Action Area: Claim Button or Claimed Status */}
+      {/* Action Area: Claim Button, Loading State or Claimed Status */}
       {unlocked && (
         <div className="mt-3 pt-2.5 border-t border-purple-500/10 relative z-10">
-          {!claimed ? (
+          {isLoading ? (
+            <div className="w-full py-2 px-3 rounded-xl bg-[#131627] border border-slate-800 text-slate-400 font-medium text-xs flex items-center justify-center gap-2 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
+              <span>Verificando...</span>
+            </div>
+          ) : !claimed ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();

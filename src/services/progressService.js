@@ -468,7 +468,7 @@ export const progressService = {
     try {
       const { data, error } = await supabase
         .from('xp_events')
-        .select('created_at, amount, source')
+        .select('created_at, amount, source, ref')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 

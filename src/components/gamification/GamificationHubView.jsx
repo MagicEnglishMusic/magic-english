@@ -41,6 +41,7 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
     badges,
     dailyChallenges,
     songMasteryList,
+    isGamificationLoaded,
     claimDailyChallenge,
     updateSongMasteryStep,
     claimSongMastery,
@@ -253,6 +254,7 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
                 key={badge.id}
                 badge={badge}
                 onClaim={(b) => claimAchievement(b.id)}
+                isLoading={!isGamificationLoaded}
               />
             ))}
           </div>
