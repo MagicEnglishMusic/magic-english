@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Tv, Plus, Edit2, Trash2, Clock, Music, CheckCircle2, X, Video, Sparkles, ExternalLink, HardDrive, PlaySquare } from 'lucide-react';
+import { Tv, Plus, Edit2, Trash2, Clock, Music, CheckCircle2, X, Video, Sparkles, ExternalLink, HardDrive, PlaySquare, Layers, ArrowLeft, Filter } from 'lucide-react';
 import { lessonsService } from '../../services/lessonsService';
 import { modulesService } from '../../services/modulesService';
 import { songsService } from '../../services/songsService';
 import { isGoogleDriveUrl, getDriveVideoUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 
-export default function LessonManager() {
+export default function LessonManager({ 
+  selectedModuleId = null, 
+  onClearSelectedModule = null, 
+  onBackToModules = null 
+}) {
   const [lessons, setLessons] = useState([]);
   const [modulesList, setModulesList] = useState([]);
   const [songsList, setSongsList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedModuleFilter, setSelectedModuleFilter] = useState(selectedModuleId || 'all');
   const [formData, setFormData] = useState({
     title: '',
     lessonNumber: 'Aula 01',
@@ -23,6 +28,13 @@ export default function LessonManager() {
     objectivesInput: '',
     status: 'Publicado'
   });
+
+  // Sync selectedModuleId prop when navigating from ModuleManager
+  useEffect(() => {
+    if (selectedModuleId) {
+      setSelectedModuleFilter(selectedModuleId);
+    }
+  }, [selectedModuleId]);
 
   useEffect(() => {
     async function loadData() {
@@ -46,18 +58,17 @@ export default function LessonManager() {
             thumbnail: l.thumbnail_url || l.thumbnail || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80',
             relatedSong: l.related_song || l.relatedSong || 'Sem música vinculada',
             objectives: l.objectives || [],
-            status: l.status || 'Publicado'
+            status: l.status || 'Publicado',
+            orderIndex: l.order_index || idx + 1
           }));
+          // Sort strictly by orderIndex
+          formatted.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
           setLessons(formatted);
-          setFormData((prev) => ({
-            ...prev,
-            lessonNumber: `Aula ${String(formatted.length + 1).padStart(2, '0')}`
-          }));
         }
 
         if (modRes?.data) {
           setModulesList(modRes.data);
-          if (modRes.data.length > 0) {
+          if (modRes.data.length > 0 && !formData.moduleId) {
             setFormData((prev) => ({
               ...prev,
               moduleId: modRes.data[0].id,
@@ -68,7 +79,7 @@ export default function LessonManager() {
 
         if (sngRes?.data) {
           setSongsList(sngRes.data);
-          if (sngRes.data.length > 0) {
+          if (sngRes.data.length > 0 && !formData.relatedSong) {
             setFormData((prev) => ({
               ...prev,
               relatedSong: sngRes.data[0].title
@@ -84,6 +95,28 @@ export default function LessonManager() {
     loadData();
   }, []);
 
+  const handleOpenCreateModal = () => {
+    const targetModId = (selectedModuleFilter !== 'all' && selectedModuleFilter) 
+      ? selectedModuleFilter 
+      : (modulesList[0]?.id || '');
+    const targetModObj = modulesList.find((m) => m.id === targetModId);
+    const countInMod = lessons.filter((l) => l.moduleId === targetModId).length;
+
+    setFormData({
+      title: '',
+      lessonNumber: `Aula ${String(countInMod + 1).padStart(2, '0')}`,
+      moduleId: targetModId,
+      module: targetModObj ? targetModObj.title : '',
+      duration: '15 min',
+      videoUrl: '',
+      thumbnail: '',
+      relatedSong: songsList[0]?.title || '',
+      objectivesInput: '',
+      status: 'Publicado'
+    });
+    setIsModalOpen(true);
+  };
+
   const handleCreateLesson = async (e) => {
     e.preventDefault();
     if (!formData.title) return;
@@ -91,14 +124,17 @@ export default function LessonManager() {
     const formattedVideo = isGoogleDriveUrl(formData.videoUrl) ? getDriveVideoUrl(formData.videoUrl) : formData.videoUrl;
     const formattedThumb = isGoogleDriveUrl(formData.thumbnail) ? getDriveImageUrl(formData.thumbnail) : formData.thumbnail;
 
+    const targetModId = formData.moduleId || (modulesList[0]?.id);
+    const countInMod = lessons.filter((l) => l.moduleId === targetModId).length;
+
     const payload = {
       title: formData.title,
       lesson_number: formData.lessonNumber,
-      module_id: formData.moduleId || (modulesList[0]?.id),
+      module_id: targetModId,
       duration: formData.duration || '15 min',
       video_url: formattedVideo,
       thumbnail_url: formattedThumb,
-      order_index: lessons.length + 1
+      order_index: countInMod + 1
     };
 
     let createdId = `les-${Date.now()}`;
@@ -107,34 +143,27 @@ export default function LessonManager() {
       if (res.data?.id) createdId = res.data.id;
     }
 
+    const selectedModObj = modulesList.find((m) => m.id === targetModId);
+
     const newLesson = {
       id: createdId,
       lessonNumber: formData.lessonNumber,
       title: formData.title,
-      module: formData.module || (modulesList[0]?.title || 'Geral'),
-      moduleId: formData.moduleId,
+      module: selectedModObj?.title || formData.module || 'Geral',
+      moduleId: targetModId,
       duration: formData.duration,
       videoUrl: formattedVideo,
       thumbnail: formattedThumb || 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80',
       relatedSong: formData.relatedSong,
       objectives: formData.objectivesInput.split(',').map((o) => o.trim()).filter(Boolean),
-      status: formData.status
+      status: formData.status,
+      orderIndex: countInMod + 1
     };
 
-    setLessons([newLesson, ...lessons]);
+    const updated = [...lessons, newLesson];
+    updated.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
+    setLessons(updated);
     setIsModalOpen(false);
-    setFormData({
-      title: '',
-      lessonNumber: `Aula ${String(lessons.length + 2).padStart(2, '0')}`,
-      moduleId: modulesList[0]?.id || '',
-      module: modulesList[0]?.title || '',
-      duration: '15 min',
-      videoUrl: '',
-      thumbnail: '',
-      relatedSong: songsList[0]?.title || '',
-      objectivesInput: '',
-      status: 'Publicado'
-    });
   };
 
   const handleDelete = async (id) => {
@@ -149,11 +178,18 @@ export default function LessonManager() {
     setLessons((prev) => prev.filter((l) => l.id !== id));
   };
 
+  // Filter lessons based on active filter
+  const displayedLessons = selectedModuleFilter === 'all'
+    ? lessons
+    : lessons.filter((l) => l.moduleId === selectedModuleFilter);
+
+  const activeModuleObj = modulesList.find((m) => m.id === selectedModuleFilter);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       
       {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1f243c]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1f243c]">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400">
@@ -170,14 +206,83 @@ export default function LessonManager() {
           </h2>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Criar Aula</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+          {/* Module Selector Dropdown */}
+          <div className="flex items-center gap-2 bg-[#121526] border border-[#222740] rounded-xl px-3 py-1.5 shadow-sm">
+            <Layers className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="text-xs font-bold text-slate-300 hidden sm:inline">Módulo:</span>
+            <select
+              value={selectedModuleFilter}
+              onChange={(e) => {
+                setSelectedModuleFilter(e.target.value);
+                if (e.target.value === 'all' && onClearSelectedModule) {
+                  onClearSelectedModule();
+                }
+              }}
+              className="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="all" className="bg-[#121526] text-white">
+                Todos os Módulos ({lessons.length} aulas)
+              </option>
+              {modulesList.map((m, idx) => {
+                const modLessonsCount = lessons.filter((l) => l.moduleId === m.id).length;
+                return (
+                  <option key={m.id} value={m.id} className="bg-[#121526] text-white">
+                    {`Módulo ${String(m.order_index || idx + 1).padStart(2, '0')}: ${m.title} (${modLessonsCount} aulas)`}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* + Criar Aula Button */}
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Criar Aula</span>
+          </button>
+        </div>
       </div>
+
+      {/* Contextual Module Banner when a specific module is selected */}
+      {selectedModuleFilter !== 'all' && activeModuleObj && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-950/40 via-[#111425] to-[#111425] border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            {onBackToModules && (
+              <button
+                type="button"
+                onClick={onBackToModules}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#181c30] hover:bg-[#222842] border border-purple-500/30 text-purple-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow-sm group"
+                title="Voltar para a lista de Módulos"
+              >
+                <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Módulos</span>
+              </button>
+            )}
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                <span>Módulo Ativo</span>
+              </span>
+              <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>{activeModuleObj.title}</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Trilha: <strong className="text-purple-300">{activeModuleObj.track || 'Inglês do Zero'}</strong> • {displayedLessons.length} {displayedLessons.length === 1 ? 'aula cadastrada' : 'aulas cadastradas'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/25 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>+50 XP por aula concluída</span>
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Google Drive Integration Hint */}
       <div className="p-4 rounded-2xl bg-[#0e1224] border border-cyan-500/20 text-xs text-slate-300 flex items-center justify-between gap-4">
@@ -191,9 +296,9 @@ export default function LessonManager() {
 
       {/* Lessons Table / List */}
       <div className="p-6 rounded-3xl bg-[#111425] border border-[#1e233b] shadow-2xl space-y-4">
-        {lessons.length > 0 ? (
+        {displayedLessons.length > 0 ? (
           <div className="space-y-3">
-            {lessons.map((les) => (
+            {displayedLessons.map((les) => (
               <div
                 key={les.id}
                 className="p-4 rounded-2xl bg-[#141728] border border-slate-800/80 hover:border-purple-500/40 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
@@ -274,17 +379,27 @@ export default function LessonManager() {
               <Tv className="w-7 h-7" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-black text-white">Nenhuma aula cadastrada</h3>
+              <h3 className="text-base font-black text-white">
+                {selectedModuleFilter !== 'all' && activeModuleObj
+                  ? `Nenhuma aula cadastrada no ${activeModuleObj.title}`
+                  : 'Nenhuma aula cadastrada'}
+              </h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Cadastre a primeira aula em vídeo com link do Google Drive para que seus alunos comecem a estudar.
+                {selectedModuleFilter !== 'all' && activeModuleObj
+                  ? `Cadastre a primeira videoaula para este módulo para disponibilizá-la aos alunos.`
+                  : 'Cadastre a primeira aula em vídeo com link do Google Drive para que seus alunos comecem a estudar.'}
               </p>
             </div>
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleOpenCreateModal}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-black shadow-lg shadow-purple-600/30 cursor-pointer transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Criar Primeira Aula</span>
+              <span>
+                {selectedModuleFilter !== 'all' && activeModuleObj
+                  ? `+ Criar Primeira Aula deste Módulo`
+                  : `+ Criar Primeira Aula`}
+              </span>
             </button>
           </div>
         )}

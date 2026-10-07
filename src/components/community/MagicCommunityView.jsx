@@ -9,19 +9,19 @@ import CommunityGroups from './CommunityGroups';
 import UserImpactCard from './UserImpactCard';
 import { 
   communityStats, 
-  weeklyChallengeData, 
   songOfTheWeekData, 
   conversationRoomData, 
   communityGroupsData 
 } from '../../data/communityData';
 import { communityService } from '../../services/communityService';
 import { rankingService } from '../../services/rankingService';
+import { weeklyChallengeService } from '../../services/weeklyChallengeService';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 
 export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPractice }) {
   const { user } = useAuth();
-  const { xp, streak, currentLevel } = useGamification();
+  const { xp, streak, currentLevel, addXp } = useGamification();
 
   const [posts, setPosts] = useState([]);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -31,6 +31,13 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
   const [toastMessage, setToastMessage] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUnavailable, setIsUnavailable] = useState(false);
+
+  // Dynamic Weekly Challenge States
+  const [weeklyChallenge, setWeeklyChallenge] = useState(null);
+  const [challengeSteps, setChallengeSteps] = useState([]);
+  const [isChallengeAllCompleted, setIsChallengeAllCompleted] = useState(false);
+  const [isChallengeClaimed, setIsChallengeClaimed] = useState(false);
+  const [isClaimingChallengeXp, setIsClaimingChallengeXp] = useState(false);
 
   // Show Toast helper
   const showToast = (message, type = 'success') => {
@@ -66,16 +73,17 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
     };
   }, []);
 
-  // Load posts, likes, and ranking highlights
+  // Load posts, likes, ranking highlights, and dynamic weekly challenge
   const loadCommunityData = useCallback(async () => {
     setIsLoading(true);
     setIsUnavailable(false);
 
     try {
-      const [postsRes, likesRes, rankingRes] = await Promise.all([
+      const [postsRes, likesRes, rankingRes, challengeRes] = await Promise.all([
         communityService.getPosts(selectedGroupId),
         communityService.getUserLikedPostIds(user?.id),
-        rankingService.getRankingLeaderboard()
+        rankingService.getRankingLeaderboard(),
+        weeklyChallengeService.getActiveWeeklyChallenge()
       ]);
 
       if (postsRes.unavailable) {
@@ -100,6 +108,22 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
         }));
         setWeeklyHighlights(topHighlights);
       }
+
+      // Process Weekly Challenge
+      if (challengeRes?.data) {
+        const chal = challengeRes.data;
+        setWeeklyChallenge(chal);
+        if (user?.id) {
+          const prog = await weeklyChallengeService.checkChallengeProgress(user.id, chal);
+          setChallengeSteps(prog.stepsWithStatus || []);
+          setIsChallengeAllCompleted(prog.isAllCompleted || false);
+          setIsChallengeClaimed(prog.isClaimed || false);
+        } else {
+          setChallengeSteps(chal.steps || []);
+          setIsChallengeAllCompleted(false);
+          setIsChallengeClaimed(false);
+        }
+      }
     } catch (err) {
       console.warn('Erro ao carregar dados da comunidade:', err);
       setIsUnavailable(true);
@@ -111,6 +135,28 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
   useEffect(() => {
     loadCommunityData();
   }, [loadCommunityData]);
+
+  // Handle Weekly Challenge Claim XP
+  const handleClaimWeeklyChallengeXp = async () => {
+    if (!weeklyChallenge || isChallengeClaimed || isClaimingChallengeXp) return;
+    setIsClaimingChallengeXp(true);
+    try {
+      const res = await weeklyChallengeService.claimWeeklyChallengeXp(weeklyChallenge);
+      if (res.success) {
+        setIsChallengeClaimed(true);
+        if (addXp && res.amount) {
+          await addXp(res.amount, 'weekly_magic_challenge', weeklyChallenge.week_key || weeklyChallenge.id);
+        }
+        showToast(`Parabéns! Você resgatou +${res.amount} XP pelo Desafio Magic da Semana! 🎉`);
+      } else {
+        showToast(res.message || 'Recompensa já resgatada anteriormente ou pendente.', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Erro ao resgatar recompensa.', 'error');
+    } finally {
+      setIsClaimingChallengeXp(false);
+    }
+  };
 
   // Create Post Handler
   const handleCreatePost = async ({ title, content, type }) => {
@@ -198,8 +244,17 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
         <div className="lg:col-span-8 flex">
           <div className="w-full">
             <WeeklyChallenge 
-              challenge={weeklyChallengeData}
-              onStartChallenge={() => onOpenMusicalPractice && onOpenMusicalPractice()}
+              challenge={weeklyChallenge}
+              steps={challengeSteps}
+              isAllCompleted={isChallengeAllCompleted}
+              isClaimed={isChallengeClaimed}
+              isClaiming={isClaimingChallengeXp}
+              onClaimXp={handleClaimWeeklyChallengeXp}
+              onStartChallenge={() => {
+                if (onOpenMusicalPractice) {
+                  onOpenMusicalPractice(weeklyChallenge?.song_id);
+                }
+              }}
             />
           </div>
         </div>
@@ -208,7 +263,7 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
           <div className="w-full">
             <SongChallenge 
               song={songOfTheWeekData}
-              onPlaySong={() => onOpenMusicalPractice && onOpenMusicalPractice()}
+              onPlaySong={() => onOpenMusicalPractice && onOpenMusicalPractice(weeklyChallenge?.song_id)}
             />
           </div>
         </div>

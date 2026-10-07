@@ -18,6 +18,8 @@ export default function AdminLayout({ onLogout }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { user, logout } = useAuth();
 
+  const [selectedModuleForLessons, setSelectedModuleForLessons] = useState(null);
+
   const handleLogout = async () => {
     if (onLogout) {
       onLogout();
@@ -33,7 +35,10 @@ export default function AdminLayout({ onLogout }) {
       {/* 1. Admin Sidebar with Conta Administrativa */}
       <AdminSidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          if (tab !== 'lessons') setSelectedModuleForLessons(null);
+          setActiveTab(tab);
+        }}
         onOpenProfile={() => setIsProfileOpen(true)}
         onLogout={handleLogout}
       />
@@ -77,9 +82,21 @@ export default function AdminLayout({ onLogout }) {
           ) : activeTab === 'community' ? (
             <CommunityManager />
           ) : activeTab === 'modules' || activeTab === 'courses' ? (
-            <ModuleManager />
+            <ModuleManager 
+              onManageLessons={(moduleId) => {
+                setSelectedModuleForLessons(moduleId);
+                setActiveTab('lessons');
+              }} 
+            />
           ) : activeTab === 'lessons' ? (
-            <LessonManager />
+            <LessonManager 
+              selectedModuleId={selectedModuleForLessons}
+              onClearSelectedModule={() => setSelectedModuleForLessons(null)}
+              onBackToModules={() => {
+                setSelectedModuleForLessons(null);
+                setActiveTab('modules');
+              }}
+            />
           ) : activeTab === 'songs' || activeTab === 'practice' ? (
             <SongManager />
           ) : activeTab === 'materials' ? (

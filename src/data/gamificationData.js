@@ -10,7 +10,8 @@ export const XP_REWARDS = {
   COMPLETE_MODULE: 500,         // 🏆 Concluir um módulo
   COMPLETE_TRACK: 1000,         // 🌎 Completar uma trilha
   MASTER_SONG: 100,             // 🎉 Dominar uma música
-  DAILY_CHALLENGE_DEFAULT: 30   // 🎯 Desafio diário
+  DAILY_CHALLENGE_DEFAULT: 30,  // 🎯 Desafio diário
+  WEEKLY_MAGIC_CHALLENGE: 300   // 🌟 Desafio Magic da Semana
 };
 
 export const LEVELS_CONFIG = [

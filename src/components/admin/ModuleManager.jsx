@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, Edit2, Trash2, CheckCircle2, Eye, X, Image, Sparkles, FolderPlus } from 'lucide-react';
+import { Layers, Plus, Edit2, Trash2, CheckCircle2, Eye, X, Image, Sparkles, FolderPlus, Tv } from 'lucide-react';
 import { modulesService } from '../../services/modulesService';
 import { isGoogleDriveUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 
-export default function ModuleManager() {
+export default function ModuleManager({ onManageLessons }) {
   const [modules, setModules] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -177,7 +177,17 @@ export default function ModuleManager() {
               </div>
 
               {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#1e2338]">
+              <div className="pt-3 flex items-center justify-between gap-2 border-t border-[#1e2338]">
+                <button
+                  type="button"
+                  onClick={() => onManageLessons && onManageLessons(mod.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-white border border-purple-500/30 hover:border-purple-500/50 text-xs font-bold transition-all cursor-pointer shadow-sm group/btn"
+                  title="Gerenciar Aulas deste Módulo"
+                >
+                  <Tv className="w-3.5 h-3.5 text-purple-400 group-hover/btn:scale-110 transition-transform" />
+                  <span>Gerenciar Aulas</span>
+                </button>
+
                 <button
                   onClick={() => handleDelete(mod.id)}
                   className="p-2 rounded-lg bg-[#191d30] text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
