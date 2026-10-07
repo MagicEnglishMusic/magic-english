@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { getDriveImageUrl } from '../utils/googleDriveHelper';
 
 export const lessonsService = {
   // Get all lessons (Admin)
@@ -17,7 +18,16 @@ export const lessonsService = {
         .order('order_index', { ascending: true });
 
       if (error) throw error;
-      return { data: data || [], error: null };
+      const formatted = (data || []).map((l) => {
+        const thumb = getDriveImageUrl(l.thumbnail_url || l.thumbnail || '');
+        return {
+          ...l,
+          thumbnail_url: thumb,
+          thumbnail: thumb,
+          image: thumb
+        };
+      });
+      return { data: formatted, error: null };
     } catch (err) {
       console.warn('Error fetching all lessons from Supabase:', err.message);
       return { data: [], error: err.message };
@@ -38,7 +48,16 @@ export const lessonsService = {
         .order('order_index', { ascending: true });
 
       if (error) throw error;
-      return { data: data || [], error: null };
+      const formatted = (data || []).map((l) => {
+        const thumb = getDriveImageUrl(l.thumbnail_url || l.thumbnail || '');
+        return {
+          ...l,
+          thumbnail_url: thumb,
+          thumbnail: thumb,
+          image: thumb
+        };
+      });
+      return { data: formatted, error: null };
     } catch (err) {
       console.warn('Error fetching lessons by module from Supabase:', err.message);
       return { data: [], error: err.message };
@@ -63,6 +82,12 @@ export const lessonsService = {
         .single();
 
       if (lessonError) throw lessonError;
+      if (lesson) {
+        const thumb = getDriveImageUrl(lesson.thumbnail_url || lesson.thumbnail || '');
+        lesson.thumbnail_url = thumb;
+        lesson.thumbnail = thumb;
+        lesson.image = thumb;
+      }
       return { data: lesson, error: null };
     } catch (err) {
       return { data: null, error: err.message };

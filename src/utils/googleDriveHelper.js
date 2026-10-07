@@ -92,11 +92,11 @@ export function getDriveAudioUrl(url) {
 /**
  * Get Image/Thumbnail/Cover Direct URL
  */
-export function getDriveImageUrl(url, size = 'w1200') {
+export function getDriveImageUrl(url) {
   if (!url) return '';
   const fileId = extractGoogleDriveId(url);
   if (fileId) {
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=${size}`;
+    return `https://lh3.googleusercontent.com/d/${fileId}=w1200`;
   }
   return url;
 }

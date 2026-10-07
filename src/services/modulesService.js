@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { getDriveImageUrl } from '../utils/googleDriveHelper';
 
 export const modulesService = {
   // Fetch all modules ordered with dynamic lessons and songs count
@@ -26,12 +27,17 @@ export const modulesService = {
           .order('order_index', { ascending: true });
 
         if (simpleError) throw simpleError;
-        return { data: simpleData || [], error: null };
+        const formattedSimple = (simpleData || []).map((m) => ({
+          ...m,
+          banner_url: getDriveImageUrl(m.banner_url || m.image || '')
+        }));
+        return { data: formattedSimple, error: null };
       }
 
-      // Compute dynamic counts from relation arrays
+      // Compute dynamic counts from relation arrays and format banner_url
       const formatted = (data || []).map((m) => ({
         ...m,
+        banner_url: getDriveImageUrl(m.banner_url || m.image || ''),
         lessons_count: Array.isArray(m.lessons) ? m.lessons.length : (m.lessons_count || 0),
         songs_count: Array.isArray(m.songs) ? m.songs.length : (m.songs_count || 0)
       }));

@@ -32,6 +32,11 @@ export default function NextStepsSection({ onSelectLesson }) {
               <img
                 src={lesson.image}
                 alt={lesson.title}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80';
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#111424] via-black/20 to-transparent"></div>

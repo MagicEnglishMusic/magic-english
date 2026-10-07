@@ -108,6 +108,11 @@ export default function VideoPlayer({ lesson, onVideoComplete }) {
           <img
             src={thumbnailSrc}
             alt={lesson?.title || 'Aula'}
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80';
+            }}
             className={`w-full h-full object-cover transition-all duration-700 ${
               isPlaying ? 'brightness-90' : 'brightness-60 group-hover:scale-105'
             }`}

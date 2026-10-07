@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { progressService } from './progressService';
+import { getLocalPronunciationCompleted } from '../utils/pronunciationProgress';
 
 // Default Fallback Weekly Challenge (aligns with current DB seed)
 const DEFAULT_WEEKLY_CHALLENGE = {
@@ -160,41 +161,68 @@ export const weeklyChallengeService = {
             const matchLesson = userProgress.find(
               (p) => String(p.lesson_id).toLowerCase() === String(targetId || challenge.lesson_id).toLowerCase()
             );
-            isDone = Boolean(matchLesson?.completed === true || matchLesson?.progress_percent === 100 || matchLesson?.steps?.video);
+            isDone = Boolean(
+              matchLesson?.completed === true || 
+              matchLesson?.progress_percent === 100 || 
+              matchLesson?.steps?.video || 
+              matchLesson?.steps?.lesson
+            );
             break;
           }
 
           case 'PRACTICE': {
-            // Check if matching song has practice steps done in song_mastery
+            // Check if matching song has practice steps done in song_mastery or user_progress
+            const cleanSongId = String(targetId || challenge.song_id).toLowerCase();
+            const cleanLessonId = String(challenge.lesson_id).toLowerCase();
             const matchSong = songMastery.find(
-              (m) => String(m.song_id).toLowerCase() === String(targetId || challenge.song_id).toLowerCase()
+              (m) => String(m.song_id).toLowerCase() === cleanSongId
+            );
+            const matchLesson = userProgress.find(
+              (p) => String(p.lesson_id).toLowerCase() === cleanLessonId
             );
             isDone = Boolean(
               matchSong?.step_reverse_translation ||
               matchSong?.step_final_challenge ||
-              matchSong?.mastery_percent > 0 ||
-              matchSong?.xp_claimed_at
+              matchSong?.step_song ||
+              matchSong?.step_sing_along ||
+              (matchSong?.mastery_percent && matchSong.mastery_percent > 0) ||
+              matchSong?.xp_claimed_at ||
+              matchLesson?.steps?.practice
             );
             break;
           }
 
           case 'PRONUNCIATION': {
-            // Check if matching song has pronunciation / sing_along done in song_mastery
+            // Check if matching song/lesson has pronunciation completed in song_mastery, user_progress or localStorage
+            const cleanSongId = String(targetId || challenge.song_id).toLowerCase();
+            const cleanLessonId = String(challenge.lesson_id).toLowerCase();
             const matchSong = songMastery.find(
-              (m) => String(m.song_id).toLowerCase() === String(targetId || challenge.song_id).toLowerCase()
+              (m) => String(m.song_id).toLowerCase() === cleanSongId
+            );
+            const matchLesson = userProgress.find(
+              (p) => String(p.lesson_id).toLowerCase() === cleanLessonId
             );
             const minScore = Number(step.min_score) || 80;
+            const localCompleted = getLocalPronunciationCompleted(
+              userId,
+              targetId || challenge.song_id,
+              challenge.lesson_id
+            );
+
             isDone = Boolean(
+              localCompleted ||
               matchSong?.step_sing_along ||
               (matchSong?.mastery_percent && matchSong.mastery_percent >= minScore) ||
-              matchSong?.step_reverse_translation
+              matchLesson?.steps?.pronunciation ||
+              matchLesson?.steps?.pronunciation_completed
             );
             break;
           }
 
           case 'QUIZ': {
+            const cleanSongId = String(targetId || challenge.song_id).toLowerCase();
             const matchSong = songMastery.find(
-              (m) => String(m.song_id).toLowerCase() === String(targetId || challenge.song_id).toLowerCase()
+              (m) => String(m.song_id).toLowerCase() === cleanSongId
             );
             isDone = Boolean(matchSong?.step_final_challenge);
             break;

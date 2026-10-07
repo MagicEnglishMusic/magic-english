@@ -295,6 +295,11 @@ export const progressService = {
     }
   },
 
+  // Alias for getSongMastery
+  async getUserSongMastery(userId) {
+    return this.getSongMastery(userId);
+  },
+
   // Update 5-Step Song Mastery
   async updateSongMastery(userId, songId, stepUpdates = {}) {
     const key = `${LOCAL_MASTERY_PREFIX}${userId || 'guest'}`;

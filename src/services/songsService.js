@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { getDriveImageUrl } from '../utils/googleDriveHelper';
 
 /**
  * Normalizes and formats a song database record with defensive fallbacks
@@ -18,6 +19,8 @@ function formatSongRecord(raw) {
   const lyrics_en = raw.lyrics_en || raw.lyricsEn || (Array.isArray(raw.lyrics) ? raw.lyrics.map((l) => l.en || l.english || '').filter(Boolean).join('\n') : '');
   const lyrics_pt = raw.lyrics_pt || raw.lyricsPt || (Array.isArray(raw.lyrics) ? raw.lyrics.map((l) => l.pt || l.portuguese || '').filter(Boolean).join('\n') : '');
 
+  const formattedCover = getDriveImageUrl(raw.cover_url || raw.coverUrl || raw.image || '');
+
   return {
     ...raw,
     id: raw.id,
@@ -35,8 +38,8 @@ function formatSongRecord(raw) {
     pronunciation_guide: Array.isArray(raw.pronunciation_guide) ? raw.pronunciation_guide : (Array.isArray(raw.pronunciationGuide) ? raw.pronunciationGuide : []),
     audio_url: raw.audio_url || raw.audioUrl || '',
     audioUrl: raw.audio_url || raw.audioUrl || '',
-    cover_url: raw.cover_url || raw.coverUrl || raw.image || '',
-    image: raw.cover_url || raw.coverUrl || raw.image || '',
+    cover_url: formattedCover,
+    image: formattedCover,
     bpm: raw.bpm || '',
     duration: raw.duration || '',
     xpReward: raw.xpReward ?? raw.xp_reward ?? null,

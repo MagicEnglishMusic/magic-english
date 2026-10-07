@@ -22,7 +22,9 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
             description: l.description || '',
             duration: l.duration || '15 min',
             videoUrl: l.video_url,
-            thumbnail: getDriveImageUrl(l.thumbnail_url) || module.coverImage,
+            thumbnail: l.thumbnail || getDriveImageUrl(l.thumbnail_url) || module.coverImage,
+            thumbnail_url: l.thumbnail_url || getDriveImageUrl(l.thumbnail) || module.coverImage,
+            image: l.image || l.thumbnail || getDriveImageUrl(l.thumbnail_url) || module.coverImage,
             status: idx === 0 ? 'in_progress' : 'locked',
             relatedSong: l.related_song || 'Magic Song'
           }));
@@ -62,7 +64,16 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
       {/* 2. Module Hero Banner */}
       <div className="relative rounded-3xl overflow-hidden border border-purple-500/30 bg-[#0e101f] shadow-2xl p-7 sm:p-9 flex flex-col md:flex-row items-center justify-between gap-8">
         <div className="absolute inset-0 z-0 opacity-30 overflow-hidden">
-          <img src={module.coverImage} alt={module.title} className="w-full h-full object-cover" />
+          <img
+            src={module.coverImage}
+            alt={module.title}
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80';
+            }}
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0e101f] via-[#0e101f]/90 to-transparent"></div>
         </div>
 
@@ -211,7 +222,16 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
                   {/* Left: Thumbnail & Lesson Info */}
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="w-20 h-14 sm:w-24 sm:h-16 rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 relative">
-                      <img src={lesson.thumbnail} alt={lesson.title} className="w-full h-full object-cover" />
+                      <img
+                        src={lesson.thumbnail}
+                        alt={lesson.title}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80';
+                        }}
+                        className="w-full h-full object-cover"
+                      />
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         {isCompleted ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-400" />

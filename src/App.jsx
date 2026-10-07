@@ -425,7 +425,22 @@ function MainApp() {
   };
 
   // Open Magic Song Lesson View
-  const handleOpenSongPlayer = (song) => {
+  const handleOpenSongPlayer = async (song) => {
+    if (typeof song === 'string') {
+      try {
+        const { data } = await songsService.getSongById(song);
+        if (data) {
+          const lessonData = normalizeSongForPlayer(data);
+          setActiveSong(lessonData);
+          setActiveTab('songs');
+          navigateTo('song-player', `/songs/${lessonData.id}`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar música por ID:', err);
+      }
+    }
     const lessonData = normalizeSongForPlayer(song);
     setActiveSong(lessonData);
     setActiveTab('songs');
@@ -435,8 +450,23 @@ function MainApp() {
   };
 
   // Open 4-Step Musical Practice Lab
-  const handleOpenMusicalPractice = (song = null) => {
-    if (song) {
+  const handleOpenMusicalPractice = async (song = null) => {
+    if (typeof song === 'string') {
+      try {
+        const { data } = await songsService.getSongById(song);
+        if (data) {
+          const normalized = normalizeSongForPlayer(data);
+          setActiveSong(normalized);
+          navigateTo('musical-practice', `/musical-practice/${normalized.id}`);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar música por ID para prática:', err);
+      }
+    }
+
+    if (song && typeof song === 'object') {
       const normalized = normalizeSongForPlayer(song);
       setActiveSong(normalized);
       const targetPath = normalized?.id ? `/musical-practice/${normalized.id}` : '/musical-practice';
@@ -777,7 +807,7 @@ function MainApp() {
               ) : currentView === 'community' ? (
                 <MagicCommunityView
                   onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
-                  onOpenMusicalPractice={() => handleOpenMusicalPractice()}
+                  onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
                 />
               ) : currentView === 'profile' ? (
                 <StudentProfileView
