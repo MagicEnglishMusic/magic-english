@@ -284,6 +284,25 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
               const isPassed = currentLevel.level > lvl.level;
               const isFuture = currentLevel.level < lvl.level;
 
+              // Cálculo visual do progresso do aluno dentro da faixa deste nível
+              const minXp = Number(lvl.minXp) || 0;
+              const maxXp = Number(lvl.maxXp) || 1000;
+              const span = Math.max(1, maxXp - minXp);
+
+              let percent = 0;
+              let currentXpLabel = '0';
+
+              if (isPassed) {
+                percent = 100;
+                currentXpLabel = maxXp.toLocaleString('pt-BR');
+              } else if (isCurrent) {
+                percent = Math.min(100, Math.max(0, Math.round(((xp - minXp) / span) * 100)));
+                currentXpLabel = Math.min(maxXp, Math.max(minXp, xp)).toLocaleString('pt-BR');
+              } else {
+                percent = 0;
+                currentXpLabel = '0';
+              }
+
               return (
                 <div
                   key={lvl.level}
@@ -331,12 +350,49 @@ export default function GamificationHubView({ onOpenLesson, onOpenSong }) {
                     </div>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-[#1d2238] flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">XP Necessário:</span>
-                    <span className="text-amber-400 font-extrabold flex items-center gap-1">
-                      <Zap className="w-3 h-3 fill-amber-400" />
-                      {(Number(lvl?.minXp) || 0).toLocaleString('pt-BR')} - {(Number(lvl?.maxXp) || 0).toLocaleString('pt-BR')} XP
-                    </span>
+                  {/* Detalhamento de XP e Progresso Visual */}
+                  <div className="pt-4 mt-4 border-t border-[#1d2238] space-y-2.5 text-xs">
+                    {/* Faixa Oficial de XP Necessário */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">XP Necessário:</span>
+                      <span className="text-amber-400 font-extrabold flex items-center gap-1">
+                        <Zap className="w-3 h-3 fill-amber-400" />
+                        {minXp.toLocaleString('pt-BR')} - {maxXp.toLocaleString('pt-BR')} XP
+                      </span>
+                    </div>
+
+                    {/* Progresso Atual do Aluno */}
+                    <div className="flex items-center justify-between pt-1 border-t border-[#181b2e]/60">
+                      <span className="text-slate-400 font-medium">Progresso atual:</span>
+                      <span className="text-white font-extrabold flex items-center gap-1.5">
+                        <span className={isCurrent ? 'text-purple-300' : isPassed ? 'text-emerald-400' : 'text-slate-400'}>
+                          {currentXpLabel} / {maxXp.toLocaleString('pt-BR')} XP
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${
+                          isPassed 
+                            ? 'bg-emerald-500/20 text-emerald-400' 
+                            : isCurrent 
+                            ? 'bg-purple-500/20 text-purple-300' 
+                            : 'bg-slate-800 text-slate-500'
+                        }`}>
+                          {percent}%
+                        </span>
+                      </span>
+                    </div>
+
+                    {/* Barra Visual de Progresso */}
+                    <div className="w-full h-2 rounded-full bg-[#101322] border border-slate-800/80 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isPassed
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            : isCurrent
+                            ? 'bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-400'
+                            : 'bg-slate-700'
+                        }`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
               );

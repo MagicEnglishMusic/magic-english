@@ -14,8 +14,9 @@ export default function LessonProgress({
   const reqPronunciation = pronunciationMeta?.required || 0;
   const donePronunciation = pronunciationMeta?.done || 0;
   const isPronunciationApplicable = reqPronunciation > 0;
+  const hasMetPronunciationTarget = isPronunciationApplicable && donePronunciation >= reqPronunciation;
   const isPronunciationDone = isPronunciationApplicable
-    ? Boolean(steps.pronunciation_completed || steps.pronunciation || isCompleted)
+    ? Boolean(isCompleted || (hasMetPronunciationTarget && (steps.pronunciation_completed || steps.pronunciation)))
     : true;
 
   const stepsList = [

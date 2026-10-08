@@ -141,15 +141,26 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
     if (!weeklyChallenge || isChallengeClaimed || isClaimingChallengeXp) return;
     setIsClaimingChallengeXp(true);
     try {
-      const res = await weeklyChallengeService.claimWeeklyChallengeXp(weeklyChallenge);
-      if (res.success) {
+      const challengeRefKey = weeklyChallenge.week_key || weeklyChallenge.id || 'weekly_challenge';
+      const xpAmount = weeklyChallenge.xp_reward || 300;
+
+      const res = await addXp('weekly_magic_challenge', challengeRefKey, {
+        showModal: true,
+        type: 'weekly_magic_challenge',
+        title: 'Desafio Magic da Semana Concluído!',
+        subtitle: weeklyChallenge.title || 'Você completou todas as metas desta semana!',
+        bonusText: `+${xpAmount} Magic XP adicionados à sua jornada!`
+      });
+
+      if (res && res.success) {
         setIsChallengeClaimed(true);
-        if (addXp && res.amount) {
-          await addXp(res.amount, 'weekly_magic_challenge', weeklyChallenge.week_key || weeklyChallenge.id);
+        if (res.granted !== false) {
+          showToast(`Parabéns! Você resgatou +${xpAmount} XP pelo Desafio Magic da Semana! 🎉`);
+        } else {
+          showToast('Recompensa do desafio semanal já resgatada anteriormente nesta semana.', 'info');
         }
-        showToast(`Parabéns! Você resgatou +${res.amount} XP pelo Desafio Magic da Semana! 🎉`);
       } else {
-        showToast(res.message || 'Recompensa já resgatada anteriormente ou pendente.', 'error');
+        showToast(res?.error || 'Não foi possível resgatar a recompensa no momento.', 'error');
       }
     } catch (err) {
       showToast(err.message || 'Erro ao resgatar recompensa.', 'error');

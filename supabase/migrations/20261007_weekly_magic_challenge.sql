@@ -134,7 +134,7 @@ BEGIN
       IF v_song_id IS NULL OR LENGTH(v_song_id) = 0 OR v_verse_idx_str IS NULL OR v_verse_idx_str !~ '^\d+$' THEN
         RAISE EXCEPTION 'Referência de pronúncia inválida: %', v_clean_ref;
       END IF;
-      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id = v_song_id) THEN
+      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id::text = v_song_id) THEN
         RAISE EXCEPTION 'Música "%" não encontrada.', v_song_id;
       END IF;
       v_rule_val := v_rules->>'pronunciation_item';
@@ -142,10 +142,10 @@ BEGIN
 
     -- [PRESERVADO] 4.3 Prática Musical Completa
     WHEN 'practice_complete' THEN
-      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id = v_clean_ref) THEN
+      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id::text = v_clean_ref) THEN
         RAISE EXCEPTION 'Música "%" não encontrada.', v_clean_ref;
       END IF;
-      IF NOT EXISTS (SELECT 1 FROM public.song_mastery WHERE user_id = v_user_id AND song_id = v_clean_ref) THEN
+      IF NOT EXISTS (SELECT 1 FROM public.song_mastery WHERE user_id = v_user_id AND song_id::text = v_clean_ref) THEN
         RAISE EXCEPTION 'Progresso da música % não encontrado.', v_clean_ref;
       END IF;
       v_rule_val := v_rules->>'practice_complete';
@@ -153,13 +153,13 @@ BEGIN
 
     -- [PRESERVADO] 4.4 Maestria Musical Completa (100% ou 5 steps)
     WHEN 'song_mastery' THEN
-      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id = v_clean_ref) THEN
+      IF NOT EXISTS (SELECT 1 FROM public.songs WHERE id::text = v_clean_ref) THEN
         RAISE EXCEPTION 'Música "%" não encontrada.', v_clean_ref;
       END IF;
       IF NOT EXISTS (
         SELECT 1 FROM public.song_mastery 
          WHERE user_id = v_user_id 
-           AND song_id = v_clean_ref 
+           AND song_id::text = v_clean_ref 
            AND (mastery_percent = 100 OR (step_video = true AND step_song = true AND step_reverse_translation = true AND step_sing_along = true AND step_final_challenge = true))
       ) THEN
         RAISE EXCEPTION 'A música % ainda não atingiu 100%% de domínio.', v_clean_ref;
@@ -177,7 +177,7 @@ BEGIN
 
     -- [PRESERVADO] 4.6 Resgate de XP da Música
     WHEN 'song_claim' THEN
-      IF NOT EXISTS (SELECT 1 FROM public.song_mastery WHERE user_id = v_user_id AND song_id = v_clean_ref AND xp_claimed_at IS NOT NULL) THEN
+      IF NOT EXISTS (SELECT 1 FROM public.song_mastery WHERE user_id = v_user_id AND song_id::text = v_clean_ref AND xp_claimed_at IS NOT NULL) THEN
         RAISE EXCEPTION 'O resgate de XP da música % não foi registrado.', v_clean_ref;
       END IF;
       v_rule_val := v_rules->>'song_claim';

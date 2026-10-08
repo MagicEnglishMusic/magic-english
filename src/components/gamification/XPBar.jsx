@@ -2,19 +2,19 @@ import React from 'react';
 import { Zap, Sparkles } from 'lucide-react';
 
 export default function XPBar({
-  currentXp = 2450,
-  minXp = 1000,
-  maxXp = 3000,
-  progress = 72,
+  currentXp = 0,
+  minXp = 0,
+  maxXp = 1000,
+  progress = 0,
   size = 'md', // 'sm' | 'md' | 'lg'
   showLabels = true,
   showPercentage = true,
   className = ''
 }) {
   const heightClasses = {
-    sm: 'h-1.5',
-    md: 'h-2.5',
-    lg: 'h-3.5'
+    sm: 'h-2 sm:h-2.5',
+    md: 'h-2.5 sm:h-3',
+    lg: 'h-3.5 sm:h-4'
   };
 
   const safeCurrentXp = Number(currentXp) || 0;
@@ -42,9 +42,9 @@ export default function XPBar({
       )}
 
       {/* Bar container */}
-      <div className={`w-full bg-[#151828] border border-[#22273e] rounded-full overflow-hidden p-[2px] ${heightClasses[size] || 'h-2.5'}`}>
+      <div className={`w-full bg-[#101322] border border-[#22273e] rounded-full overflow-hidden p-[1px] ${heightClasses[size] || 'h-2.5'}`}>
         <div
-          className="h-full rounded-full bg-gradient-to-r from-purple-600 via-indigo-500 to-amber-400 shadow-sm shadow-purple-500/50 transition-all duration-700 relative overflow-hidden"
+          className="h-full rounded-full bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 shadow-sm shadow-purple-500/50 transition-all duration-700 relative overflow-hidden"
           style={{ width: `${safeProgress}%` }}
         >
           {/* Subtle animated light gleam */}

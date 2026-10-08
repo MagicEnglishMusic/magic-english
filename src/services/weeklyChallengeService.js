@@ -193,28 +193,25 @@ export const weeklyChallengeService = {
           }
 
           case 'PRONUNCIATION': {
-            // Check if matching song/lesson has pronunciation completed in song_mastery, user_progress or localStorage
-            const cleanSongId = String(targetId || challenge.song_id).toLowerCase();
             const cleanLessonId = String(challenge.lesson_id).toLowerCase();
-            const matchSong = songMastery.find(
-              (m) => String(m.song_id).toLowerCase() === cleanSongId
-            );
             const matchLesson = userProgress.find(
               (p) => String(p.lesson_id).toLowerCase() === cleanLessonId
             );
-            const minScore = Number(step.min_score) || 80;
             const localCompleted = getLocalPronunciationCompleted(
               userId,
               targetId || challenge.song_id,
               challenge.lesson_id
             );
 
+            const doneTerms = Array.isArray(matchLesson?.steps?.pronunciation_done)
+              ? matchLesson.steps.pronunciation_done.length
+              : 0;
+
             isDone = Boolean(
-              localCompleted ||
-              matchSong?.step_sing_along ||
-              (matchSong?.mastery_percent && matchSong.mastery_percent >= minScore) ||
-              matchLesson?.steps?.pronunciation ||
-              matchLesson?.steps?.pronunciation_completed
+              matchLesson?.completed ||
+              (matchLesson?.steps?.pronunciation_completed && doneTerms >= 25) ||
+              (matchLesson?.steps?.pronunciation && doneTerms >= 25) ||
+              (localCompleted && doneTerms >= 25)
             );
             break;
           }

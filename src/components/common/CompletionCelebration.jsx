@@ -317,6 +317,14 @@ export default function CompletionCelebration({
             <span>Aula Concluída</span>
           </div>
         );
+      case 'weekly_magic_challenge':
+      case 'weekly_challenge':
+        return (
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold uppercase tracking-wider mb-2">
+            <Trophy className="w-3.5 h-3.5 text-purple-400" />
+            <span>Desafio Magic da Semana</span>
+          </div>
+        );
       case 'challenge':
       case 'daily_challenge':
         return (

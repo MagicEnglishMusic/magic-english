@@ -17,6 +17,7 @@ import {
 } from '../data/gamificationData';
 
 import { getLocalLabPronunciationDone } from '../utils/pronunciationProgress';
+import { playRewardSound } from '../services/soundService';
 
 // Dynamic weekly days generator based on America/Sao_Paulo date & real activity dates
 export const STUDY_SOURCES = [
@@ -573,7 +574,8 @@ export function GamificationProvider({ children }) {
       'practice_complete',
       'daily_challenge',
       'song_mastery',
-      'badge_claim'
+      'badge_claim',
+      'weekly_magic_challenge'
     ];
 
     if (!VALID_SOURCES.includes(cleanSource)) {
@@ -605,9 +607,12 @@ export function GamificationProvider({ children }) {
     const newXp = res.data?.total_xp ?? (isNewlyGranted ? prevXp + granted : prevXp);
     setXp(newXp);
 
-    if (isNewlyGranted && STUDY_SOURCES.includes(cleanSource)) {
-      setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
-      setStreak((prev) => (prev > 0 ? prev : 1));
+    if (isNewlyGranted) {
+      playRewardSound();
+      if (STUDY_SOURCES.includes(cleanSource)) {
+        setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
+        setStreak((prev) => (prev > 0 ? prev : 1));
+      }
     }
 
     if (!isNewlyGranted) {
@@ -643,14 +648,14 @@ export function GamificationProvider({ children }) {
         icon: newLevel.icon,
         bonusText: newLevel.subtitle
       });
-      return { success: true, newXp };
+      return { success: true, granted: true, newXp };
     }
 
     if (options.showModal) {
       setRewardModal({
         isOpen: true,
         type: options.type || 'xp',
-        title: options.title || reasonOrRef,
+        title: options.title || cleanRef || 'Recompensa de XP',
         subtitle: options.subtitle || 'Você está cada vez mais próximo da fluência.',
         xp: granted,
         icon: options.icon || '⭐',
@@ -658,7 +663,7 @@ export function GamificationProvider({ children }) {
       });
     }
 
-    return { success: true, newXp };
+    return { success: true, granted: true, newXp };
   };
 
   // Claim Daily Challenge Reward
@@ -677,6 +682,7 @@ export function GamificationProvider({ children }) {
       if (res.data?.total_xp !== undefined) setXp(res.data.total_xp);
 
       if (res.data?.granted !== false) {
+        playRewardSound();
         setWeeklyDays((prev) => prev.map((d) => d.isToday ? { ...d, completed: true } : d));
         setStreak((prev) => (prev > 0 ? prev : 1));
         setRewardModal({
@@ -927,6 +933,7 @@ export function GamificationProvider({ children }) {
 
       // 5. Exibe Modal de Celebração
       if (isNewlyGranted) {
+        playRewardSound();
         setRewardModal({
           isOpen: true,
           type: 'badge',
@@ -979,12 +986,7 @@ export function GamificationProvider({ children }) {
     }
 
     try {
-      // 1. Grava no banco xp_claimed_at em song_mastery
-      if (isSupabaseConfigured) {
-        await progressService.claimSongXp(user.id, songId);
-      }
-
-      // 2. Concede +100 XP via RPC grant_xp
+      // 1. Concede +100 XP via RPC grant_xp de forma atômica (a RPC valida e atualiza song_mastery.xp_claimed_at)
       const res = await progressService.grantXp('song_mastery', cleanSongId);
 
       const isNewlyGranted = res.data?.granted !== false;

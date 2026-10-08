@@ -187,16 +187,31 @@ export default function PracticeCards({ song, xpReward = 50, onClaimXp }) {
     async function loadMasteryState() {
       if (!user?.id || !song?.id) return;
       try {
-        const { data } = await progressService.getSongMastery(user.id);
-        if (isMounted && data && Array.isArray(data)) {
-          const match = data.find((m) => m.song_id === song.id);
-          if (match) {
-            if (match.step_final_challenge) {
-              setIsChallengeCompleted(true);
-            }
-            if (match.xp_claimed_at) {
-              setIsClaimed(true);
-            }
+        const cleanSongId = String(song.id).trim().toLowerCase();
+        const [masteryRes, xpEventsRes] = await Promise.all([
+          progressService.getSongMastery(user.id),
+          progressService.getUserXpEvents(user.id)
+        ]);
+
+        if (isMounted) {
+          const masteryData = masteryRes?.data || [];
+          const xpEvents = xpEventsRes?.data || [];
+
+          const match = masteryData.find(
+            (m) => String(m.song_id || '').trim().toLowerCase() === cleanSongId
+          );
+
+          if (match?.step_final_challenge) {
+            setIsChallengeCompleted(true);
+          }
+
+          // Só considera resgatado se confirmado em xp_events (fonte de verdade)
+          const isClaimedInEvents = xpEvents.some(
+            (ev) => ev.source === 'song_claim' && String(ev.ref || '').trim().toLowerCase() === cleanSongId
+          );
+
+          if (isClaimedInEvents) {
+            setIsClaimed(true);
           }
         }
       } catch (err) {
@@ -221,27 +236,19 @@ export default function PracticeCards({ song, xpReward = 50, onClaimXp }) {
       // 1. Garante que o desafio final está registrado no banco
       await progressService.updateSongMastery(user.id, song.id, { step_final_challenge: true });
 
-      // 2. Executa o update condicional atômico em song_mastery (onde xp_claimed_at is null)
-      const claimRes = await progressService.claimSongXp(user.id, song.id);
-      
-      if (claimRes.success) {
-        // 3. Concede o XP de forma segura no servidor via addXp
-        const xpRes = await addXp('song_claim', cleanSongId, {
-          showModal: true,
-          type: 'xp',
-          title: '🎵 Recompensa da Música!',
-          subtitle: `Parabéns por dominar os desafios de "${song.title || 'Magic Song'}"!`,
-          icon: '⭐',
-          bonusText: `+${xpReward || 50} Magic XP creditados na sua conta!`
-        });
-        if (xpRes.success) {
-          setIsClaimed(true);
-          if (onClaimXp) onClaimXp(50);
-        }
-      } else if (claimRes.error?.includes('já resgatado')) {
+      // 2. Concede o XP de forma 100% atômica no servidor via addXp (a RPC valida e atualiza song_mastery.xp_claimed_at)
+      const xpRes = await addXp('song_claim', cleanSongId, {
+        showModal: true,
+        type: 'xp',
+        title: '🎵 Recompensa da Música!',
+        subtitle: `Parabéns por dominar os desafios de "${song.title || 'Magic Song'}"!`,
+        icon: '⭐',
+        bonusText: `+${xpReward || 50} Magic XP creditados na sua conta!`
+      });
+
+      if (xpRes && xpRes.success) {
         setIsClaimed(true);
-      } else {
-        alert(claimRes.error || 'Não foi possível resgatar o XP da música.');
+        if (onClaimXp) onClaimXp(50);
       }
     } catch (err) {
       console.warn('Erro ao resgatar XP da música:', err);

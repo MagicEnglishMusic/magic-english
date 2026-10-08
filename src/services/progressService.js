@@ -130,6 +130,19 @@ export const progressService = {
         ).sort((a, b) => a - b);
         mergedSteps.pronunciation_done = cleanDone;
 
+        // Smart Sync: Se qualquer etapa posterior (song, pronunciation, practice) estiver concluída,
+        // o vídeo é automaticamente marcado como true
+        const hasPosteriorStep = Boolean(
+          mergedSteps.song ||
+          mergedSteps.pronunciation ||
+          mergedSteps.pronunciation_completed ||
+          mergedSteps.practice ||
+          (Array.isArray(mergedSteps.pronunciation_done) && mergedSteps.pronunciation_done.length > 0)
+        );
+        if (hasPosteriorStep) {
+          mergedSteps.video = true;
+        }
+
         const completedCount = allSteps.filter((k) => Boolean(mergedSteps[k])).length;
         const progressPercent = isCompleted ? 100 : Math.round((completedCount / allSteps.length) * 100);
 
@@ -176,6 +189,19 @@ export const progressService = {
       ).sort((a, b) => a - b);
       mergedSteps.pronunciation_done = cleanDone;
     }
+
+    // Smart Sync fallback: Se qualquer etapa posterior foi feita, vídeo torna-se true
+    const hasPosteriorStep = Boolean(
+      mergedSteps.song ||
+      mergedSteps.pronunciation ||
+      mergedSteps.pronunciation_completed ||
+      mergedSteps.practice ||
+      (Array.isArray(mergedSteps.pronunciation_done) && mergedSteps.pronunciation_done.length > 0)
+    );
+    if (hasPosteriorStep) {
+      mergedSteps.video = true;
+    }
+
     const completedCount = allSteps.filter((k) => Boolean(mergedSteps[k])).length;
     const progressPercent = localCompleted ? 100 : Math.round((completedCount / allSteps.length) * 100);
 
@@ -324,10 +350,17 @@ export const progressService = {
       ? Math.max(Number(existingLocal.challenge_index) || 0, Number(stepUpdates.challenge_index) || 0)
       : (Number(existingLocal.challenge_index) || 0);
 
+    const hasPosteriorMastery = Boolean(
+      (stepUpdates.step_song ?? existingLocal.step_song) ||
+      (stepUpdates.step_reverse_translation ?? existingLocal.step_reverse_translation) ||
+      (stepUpdates.step_sing_along ?? existingLocal.step_sing_along) ||
+      (stepUpdates.step_final_challenge ?? existingLocal.step_final_challenge)
+    );
+
     const merged = {
       ...existingLocal,
       ...stepUpdates,
-      step_video: Boolean(stepUpdates.step_video ?? existingLocal.step_video),
+      step_video: Boolean(hasPosteriorMastery || (stepUpdates.step_video ?? existingLocal.step_video)),
       step_song: Boolean(stepUpdates.step_song ?? existingLocal.step_song),
       step_reverse_translation: Boolean(stepUpdates.step_reverse_translation ?? existingLocal.step_reverse_translation),
       step_sing_along: Boolean(stepUpdates.step_sing_along ?? existingLocal.step_sing_along),

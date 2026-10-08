@@ -30,8 +30,15 @@ export default function MyEvolutionCard({ onOpenEvolutionHub }) {
   const claimableChallenge = safeDailyChallenges.find((c) => c?.completed && !c?.claimed);
 
   const safeCurrentXp = Number(xp) || 0;
-  const safeMaxXp = Number(currentLevel?.maxXp) || 100;
+  const nextLevelXp = Number(currentLevel?.maxXp) || 1000;
   const safeMinXp = Number(currentLevel?.minXp) || 0;
+
+  // Regra de progresso visual: progressPercent = (currentXp / nextLevelXp) * 100 limitado entre 0 e 100
+  const progressPercent = nextLevelXp > 0
+    ? Math.min(100, Math.max(0, Math.round((safeCurrentXp / nextLevelXp) * 100)))
+    : 0;
+
+  const remainingXp = Math.max(0, nextLevelXp - safeCurrentXp);
 
   return (
     <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#161a2e] via-[#111322] to-[#0a0c16] border border-purple-500/30 p-6 sm:p-7 shadow-2xl group">
@@ -97,22 +104,22 @@ export default function MyEvolutionCard({ onOpenEvolutionHub }) {
             </span>
             <span className="text-white font-extrabold">
               <span className="text-amber-400">{safeCurrentXp.toLocaleString('pt-BR')}</span>
-              <span className="text-slate-500"> / {safeMaxXp.toLocaleString('pt-BR')} XP</span>
+              <span className="text-slate-500"> / {nextLevelXp.toLocaleString('pt-BR')} XP</span>
             </span>
           </div>
 
           <XPBar
             currentXp={safeCurrentXp}
             minXp={safeMinXp}
-            maxXp={safeMaxXp}
-            progress={levelProgress}
+            maxXp={nextLevelXp}
+            progress={progressPercent}
             size="sm"
             showLabels={false}
           />
 
           <div className="flex items-center justify-between text-[10px] text-slate-400">
-            <span>{levelProgress}% para Nível {nextLevel ? nextLevel.level : 'Max'}</span>
-            <span className="text-purple-300 font-medium">+{xpToNextLevel} XP restante</span>
+            <span>{progressPercent}% para Nível {nextLevel ? nextLevel.level : 2}</span>
+            <span className="text-purple-300 font-medium">+{remainingXp} XP restante</span>
           </div>
         </div>
 
