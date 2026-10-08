@@ -481,6 +481,9 @@ export const progressService = {
         ? normalizedRef.split(':').slice(1).join(':').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)
         : '';
       normalizedRef = suffix ? `${today}:${suffix}` : today;
+    } else if (source === 'conversation_daily') {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      normalizedRef = normalizedRef || `conversation_daily_${today}`;
     }
 
     try {

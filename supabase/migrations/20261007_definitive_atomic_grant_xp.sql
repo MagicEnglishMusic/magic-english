@@ -147,6 +147,10 @@ BEGIN
         ELSE 300 
       END;
 
+    -- 4.10 Prática Diária de Conversação (Magic Conversation)
+    WHEN 'conversation_daily' THEN
+      v_amount := 5;
+
     ELSE
       RAISE EXCEPTION 'Origem de XP desconhecida: %', p_source;
   END CASE;

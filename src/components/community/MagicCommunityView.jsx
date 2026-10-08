@@ -316,7 +316,7 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
 
         {/* Right Column: Conversation Room & Meu Impacto (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <ConversationRoom data={conversationRoomData} />
+          <ConversationRoom data={conversationRoomData} user={user} />
           <UserImpactCard 
             impact={dynamicImpact}
             weeklyHighlights={weeklyHighlights}

@@ -26,7 +26,8 @@ export const STUDY_SOURCES = [
   'song_mastery',
   'practice_complete',
   'pronunciation_complete',
-  'daily_challenge'
+  'daily_challenge',
+  'conversation_daily'
 ];
 
 export const getSaoPauloDate = (dateObj = new Date()) => {
@@ -575,7 +576,8 @@ export function GamificationProvider({ children }) {
       'daily_challenge',
       'song_mastery',
       'badge_claim',
-      'weekly_magic_challenge'
+      'weekly_magic_challenge',
+      'conversation_daily'
     ];
 
     if (!VALID_SOURCES.includes(cleanSource)) {
