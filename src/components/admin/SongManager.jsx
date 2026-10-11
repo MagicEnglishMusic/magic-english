@@ -24,12 +24,16 @@ import {
   Timer,
   FastForward,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Bot,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { songsService } from '../../services/songsService';
 import { modulesService } from '../../services/modulesService';
 import { lessonsService } from '../../services/lessonsService';
-import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl, extractGoogleDriveId } from '../../utils/googleDriveHelper';
+import { avatarPracticeService, requestAzureTTS, DEFAULT_AVATAR_SETTINGS } from '../../services/avatarPracticeService';
+import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl, extractGoogleDriveId, uploadAudioToDrive } from '../../utils/googleDriveHelper';
 
 export default function SongManager() {
   const [songs, setSongs] = useState([]);
@@ -52,6 +56,11 @@ export default function SongManager() {
   const [isSyncPlaying, setIsSyncPlaying] = useState(false);
   const [isSavingSync, setIsSavingSync] = useState(false);
   const syncAudioRef = useRef(null);
+
+  // Estados da Geração de Áudios da Avatar (Google Drive)
+  const [isGeneratingAudios, setIsGeneratingAudios] = useState(false);
+  const [audioGenProgress, setAudioGenProgress] = useState({ current: 0, total: 0, text: '' });
+  const [audioGenToast, setAudioGenToast] = useState(null); // { type: 'success' | 'error', text: '' }
 
   const [editingSongId, setEditingSongId] = useState(null);
   const [lyricsError, setLyricsError] = useState(null);
@@ -439,6 +448,167 @@ export default function SongManager() {
     setTimeout(() => setShowAutoDistributeSuccess(false), 5000);
   };
 
+  // Automação: Gerar Áudios da Professora Avatar e Salvar no Google Drive
+  const handleGenerateAvatarAudios = async (song) => {
+    if (!song) return;
+
+    // Obter os versos da música
+    let verses = [];
+    if (Array.isArray(song.timestamps) && song.timestamps.length > 0) {
+      verses = [...song.timestamps];
+    } else {
+      const enLines = (song.lyricsEn || song.lyrics_en || '').split('\n').filter((l) => l.trim().length > 0);
+      const ptLines = (song.lyricsPt || song.lyrics_pt || '').split('\n').filter((l) => l.trim().length > 0);
+      verses = enLines.map((en, idx) => ({
+        id: idx + 1,
+        startTime: 0,
+        endTime: 0,
+        en: en.trim(),
+        pt: (ptLines[idx] || '').trim()
+      }));
+    }
+
+    if (verses.length === 0) {
+      alert('Esta música não possui versos em inglês cadastrados para gerar áudios.');
+      return;
+    }
+
+    if (!window.confirm(`Deseja gerar os áudios da Professora Avatar para os ${verses.length} versos de "${song.title}" e fazer o upload automático para o Google Drive?`)) {
+      return;
+    }
+
+    setIsGeneratingAudios(true);
+    setAudioGenToast(null);
+
+    try {
+      let successCount = 0;
+      const failedVerses = [];
+      const updatedVerses = [...verses];
+      const folderName = song.title ? `${song.title.trim()}` : `Música ${song.id}`;
+      const officialParentFolderId = '1qOvkhY0dGx6BH3T9R4Om2SSAc17qLnmh';
+
+      for (let i = 0; i < updatedVerses.length; i++) {
+        const verse = updatedVerses[i];
+        const verseText = (verse.en || verse.english || verse.text || '').trim();
+        if (!verseText) continue;
+
+        setAudioGenProgress({
+          current: i + 1,
+          total: updatedVerses.length,
+          text: verseText
+        });
+
+        // Se já tiver áudio no Google Drive válido, contabiliza e pula para economizar tokens
+        const existingUrl = verse.audioUrl || verse.audio_url || verse.driveUrl || verse.drive_audio_url;
+        if (existingUrl && (existingUrl.includes('googleusercontent.com') || existingUrl.includes('drive.google.com'))) {
+          successCount++;
+          continue;
+        }
+
+        let uploadedUrl = null;
+        let lastError = null;
+
+        // Tentativa com retry (até 2 tentativas por verso)
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            // 2. Gerar áudio neural de alta fidelidade via Microsoft Azure Speech (JennyNeural)
+            const audioResult = await requestAzureTTS(verseText, 'en');
+            const { base64Audio } = audioResult;
+
+            // 3. Fazer upload para a pasta no Google Drive (pasta oficial 1qOvkhY0dGx6BH3T9R4Om2SSAc17qLnmh)
+            const fileName = `verse_${String(i + 1).padStart(2, '0')}.wav`;
+            const driveDirectUrl = await uploadAudioToDrive({
+              songId: song.id,
+              fileName,
+              base64: base64Audio,
+              mimeType: 'audio/wav',
+              parentFolderId: officialParentFolderId,
+              folderName: folderName
+            });
+
+            if (driveDirectUrl && (driveDirectUrl.includes('googleusercontent.com') || driveDirectUrl.includes('drive.google.com') || driveDirectUrl.startsWith('http'))) {
+              uploadedUrl = driveDirectUrl;
+              break;
+            } else {
+              throw new Error('Link retornado do Drive inválido.');
+            }
+          } catch (itemErr) {
+            lastError = itemErr;
+            console.error(`[Erro no verso #${i + 1}] Tentativa ${attempt}/2 ("${verseText}"):`, itemErr);
+
+            if (attempt === 1) {
+              const isRateLimit = itemErr.status === 429 || (itemErr.message && itemErr.message.includes('429'));
+              const retryWaitMs = isRateLimit ? 5000 : 1500;
+              console.warn(`Aguardando ${retryWaitMs / 1000}s para retry no verso #${i + 1}...`);
+              await new Promise((r) => setTimeout(r, retryWaitMs));
+            }
+          }
+        }
+
+        if (uploadedUrl) {
+          // 4. Salvar URL do Google Drive no verso
+          updatedVerses[i] = {
+            ...verse,
+            audioUrl: uploadedUrl,
+            driveUrl: uploadedUrl,
+            drive_audio_url: uploadedUrl
+          };
+          successCount++;
+
+          // Salvar incrementalmente no Supabase a cada 5 versos para não perder progresso
+          if (successCount % 5 === 0 || i === updatedVerses.length - 1) {
+            try {
+              await songsService.updateSong(song.id, { timestamps: updatedVerses });
+            } catch (_) {}
+          }
+        } else {
+          console.error(`Falha definitiva no verso #${i + 1}:`, lastError);
+          failedVerses.push({ index: i + 1, text: verseText, error: lastError?.message || 'Falha no upload' });
+        }
+
+        // Intervalo de segurança suave de 1200ms entre uploads
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
+      // 5. Salvar versos finais atualizados no Supabase
+      const updatePayload = {
+        timestamps: updatedVerses
+      };
+      await songsService.updateSong(song.id, updatePayload);
+
+      // Atualizar estado local
+      const updatedSongs = songs.map((s) => (s.id === song.id ? { ...s, timestamps: updatedVerses } : s));
+      setSongs(updatedSongs);
+      if (selectedSong?.id === song.id) {
+        setSelectedSong({ ...selectedSong, timestamps: updatedVerses });
+      }
+
+      if (failedVerses.length === 0) {
+        setAudioGenToast({
+          type: 'success',
+          text: `🎉 Sucesso total! Todos os ${successCount}/${updatedVerses.length} versos foram salvos na pasta "${folderName}" no Google Drive! Custo ZERO garantido.`
+        });
+      } else {
+        const failedIndices = failedVerses.map(f => `#${f.index}`).join(', ');
+        setAudioGenToast({
+          type: 'error',
+          text: `Atenção: ${successCount} de ${updatedVerses.length} versos salvos. Falha nos versos: ${failedIndices}. Você pode clicar no botão novamente para reenviar apenas os que faltaram!`
+        });
+      }
+      setTimeout(() => setAudioGenToast(null), 8000);
+
+    } catch (err) {
+      console.error('Erro no processamento dos áudios no Google Drive:', err);
+      setAudioGenToast({
+        type: 'error',
+        text: `Erro ao gerar áudios no Google Drive: ${err.message || err}`
+      });
+    } finally {
+      setIsGeneratingAudios(false);
+      setAudioGenProgress({ current: 0, total: 0, text: '' });
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('Tem certeza que deseja excluir esta Magic Song? Esta ação não pode ser desfeita.')) {
       return;
@@ -635,11 +805,63 @@ export default function SongManager() {
                     <Timer className="w-4 h-4 text-cyan-300" />
                     <span>⏱️ Sincronizar Karaokê</span>
                   </button>
+
+                  {/* NOVO: Gerar Áudios da Avatar no Google Drive */}
+                  <button
+                    type="button"
+                    disabled={isGeneratingAudios}
+                    onClick={() => handleGenerateAvatarAudios(selectedSong)}
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                    title="Gera os áudios neurais da avatar e envia para o Google Drive para custo ZERO de tokens"
+                  >
+                    {isGeneratingAudios ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                        <span>Gerando... ({audioGenProgress.current}/{audioGenProgress.total})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-4 h-4 text-emerald-200" />
+                        <span>🎙️ Gerar Áudios da Avatar (Google Drive)</span>
+                      </>
+                    )}
+                  </button>
+
                   <span className="text-xs font-bold text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> 4 Abas Alimentadas
                   </span>
                 </div>
               </div>
+
+              {/* Toast / Alerta de Progresso da Geração de Áudio */}
+              {isGeneratingAudios && (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/70 to-teal-950/70 border border-emerald-500/40 text-emerald-200 text-xs flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400 flex-shrink-0" />
+                    <span className="truncate">
+                      Enviando para o Google Drive: <strong>{audioGenProgress.current} de {audioGenProgress.total}</strong> — <em>"{audioGenProgress.text}"</em>
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-emerald-300">
+                    {Math.round((audioGenProgress.current / (audioGenProgress.total || 1)) * 100)}%
+                  </span>
+                </div>
+              )}
+
+              {audioGenToast && (
+                <div className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center gap-2.5 shadow-lg animate-in fade-in ${
+                  audioGenToast.type === 'error'
+                    ? 'bg-red-500/15 border-red-500/30 text-red-300'
+                    : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                }`}>
+                  {audioGenToast.type === 'error' ? (
+                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  )}
+                  <span>{audioGenToast.text}</span>
+                </div>
+              )}
 
               {/* The 4 Generated Distribution Pillars */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
