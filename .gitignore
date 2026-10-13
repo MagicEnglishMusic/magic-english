@@ -19,11 +19,13 @@ build
 
 # Environment Variables & Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 *.local
+
+# Backups & Local Archives
+backups_local/
+backups/
 
 # Editor & OS Artifacts
 .vscode/*
