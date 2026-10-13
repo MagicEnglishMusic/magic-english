@@ -1,23 +1,55 @@
 # ==============================================================================
-# Magic English App — Apache / LiteSpeed Configuration (Hostinger)
+# Magic English v4.1 — Hostinger Production Configuration (Apache & LiteSpeed)
+# Subdomínio: appmagic.r6produtosdigital.com (public_html/appmagic)
 # ==============================================================================
 
-# 1. Force HTTPS
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteCond %{HTTPS} off
-  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# 1. Disable MultiViews to prevent Apache content-negotiation conflicts
+Options -MultiViews
 
-  # 2. SPA Route Fallback: Any non-existing file/dir routes to /index.html
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+# 2. Correct MIME Types (Critical for JavaScript Modules & CSS)
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/css .css
+  AddType image/svg+xml .svg
+  AddType application/json .json
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType font/ttf .ttf
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+  AddType image/webp .webp
+  AddType audio/mpeg .mp3
+  AddType video/mp4 .mp4
 </IfModule>
 
-# 3. Custom Error Document
+# 3. URL Rewriting for Single Page Application (SPA)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 3.1. Force HTTPS
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 3.2. Pass-through for real files and directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # 3.3. Never rewrite static asset extensions to index.html (Prevents MIME Type HTML error)
+  RewriteCond %{REQUEST_URI} \.(?:css|js|mjs|json|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|mp3|mp4|webm|wav|ogg)$ [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/assets/ [NC]
+  RewriteRule ^ - [L]
+
+  # 3.4. SPA Fallback: Route all client-side paths (e.g., /login, /classroom, /dashboard) to index.html
+  RewriteRule ^ index.html [L,QSA]
+</IfModule>
+
+# 4. Custom Error Document
 ErrorDocument 404 /index.html
 
-# 4. Gzip / Deflate Compression
+# 5. Gzip & Deflate Compression
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/plain
   AddOutputFilterByType DEFLATE text/html
@@ -32,14 +64,14 @@ ErrorDocument 404 /index.html
   AddOutputFilterByType DEFLATE image/svg+xml
 </IfModule>
 
-# 5. Browser Caching Control
+# 6. Browser Caching Control
 <IfModule mod_expires.c>
   ExpiresActive On
 
   # HTML pages: NO CACHE (ensures instant updates on new builds)
   ExpiresByType text/html "access plus 0 seconds"
 
-  # Static versioned assets (CSS, JS, Fonts, Images)
+  # Static versioned assets (CSS, JS, Fonts, Images, Media)
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
   ExpiresByType application/x-javascript "access plus 1 year"
@@ -50,9 +82,11 @@ ErrorDocument 404 /index.html
   ExpiresByType font/woff "access plus 1 year"
   ExpiresByType font/woff2 "access plus 1 year"
   ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType audio/mpeg "access plus 1 year"
+  ExpiresByType video/mp4 "access plus 1 year"
 </IfModule>
 
-# 6. Anti-Cache Headers specifically for index.html
+# 7. Anti-Cache for index.html & Security Headers
 <IfModule mod_headers.c>
   <Files "index.html">
     Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
@@ -60,7 +94,6 @@ ErrorDocument 404 /index.html
     Header set Expires "0"
   </Files>
 
-  # Security Headers
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set X-XSS-Protection "1; mode=block"

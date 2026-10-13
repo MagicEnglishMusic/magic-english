@@ -3,6 +3,19 @@ import { Trophy, Zap, Plus, Award, Target, Sparkles, CheckCircle2, Flame, X, Ref
 import { XP_REWARDS, INITIAL_BADGES, INITIAL_DAILY_CHALLENGES } from '../../data/gamificationData';
 import { communityService } from '../../services/communityService';
 
+const XP_LABELS = {
+  WATCH_LESSON: 'Assistir Aula',
+  COMPLETE_MAGIC_SONG: 'Concluir Magic Song',
+  COMPLETE_MUSICAL_PRACTICE: 'Concluir Prática Musical',
+  COMPLETE_PRONUNCIATION: 'Treino de Pronúncia (IA)',
+  COMPLETE_LESSON: 'Concluir Aula',
+  COMPLETE_MODULE: 'Concluir Módulo',
+  COMPLETE_TRACK: 'Concluir Trilha',
+  MASTER_SONG: 'Dominar Música',
+  DAILY_CHALLENGE_DEFAULT: 'Desafio Diário',
+  WEEKLY_MAGIC_CHALLENGE: 'Desafio Magic da Semana'
+};
+
 export default function GamificationManager() {
   const [xpRewards, setXpRewards] = useState(XP_REWARDS);
   const [badges, setBadges] = useState(INITIAL_BADGES);
@@ -120,8 +133,8 @@ export default function GamificationManager() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
           {Object.entries(xpRewards).map(([key, val]) => (
             <div key={key} className="p-4 rounded-2xl bg-[#141728] border border-slate-800/80 space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                {key.replace(/_/g, ' ')}
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block truncate" title={XP_LABELS[key] || key}>
+                {XP_LABELS[key] || key.replace(/_/g, ' ')}
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 font-black text-sm">+</span>

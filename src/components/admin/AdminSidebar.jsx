@@ -15,7 +15,8 @@ import {
   LogOut,
   Sparkles,
   ShieldAlert,
-  MessageSquare
+  MessageSquare,
+  Bot
 } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 
@@ -65,7 +66,7 @@ export default function AdminSidebar({
   };
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Painel Inicial', icon: LayoutDashboard },
     { id: 'community', label: 'Comunidade & Moderação', icon: MessageSquare },
     { id: 'courses', label: 'Cursos & Trilhas', icon: BookOpen },
     { id: 'modules', label: 'Módulos', icon: Layers, badge: formatBadge(stats.totalModules) },
@@ -73,6 +74,7 @@ export default function AdminSidebar({
     { id: 'songs', label: 'Músicas (SSOT)', icon: Music, badge: formatBadge(stats.totalSongs) },
     { id: 'materials', label: 'Materiais PDF', icon: FileText },
     { id: 'pronunciation', label: 'Pronúncia (IA)', icon: Mic },
+    { id: 'avatar-settings', label: 'Professora Avatar (IA)', icon: Bot },
     { id: 'practice', label: 'Prática Musical', icon: Brain },
     { id: 'gamification', label: 'Gamificação & XP', icon: Trophy },
     { id: 'students', label: 'Alunos', icon: Users, badge: formatBadge(stats.totalStudents) },
@@ -80,7 +82,7 @@ export default function AdminSidebar({
   ];
 
   return (
-    <aside className="w-64 bg-[#070810] border-r border-[#1a1e32] h-screen sticky top-0 flex flex-col justify-between p-5 select-none z-40 transition-all">
+    <aside className="hidden lg:flex w-64 bg-[#070810] border-r border-[#1a1e32] h-screen sticky top-0 flex-col justify-between p-5 select-none z-40 transition-all">
       
       {/* Top Section: Brand & Navigation */}
       <div className="space-y-6">

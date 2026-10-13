@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
-import { Search, Bell, Crown, ChevronDown, Flame, Volume2, Sparkles, Zap, Trophy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Bell, Crown, ChevronDown, Flame, Volume2, Sparkles, Zap, Trophy, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
+import { communityService } from '../../services/communityService';
 
-export default function Header({ onSearch, searchQuery, onOpenGamification }) {
+export default function Header({ onSearch, searchQuery, onOpenGamification, onOpenMobileMenu }) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [gamifDisplay, setGamifDisplay] = useState({
+    showUserXpHeader: true,
+    showRankings: true,
+    showBadges: true,
+    showLevelCelebrations: true
+  });
   const { user } = useAuth();
   const { xp, streak, currentLevel } = useGamification();
+
+  useEffect(() => {
+    communityService.getAppSettings('gamification_display').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setGamifDisplay((prev) => ({
+          ...prev,
+          ...res.data
+        }));
+      }
+    });
+  }, []);
 
   const studentName = user?.name || 'João Silva';
   const studentAvatar = user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80';
@@ -31,7 +49,18 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
   ];
 
   return (
-    <header className="sticky top-0 z-20 bg-[#08090e]/90 backdrop-blur-xl border-b border-[#1c2033] px-6 sm:px-8 py-4 flex items-center justify-between gap-4 sm:gap-6 transition-all">
+    <header className="sticky top-0 z-20 bg-[#08090e]/90 backdrop-blur-xl border-b border-[#1c2033] px-4 sm:px-8 py-3.5 sm:py-4 flex items-center justify-between gap-3 sm:gap-6 transition-all">
+      {/* Mobile Hamburger Button */}
+      <button
+        type="button"
+        onClick={onOpenMobileMenu}
+        className="lg:hidden p-2 rounded-xl bg-[#131625] hover:bg-[#1a1e34] border border-[#22273d] text-slate-300 hover:text-white hover:border-purple-500/40 transition-colors cursor-pointer flex-shrink-0"
+        aria-label="Abrir Menu de Navegação"
+        title="Abrir Menu"
+      >
+        <Menu className="w-5 h-5 text-purple-400" />
+      </button>
+
       {/* Search Bar */}
       <div className="flex-1 max-w-xl relative">
         <div className="relative flex items-center">
@@ -52,15 +81,17 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
       {/* Right Controls: Magic XP, Streak, Notifications, User Profile */}
       <div className="flex items-center gap-2.5 sm:gap-4">
         
-        {/* ⭐ Magic XP Live Indicator */}
-        <button
-          onClick={onOpenGamification}
-          title="Ver Minha Evolução & Conquistas"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-indigo-500/15 border border-amber-500/30 text-amber-300 text-xs font-black shadow-sm hover:border-amber-400 transition-all cursor-pointer group"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform animate-pulse" />
-          <span>{(Number(xp) || 0).toLocaleString('pt-BR')} XP</span>
-        </button>
+        {/* ⭐ Magic XP Live Indicator (Configurable via gamification_display.showUserXpHeader) */}
+        {gamifDisplay.showUserXpHeader !== false && (
+          <button
+            onClick={onOpenGamification}
+            title="Ver Minha Evolução & Conquistas"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-indigo-500/15 border border-amber-500/30 text-amber-300 text-xs font-black shadow-sm hover:border-amber-400 transition-all cursor-pointer group animate-in fade-in"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400 group-hover:scale-110 transition-transform animate-pulse" />
+            <span>{(Number(xp) || 0).toLocaleString('pt-BR')} XP</span>
+          </button>
+        )}
 
         {/* 🔥 Streak Quick Indicator */}
         <button
@@ -98,17 +129,13 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => {
-                      setShowNotifications(false);
-                      onOpenGamification && onOpenGamification();
-                    }}
-                    className="p-2.5 rounded-xl bg-[#181d2f] hover:bg-[#1f253d] border border-transparent hover:border-purple-500/20 transition-all cursor-pointer"
+                    className="p-3 rounded-xl bg-[#161a29] border border-[#22273c] hover:border-purple-500/40 transition-colors cursor-pointer space-y-1"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-semibold text-white">{n.title}</p>
-                      <span className="text-[10px] text-slate-500 whitespace-nowrap">{n.time}</span>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-200">{n.title}</h4>
+                      <span className="text-[10px] text-slate-500">{n.time}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1">{n.desc}</p>
+                    <p className="text-[11px] text-slate-400">{n.desc}</p>
                   </div>
                 ))}
               </div>
@@ -116,34 +143,28 @@ export default function Header({ onSearch, searchQuery, onOpenGamification }) {
           )}
         </div>
 
-        {/* User Profile */}
-        <div
-          onClick={onOpenGamification}
-          className="flex items-center gap-3 pl-2 border-l border-[#1f243a] cursor-pointer group"
-        >
+        {/* User Mini Profile */}
+        <div className="flex items-center gap-3 pl-2 sm:pl-3 border-l border-[#1c2033]">
           <div className="relative">
             <img
               src={studentAvatar}
               alt={studentName}
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-500/50 group-hover:ring-purple-400 transition-all"
+              className="w-9 h-9 rounded-full object-cover ring-2 ring-purple-500/40"
             />
-            <span className="absolute -bottom-1 -right-1 bg-gradient-to-r from-purple-500 to-amber-500 p-0.5 rounded-full text-white shadow-sm">
-              <Crown className="w-2.5 h-2.5" />
-            </span>
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-[#08090e]" />
           </div>
-
-          <div className="hidden lg:block text-left">
-            <div className="flex items-center gap-1.5">
-              <p className="text-xs font-bold text-slate-100 group-hover:text-purple-300 transition-colors">{studentName}</p>
-              <ChevronDown className="w-3 h-3 text-slate-500" />
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20">
-                Nível {displayLevelNumber} • {displayLevelTitle}
-              </span>
-            </div>
+          <div className="hidden md:block text-left">
+            <p className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">
+              {studentName}
+            </p>
+            <p className="text-[10px] font-semibold text-purple-400 leading-tight flex items-center gap-1">
+              <span>Nv. {displayLevelNumber}</span>
+              <span>•</span>
+              <span className="truncate max-w-[70px]">{displayLevelTitle}</span>
+            </p>
           </div>
         </div>
+
       </div>
     </header>
   );

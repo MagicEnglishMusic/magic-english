@@ -47,8 +47,13 @@ export default function MyModulesView({
         const dbLessons = lessonsRes.data || [];
         const dbProgress = progRes?.data || [];
 
-        if (isMounted && dbModules.length > 0) {
-          const formatted = dbModules.map((m, idx) => {
+        if (isMounted) {
+          // Filtragem de Visibilidade Dupla:
+          // 1. Chave DESLIGADA (is_visible === false): oculto de forma absoluta
+          // 2. Status 'draft' (Rascunho): oculto de forma absoluta
+          const visibleModules = dbModules.filter((m) => m.is_visible !== false && m.status !== 'draft');
+
+          const formatted = visibleModules.map((m, idx) => {
             const modLessons = dbLessons.filter((l) => l.module_id === m.id);
             const totalLessons = modLessons.length || m.lessons_count || 0;
             
@@ -58,6 +63,7 @@ export default function MyModulesView({
             }).length;
 
             const realProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            const isComingSoon = m.status === 'coming_soon';
 
             return {
               id: m.id,
@@ -70,18 +76,25 @@ export default function MyModulesView({
               songsCount: m.songs_count ?? 0,
               progress: realProgress,
               status: m.status || 'published',
-              isLocked: false
+              isVisible: m.is_visible !== false,
+              isComingSoon,
+              isLocked: isComingSoon
             };
           });
 
           setModules(formatted);
           if (selectedModuleId) {
             const found = formatted.find((m) => m.id === selectedModuleId || m.moduleNumber?.toLowerCase() === String(selectedModuleId).toLowerCase());
-            if (found) setSelectedModule(found);
+            if (found && !found.isComingSoon) {
+              setSelectedModule(found);
+            } else {
+              setSelectedModule(null);
+            }
           } else {
             setSelectedModule((prev) => {
               if (!prev) return null;
-              return formatted.find((m) => m.id === prev.id) || prev;
+              const found = formatted.find((m) => m.id === prev.id);
+              return (found && !found.isComingSoon) ? found : null;
             });
           }
         }
@@ -96,6 +109,10 @@ export default function MyModulesView({
   }, [selectedModuleId, user?.id]);
 
   const handleSelectModule = (mod) => {
+    // Bloquear clique se for módulo "Em Breve" ou bloqueado
+    if (mod.isComingSoon || mod.isLocked) {
+      return;
+    }
     setSelectedModule(mod);
     if (onModuleChange) onModuleChange(mod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 import { rankingService } from '../../services/rankingService';
+import { communityService } from '../../services/communityService';
 
 export default function MagicRankingView({ onContinueStudy }) {
   const { user } = useAuth();
@@ -29,12 +30,27 @@ export default function MagicRankingView({ onContinueStudy }) {
   const [activeFilter, setActiveFilter] = useState('weekly'); // 'weekly' | 'monthly' | 'allTime'
   const [leaderboard, setLeaderboard] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [rankingConfig, setRankingConfig] = useState({
+    isRankingActive: true,
+    displayLimit: 50
+  });
 
   const filterLabels = {
     weekly: "da Semana",
     monthly: "do Mês",
     allTime: "Geral da Comunidade"
   };
+
+  useEffect(() => {
+    communityService.getAppSettings('ranking_settings').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setRankingConfig({
+          isRankingActive: res.data.isRankingActive !== false,
+          displayLimit: Number(res.data.displayLimit) || 50
+        });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -44,7 +60,7 @@ export default function MagicRankingView({ onContinueStudy }) {
         const { data, error } = await rankingService.getRankingLeaderboard();
         if (isMounted) {
           if (!error && data) {
-            setLeaderboard(data);
+            setLeaderboard(data.slice(0, rankingConfig.displayLimit || 50));
           } else {
             setLeaderboard([]);
           }
@@ -60,7 +76,7 @@ export default function MagicRankingView({ onContinueStudy }) {
     return () => {
       isMounted = false;
     };
-  }, [activeFilter]);
+  }, [activeFilter, rankingConfig.displayLimit]);
 
   const getLeagueInfo = (userXp) => {
     if (userXp >= 15000) return { league: "Liga Magic", leagueIcon: "👑", tier: "Top 1%" };
@@ -110,18 +126,30 @@ export default function MagicRankingView({ onContinueStudy }) {
         onContinueStudy={onContinueStudy}
       />
 
-      {/* 3. Filtros & Tabela do Ranking Semanal / Mensal / Geral */}
-      <div className="space-y-4">
-        <RankingFilter
-          activeFilter={activeFilter}
-          onChangeFilter={setActiveFilter}
-        />
+      {/* 3. Filtros & Tabela do Ranking Semanal / Mensal / Geral OU Aviso de Pausa */}
+      {!rankingConfig.isRankingActive ? (
+        <div className="p-8 rounded-3xl bg-[#111425] border border-purple-500/30 text-center space-y-3 shadow-xl max-w-2xl mx-auto">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto text-purple-400">
+            <Trophy className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-bold text-white">Ranking em Atualização</h4>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            A tabela de classificação está em manutenção programada e retornará em breve. Continue praticando suas aulas e músicas normalmente para acumular XP!
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <RankingFilter
+            activeFilter={activeFilter}
+            onChangeFilter={setActiveFilter}
+          />
 
-        <LeaderboardTable
-          leaderboard={leaderboard}
-          filterLabel={filterLabels[activeFilter]}
-        />
-      </div>
+          <LeaderboardTable
+            leaderboard={leaderboard}
+            filterLabel={filterLabels[activeFilter]}
+          />
+        </div>
+      )}
 
       {/* 4. Sistema de Ligas */}
       <LeagueBadge

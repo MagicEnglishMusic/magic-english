@@ -42,7 +42,7 @@ serve(async (req) => {
     try {
       const supabase = createClient(supabaseUrl, supabaseKey);
 
-      // Check in songs table
+      // Check in songs table (audio_url)
       const { data: songMatch, error: songErr } = await supabase
         .from("songs")
         .select("id")
@@ -51,7 +51,32 @@ serve(async (req) => {
 
       let isAllowed = Boolean(!songErr && songMatch && songMatch.length > 0);
 
-      // If not in songs, check lessons table as fallback
+      // Check in songs.timestamps JSONB (verse audio URLs)
+      if (!isAllowed) {
+        const { data: allSongs } = await supabase
+          .from("songs")
+          .select("id, timestamps");
+        if (Array.isArray(allSongs)) {
+          isAllowed = allSongs.some((s: any) =>
+            JSON.stringify(s?.timestamps || []).includes(fileId)
+          );
+        }
+      }
+
+      // Check in app_settings (avatar_messages_audio_catalog and avatar_settings)
+      if (!isAllowed) {
+        const { data: appSettingsRows } = await supabase
+          .from("app_settings")
+          .select("key, value")
+          .in("key", ["avatar_messages_audio_catalog", "avatar_settings"]);
+        if (Array.isArray(appSettingsRows)) {
+          isAllowed = appSettingsRows.some((row: any) =>
+            JSON.stringify(row?.value || {}).includes(fileId)
+          );
+        }
+      }
+
+      // If still not found, check lessons table as fallback
       if (!isAllowed) {
         const { data: lessonMatch } = await supabase
           .from("lessons")

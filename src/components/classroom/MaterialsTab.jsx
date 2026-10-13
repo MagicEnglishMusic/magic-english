@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, FolderDown, Loader2 } from 'lucide-react';
+import { FileText, Download, FolderDown, Loader2, Lock } from 'lucide-react';
 import { materialsService } from '../../services/materialsService';
+import { permissionService } from '../../services/permissionService';
+import { useAuth } from '../../context/AuthContext';
 import { getDriveMaterialUrls, isGoogleDriveUrl } from '../../utils/googleDriveHelper';
+import UpgradeModal from '../common/UpgradeModal';
 
 export default function MaterialsTab({ files = [], lessonId = null, moduleId = null }) {
+  const { user } = useAuth();
   const [dbMaterials, setDbMaterials] = useState([]);
   const [isLoading, setIsLoading] = useState(Boolean((lessonId || moduleId) && (!files || files.length === 0)));
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,13 +53,20 @@ export default function MaterialsTab({ files = [], lessonId = null, moduleId = n
     return dbMaterials;
   }, [files, dbMaterials]);
 
+  const isDownloadAllowed = permissionService.canDownloadPdf(user);
+
   const handleDownload = (file) => {
+    if (!permissionService.canDownloadPdf(user)) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     if (file.url && file.url.startsWith('http')) {
       if (isGoogleDriveUrl(file.url)) {
         const { downloadUrl, viewUrl } = getDriveMaterialUrls(file.url);
-        window.open(downloadUrl || viewUrl, '_blank');
+        window.open(downloadUrl || viewUrl, '_blank', 'noopener,noreferrer');
       } else {
-        window.open(file.url, '_blank');
+        window.open(file.url, '_blank', 'noopener,noreferrer');
       }
     } else {
       alert(`Preparando download seguro de: "${file.name}"`);
@@ -63,6 +75,13 @@ export default function MaterialsTab({ files = [], lessonId = null, moduleId = n
 
   return (
     <div className="space-y-6">
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        featureName="Download de Apostilas & PDFs de Aula"
+        customSubtitle="O download das apostilas e materiais complementares das aulas é exclusivo para alunos VIP Pro e Premium."
+      />
+
       {/* Header Info */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c2035]">
         <div>
@@ -117,10 +136,23 @@ export default function MaterialsTab({ files = [], lessonId = null, moduleId = n
                 </span>
                 <button
                   onClick={() => handleDownload(file)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-white font-bold text-xs transition-all shadow-md cursor-pointer ${
+                    isDownloadAllowed
+                      ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                      : 'bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 border border-amber-400/30 shadow-purple-900/40'
+                  }`}
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Baixar PDF</span>
+                  {isDownloadAllowed ? (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar PDF</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Baixar PDF (VIP)</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

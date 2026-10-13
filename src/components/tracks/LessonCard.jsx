@@ -81,7 +81,7 @@ export default function LessonCard({ lesson, onSelectLesson }) {
       <div className="flex items-center gap-3 flex-shrink-0">
         {isCompleted && (
           <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
-            Concluído
+            Concluída
           </span>
         )}
         {isInProgress && (

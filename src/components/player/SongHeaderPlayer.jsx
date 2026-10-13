@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { isGoogleDriveUrl, getDriveAudioUrl, getDriveImageUrl } from '../../utils/googleDriveHelper';
 import { findActiveVerseIndex, KARAOKE_LEAD_SECONDS } from '../../utils/karaokeSync';
+import { communityService } from '../../services/communityService';
 
 export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,7 +29,16 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
   const [volume, setVolume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [defaultCoverUrl, setDefaultCoverUrl] = useState('');
   const audioRef = useRef(null);
+
+  useEffect(() => {
+    communityService.getAppSettings('media_settings').then((res) => {
+      if (res?.data?.defaultSongCoverUrl) {
+        setDefaultCoverUrl(res.data.defaultSongCoverUrl);
+      }
+    });
+  }, []);
 
   const resolvedAudio = useMemo(() => {
     const raw = song?.audioUrl || song?.audio_url || '';
@@ -37,9 +47,9 @@ export default function SongHeaderPlayer({ song, currentLineIndex, onLineChange 
   }, [song]);
 
   const resolvedCover = useMemo(() => {
-    const raw = song?.image || song?.cover_url || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80';
+    const raw = song?.image || song?.cover_url || defaultCoverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80';
     return isGoogleDriveUrl(raw) ? getDriveImageUrl(raw) : raw;
-  }, [song]);
+  }, [song, defaultCoverUrl]);
 
   const lyrics = useMemo(() => {
     if (Array.isArray(song?.timestamps) && song.timestamps.length > 0) {

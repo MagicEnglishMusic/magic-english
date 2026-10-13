@@ -1,133 +1,121 @@
-import { progressService } from './progressService';
-import { lessonsService } from './lessonsService';
-import { songsService } from './songsService';
-import { songsRegistry } from '../data/songsRegistry';
-import { modulesLibraryData } from '../data/modulesData';
-import { conversationChallenges, getTodayConversationChallenge } from '../data/conversationChallenges';
+import { progressService } from './progressService.js';
+import { lessonsService } from './lessonsService.js';
+import { songsService } from './songsService.js';
+import { songsRegistry } from '../data/songsRegistry.js';
+import { modulesLibraryData } from '../data/modulesData.js';
+import { conversationChallenges, getTodayConversationChallenge } from '../data/conversationChallenges.js';
 
 /**
- * Strict Pedagogical Knowledge Base Mapping for Built-in Lessons & Songs.
- * Ensures questions and suggestions ONLY use vocabulary and phrases taught in each lesson/song.
- * NEVER uses UI strings, instructions, labels, or unstudied words like "practice".
+ * Extracts raw verses from song object across all possible database columns and registries
+ * (timestamps, lyricsTimestamps, lyrics).
  */
-const PEDAGOGICAL_LESSON_CHALLENGES = {
-  // Lesson 1 / Hello Song (Greetings & Introductions)
-  'hello': {
-    id: 'lesson-hello',
-    theme: 'Apresentações & Cumprimentos',
-    title: 'Hello! Como se Apresentar',
-    lessonRef: 'Aula 01 • Hello Song',
-    phrase: 'Hello, my friend! Nice to meet you. What is your name?',
-    translation: 'Olá, meu amigo! Prazer em conhecer você. Qual é o seu nome?',
-    suggestions: [
-      "Hello! My name is Maria. Nice to meet you!",
-      "Good morning my friend! Ready to sing and play.",
-      "I'm feeling great on this lovely day!"
-    ]
-  },
-  // Lesson 2 / Numbers Song (Counting & Prices)
-  'numbers': {
-    id: 'lesson-numbers',
-    theme: 'Números & Preços',
-    title: 'Numbers — Preços e Quantidades',
-    lessonRef: 'Aula 02 • Numbers Song',
-    phrase: 'How much does it cost at the store? Can you count for me?',
-    translation: 'Quanto custa na loja? Você pode contar para mim?',
-    suggestions: [
-      "It is twenty dollars, nothing more.",
-      "One, two, three, let's count for free!",
-      "It costs twenty dollars at the store."
-    ]
-  },
-  // Travel / Airport
-  'airport': {
-    id: 'lesson-airport',
-    theme: 'Inglês para Viagens',
-    title: 'No Aeroporto — Check-in & Alfândega',
-    lessonRef: 'Viagens • Travel Songs (Airport Edition)',
-    phrase: 'Good morning! Do you have your passport and ticket ready for your flight?',
-    translation: 'Bom dia! Você está com seu passaporte e passagem prontos para o voo?',
-    suggestions: [
-      "Yes, here is my passport and ticket. Thank you!",
-      "Yes, I am ready for my flight to New York.",
-      "Good morning! Everything is ready for the trip."
-    ]
-  },
-  // Hotel
-  'hotel': {
-    id: 'lesson-hotel',
-    theme: 'Inglês para Viagens',
-    title: 'No Hotel — Reservas & Recepção',
-    lessonRef: 'Viagens • Hotel Magic Hit',
-    phrase: 'Welcome to the hotel! Do you have a reservation for tonight?',
-    translation: 'Bem-vindo ao hotel! Você tem uma reserva para esta noite?',
-    suggestions: [
-      "Yes, I have a reservation under my name.",
-      "Good evening! Here is my reservation for two days.",
-      "Yes, thank you! What time is breakfast in the morning?"
-    ]
-  },
-  // Restaurant / Food
-  'restaurant': {
-    id: 'lesson-restaurant',
-    theme: 'Inglês para Restaurantes',
-    title: 'No Restaurante — Fazendo Pedidos',
-    lessonRef: 'Viagens • Restaurant & Food Song',
-    phrase: 'Good evening! What would you like to order for dinner?',
-    translation: 'Boa noite! O que você gostaria de pedir para o jantar?',
-    suggestions: [
-      "I would like water and pasta, please.",
-      "A delicious pizza and juice, thank you!",
-      "Can I see the food menu, please?"
-    ]
-  },
-  // City / Directions
-  'city': {
-    id: 'lesson-city',
-    theme: 'Direções & Cidade',
-    title: 'Pedindo Informações & Direções na Rua',
-    lessonRef: 'Viagens • City & Directions Song',
-    phrase: 'Excuse me, where is the nearest station or park?',
-    translation: 'Com licença, onde fica a estação ou parque mais próximo?',
-    suggestions: [
-      "Go straight and turn left at the corner.",
-      "The station is near the central park, straight ahead.",
-      "It is just two blocks away, thank you!"
-    ]
-  },
-  // Family & Lifestyle
-  'family': {
-    id: 'lesson-family',
-    theme: 'Família & Estilo de Vida',
-    title: 'Hobbies, Família & Estilo de Vida',
-    lessonRef: 'Conversas • My Favorite Things',
-    phrase: 'Good morning! What is your favorite thing to do on weekends?',
-    translation: 'Bom dia! Qual é a sua coisa favorita para fazer nos fins de semana?',
-    suggestions: [
-      "I love listening to music and singing with my family.",
-      "I enjoy spending time outdoors with my friends.",
-      "I enjoy cooking and singing songs with my family."
-    ]
-  },
-  // Business / Work
-  'business': {
-    id: 'lesson-business',
-    theme: 'Inglês para Trabalho',
-    title: 'Reuniões Corporativas & Comunicação',
-    lessonRef: 'Trabalho • Business Meeting Hit',
-    phrase: 'Good morning everyone, let us start today meeting. Can you hear me well?',
-    translation: 'Bom dia a todos, vamos começar a reunião de hoje. Vocês conseguem me ouvir bem?',
-    suggestions: [
-      "Yes, I can hear you loud and clear.",
-      "Good morning! Let us review today agenda.",
-      "Good morning team, let us start the project discussion."
-    ]
+export function getSongVerses(song) {
+  if (!song) return [];
+  if (Array.isArray(song.timestamps) && song.timestamps.length > 0) return song.timestamps;
+  if (Array.isArray(song.lyricsTimestamps) && song.lyricsTimestamps.length > 0) return song.lyricsTimestamps;
+  if (Array.isArray(song.lyrics) && song.lyrics.length > 0) return song.lyrics;
+  return [];
+}
+
+/**
+ * Extracts pedagogical conversation challenges dynamically from actual song verses/timestamps.
+ * STRICT FIDELITY: Uses ONLY phrases and words literally taught in the song.
+ */
+export function extractPedagogicalChallengesFromSong(song, lesson = null) {
+  const rawVerses = getSongVerses(song);
+  if (!rawVerses || rawVerses.length === 0) return [];
+
+  const verses = rawVerses.map((v, i) => ({
+    id: v.id || (i + 1),
+    en: (v.en || v.english || v.text || '').trim(),
+    pt: (v.pt || v.portuguese || v.translation || '').trim()
+  })).filter((v) => v.en.length > 0);
+
+  if (verses.length === 0) return [];
+
+  const lessonLabel = lesson?.lesson_number || lesson?.title || song.title || 'Aula';
+  const lessonRef = `${lessonLabel} • ${song.title || 'Magic Song'}`;
+
+  const allEnVerses = new Set(verses.map((v) => v.en));
+  const challenges = [];
+  const seenPhrases = new Set();
+
+  for (let i = 0; i < verses.length; i++) {
+    const v = verses[i];
+    const en = v.en;
+    if (seenPhrases.has(en)) continue;
+
+    const isQuestion = en.endsWith('?');
+    const isCommunicative = /^(Hello|Hi|Good morning|Good afternoon|Good evening|Nice to meet you|Have a nice day|Let's learn English together)/i.test(en);
+
+    if (isQuestion || isCommunicative) {
+      const suggestions = [];
+
+      // 1. Collect subsequent verses as natural dialogue answers
+      for (let j = i + 1; j < verses.length && suggestions.length < 3; j++) {
+        const candidate = verses[j].en;
+        if (!candidate.endsWith('?') && candidate !== en && !suggestions.includes(candidate)) {
+          suggestions.push(candidate);
+        }
+      }
+
+      // 2. If suggestions < 2, pick natural polite response verses from the same song
+      const fallbackOptions = ['Thank you!', 'Of course!', "You're welcome!", 'Nice to meet you.', 'Good morning!', 'Hello!'];
+      for (const opt of fallbackOptions) {
+        if (suggestions.length >= 3) break;
+        if (allEnVerses.has(opt) && opt !== en && !suggestions.includes(opt)) {
+          suggestions.push(opt);
+        }
+      }
+
+      // Assign contextual theme based strictly on vocabulary
+      let theme = 'Cumprimentos & Apresentações';
+      if (en.includes('from') || en.includes('Brazil') || en.includes('United States')) {
+        theme = 'Origem & Nacionalidade';
+      } else if (en.includes('student') || en.includes('teacher') || en.includes('old') || en.includes('years')) {
+        theme = 'Idade & Ocupação';
+      } else if (en.includes('English') || en.includes('speak') || en.includes('learn')) {
+        theme = 'Idioma & Aprendizado';
+      } else if (en.includes('help') || en.includes('Please') || en.includes('Thank')) {
+        theme = 'Cortesia & Comunicação';
+      } else if (en.includes('See you') || en.includes('Goodbye') || en.includes('Have a nice day')) {
+        theme = 'Despedidas & Bons Desejos';
+      } else if (en.includes('How are you') || en.includes('fine') || en.includes('good') || en.includes('great')) {
+        theme = 'Cumprimentos & Sentimentos';
+      }
+
+      let title = en.replace(/[.!?]$/, '');
+      if (en === 'How are you?') title = 'Como Você Está?';
+      else if (en === "What's your name?") title = 'Qual é o Seu Nome?';
+      else if (en === 'Where are you from?') title = 'De Onde Você É?';
+      else if (en === 'How old are you?') title = 'Quantos Anos Você Tem?';
+      else if (en === 'Are you a student?') title = 'Você é Estudante?';
+      else if (en === 'Are you a teacher?') title = 'Você é Professor?';
+      else if (en === 'Do you speak English?') title = 'Você Fala Inglês?';
+      else if (en === 'Can you help me?') title = 'Você Pode me Ajudar?';
+      else if (en === 'Nice to meet you.') title = 'Prazer em Conhecer';
+      else if (en === 'Have a nice day!') title = 'Tenha um Bom Dia!';
+      else if (en === "Let's learn English together!") title = 'Vamos Aprender Juntos';
+
+      challenges.push({
+        id: `pedagogical-${song.id || 'song'}-${challenges.length + 1}`,
+        theme,
+        title,
+        lessonRef,
+        phrase: en,
+        translation: v.pt,
+        suggestions: suggestions.slice(0, 3)
+      });
+
+      seenPhrases.add(en);
+    }
   }
-};
+
+  return challenges;
+}
 
 /**
  * Builds a strict allowed pedagogical vocabulary whitelist from studied songs and lyrics ONLY.
- * EXCLUDES interface texts, labels, buttons, descriptions, and helper words.
  */
 export function buildPedagogicalWhitelist(studiedLessons = [], allSongs = []) {
   const allowed = new Set([
@@ -140,90 +128,17 @@ export function buildPedagogicalWhitelist(studiedLessons = [], allSongs = []) {
     'i', 'im', "i'm", 'we', 'they', 'he', 'she', 'it', 'this', 'that', 'these', 'those', 'let', "let's"
   ]);
 
-  // Extract strictly from Song Lyrics & Pedagogical Keywords
   allSongs.forEach((s) => {
-    if (Array.isArray(s.lyrics)) {
-      s.lyrics.forEach((line) => {
-        const lineText = `${line.en || line.english || ''} ${line.keyWord?.word || ''}`;
-        lineText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean).forEach((w) => {
-          if (w.length > 1) allowed.add(w);
-        });
+    const verses = getSongVerses(s);
+    verses.forEach((line) => {
+      const lineText = `${line.en || line.english || line.text || ''} ${line.keyWord?.word || ''}`;
+      lineText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean).forEach((w) => {
+        if (w.length > 1) allowed.add(w);
       });
-    }
+    });
   });
 
   return allowed;
-}
-
-/**
- * Validates that phrase uses only vocabulary present in the whitelist.
- */
-export function validatePhraseAgainstWhitelist(phrase, whitelist) {
-  if (!phrase || !whitelist || whitelist.size === 0) return true;
-  const words = phrase.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
-  if (words.length === 0) return true;
-  const matches = words.filter((w) => whitelist.has(w));
-  return (matches.length / words.length) >= 0.85;
-}
-
-/**
- * Builds a pedagogical conversation challenge dynamically from a song record
- */
-function createChallengeFromSong(song, lesson = null, whitelist = null) {
-  if (!song) return null;
-
-  const titleLower = (song.title || '').toLowerCase();
-  const lessonTitleLower = (lesson?.title || '').toLowerCase();
-
-  let candidate = null;
-
-  if (titleLower.includes('hello') || lessonTitleLower.includes('apresentar') || lessonTitleLower.includes('hello')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['hello'];
-  } else if (titleLower.includes('number') || titleLower.includes('count') || lessonTitleLower.includes('número')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['numbers'];
-  } else if (titleLower.includes('airport') || titleLower.includes('flight') || lessonTitleLower.includes('aeroporto')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['airport'];
-  } else if (titleLower.includes('hotel') || lessonTitleLower.includes('hotel')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['hotel'];
-  } else if (titleLower.includes('restaurant') || titleLower.includes('food') || lessonTitleLower.includes('restaurante')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['restaurant'];
-  } else if (titleLower.includes('direction') || titleLower.includes('city') || lessonTitleLower.includes('rua') || lessonTitleLower.includes('direções')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['city'];
-  } else if (titleLower.includes('family') || titleLower.includes('favorite') || lessonTitleLower.includes('família')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['family'];
-  } else if (titleLower.includes('business') || titleLower.includes('meeting') || lessonTitleLower.includes('trabalho') || lessonTitleLower.includes('reunião')) {
-    candidate = PEDAGOGICAL_LESSON_CHALLENGES['business'];
-  }
-
-  if (candidate) {
-    if (!whitelist || validatePhraseAgainstWhitelist(candidate.phrase, whitelist)) {
-      return candidate;
-    }
-  }
-
-  // If song has lyrics array in registry / database, extract directly from song verses
-  if (Array.isArray(song.lyrics) && song.lyrics.length > 0) {
-    const firstVerse = song.lyrics[0];
-    const secondVerse = song.lyrics[1] || firstVerse;
-    const enPhrase = firstVerse.en || firstVerse.english || firstVerse.text || song.title;
-    const ptPhrase = firstVerse.pt || firstVerse.portuguese || firstVerse.translation || song.title;
-    
-    return {
-      id: `song-${song.id || 'custom'}`,
-      theme: song.title || 'Música de Estudo',
-      title: lesson?.title || song.title,
-      lessonRef: `Música • ${song.title}`,
-      phrase: enPhrase,
-      translation: ptPhrase,
-      suggestions: [
-        secondVerse.en || "Sing with the rhythm, let your English grow!",
-        "Nice to meet you, welcome to the show!",
-        "Hello my friend, good morning!"
-      ]
-    };
-  }
-
-  return candidate;
 }
 
 export const conversationContextService = {
@@ -236,7 +151,7 @@ export const conversationContextService = {
       const progressRes = userId ? await progressService.getUserProgress(userId) : { data: [] };
       const userProgress = progressRes?.data || [];
 
-      // 2. Fetch all published lessons & songs
+      // 2. Fetch all published lessons & songs from Supabase
       const [lessonsRes, songsRes] = await Promise.all([
         lessonsService.getAllLessons(),
         songsService.getSongs()
@@ -247,7 +162,7 @@ export const conversationContextService = {
 
       // Merge with static registry fallback if database is empty or offline
       const combinedSongs = allDbSongs.length > 0 ? allDbSongs : songsRegistry;
-      
+
       // Determine studied lessons (progress > 0 or completed)
       const studiedLessonIds = new Set(
         userProgress
@@ -295,76 +210,64 @@ export const conversationContextService = {
 
   /**
    * Resolves the deterministic daily conversation challenge strictly matching
-   * the student's pedagogical progress (1 lesson, 2-3 lessons, or N lessons)
-   * with full whitelist validation.
+   * the student's pedagogical progress with 100% literal fidelity to studied lessons & songs.
    */
   async getDailyChallengeForUser(userId, date = new Date()) {
     const spDateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const [year, month, day] = spDateStr.split('-').map(Number);
     const epochDays = Math.floor(Date.UTC(year, month - 1, day) / (1000 * 60 * 60 * 24));
 
-    const { studiedLessons, allSongs, isNewStudent } = await this.getStudentAvailablePedagogicalContent(userId);
+    const { studiedLessons, allSongs } = await this.getStudentAvailablePedagogicalContent(userId);
 
-    // Build strict whitelist of allowed vocabulary for this student from songs only
-    const studentWhitelist = buildPedagogicalWhitelist(studiedLessons, allSongs);
-
-    // Build the list of active challenges based on the student's studied lessons
+    // Build active challenges strictly extracted from each studied lesson's song
     const activeChallenges = [];
 
     if (Array.isArray(studiedLessons) && studiedLessons.length > 0) {
       for (const les of studiedLessons) {
         const cleanLesId = String(les.id || '').trim().toLowerCase();
-        const cleanLesTitle = String(les.title || '').trim().toLowerCase();
-        
+
+        // Find linked song by lesson_id or module_id or fallback to first song
         let linkedSong = (allSongs || []).find((s) => {
           if (s.lesson_id && String(s.lesson_id).trim().toLowerCase() === cleanLesId) return true;
           if (s.lessonId && String(s.lessonId).trim().toLowerCase() === cleanLesId) return true;
-          if (les.relatedSong && (s.title || '').toLowerCase().includes(String(les.relatedSong).toLowerCase())) return true;
+          if (les.module_id && s.module_id && String(s.module_id).trim().toLowerCase() === String(les.module_id).trim().toLowerCase()) return true;
           return false;
         });
 
-        if (!linkedSong && (cleanLesTitle.includes('hello') || cleanLesTitle.includes('apresentar'))) {
-          linkedSong = (allSongs || []).find((s) => (s.title || '').toLowerCase().includes('hello'));
-        }
-        if (!linkedSong && (cleanLesTitle.includes('número') || cleanLesTitle.includes('number'))) {
-          linkedSong = (allSongs || []).find((s) => (s.title || '').toLowerCase().includes('number'));
+        if (!linkedSong && allSongs && allSongs.length > 0) {
+          linkedSong = allSongs[0];
         }
 
-        const chal = createChallengeFromSong(linkedSong || { title: les.title }, les, studentWhitelist);
-        if (chal && !activeChallenges.some((c) => c.id === chal.id)) {
-          activeChallenges.push(chal);
+        if (linkedSong) {
+          const extracted = extractPedagogicalChallengesFromSong(linkedSong, les);
+          extracted.forEach((chal) => {
+            if (!activeChallenges.some((c) => c.phrase === chal.phrase)) {
+              activeChallenges.push(chal);
+            }
+          });
         }
       }
     }
 
-    // SCENARIO 4: Student has 0 pedagogical lessons or system has no lessons
-    if (activeChallenges.length === 0) {
-      const fallbackChal = getTodayConversationChallenge(date);
+    // SCENARIO 1: Dynamic challenges extracted successfully
+    if (activeChallenges.length > 0) {
+      const selectedIndex = Math.abs(epochDays) % activeChallenges.length;
+      const selectedChallenge = activeChallenges[selectedIndex];
+
       return {
-        ...fallbackChal,
+        ...selectedChallenge,
         dateKey: spDateStr,
-        sourceType: 'general_daily_fallback'
+        sourceType: 'dynamic_studied_lesson',
+        totalAvailableLessons: studiedLessons.length
       };
     }
 
-    // SCENARIO 1: Student has 1 lesson -> Strictly use that lesson's challenge
-    if (activeChallenges.length === 1) {
-      return {
-        ...activeChallenges[0],
-        dateKey: spDateStr,
-        sourceType: 'single_studied_lesson'
-      };
-    }
-
-    // SCENARIO 2 & 3: Student has 2, 3 or multiple lessons -> Combine and rotate deterministically
-    const selectedIndex = Math.abs(epochDays) % activeChallenges.length;
-    const selectedChallenge = activeChallenges[selectedIndex];
-
+    // SCENARIO 2: Fallback to verified pedagogical challenges (Aula 01)
+    const fallbackChal = getTodayConversationChallenge(date);
     return {
-      ...selectedChallenge,
+      ...fallbackChal,
       dateKey: spDateStr,
-      sourceType: activeChallenges.length <= 3 ? 'combined_studied_lessons' : 'multi_lesson_rotation',
-      totalAvailableLessons: activeChallenges.length
+      sourceType: 'verified_pedagogical_fallback'
     };
   }
 };

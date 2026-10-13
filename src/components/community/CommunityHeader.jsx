@@ -1,9 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Sparkles, Flame, Trophy, ShieldCheck, Heart } from 'lucide-react';
+import { communityService } from '../../services/communityService';
+import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 
 export default function CommunityHeader({ stats }) {
+  const [bannerUrl, setBannerUrl] = useState('');
+
+  useEffect(() => {
+    communityService.getAppSettings('media_settings').then((res) => {
+      if (res?.data?.communityBannerUrl) {
+        setBannerUrl(res.data.communityBannerUrl);
+      }
+    });
+  }, []);
+
+  const resolvedBanner = bannerUrl ? getDriveImageUrl(bannerUrl) : null;
+
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1b1535] via-[#101326] to-[#080a14] border border-purple-500/40 p-6 sm:p-8 lg:p-10 shadow-2xl">
+      
+      {/* Background Media Banner from Google Drive if set */}
+      {resolvedBanner && (
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-20 pointer-events-none mix-blend-luminosity"
+          style={{ backgroundImage: `url(${resolvedBanner})` }}
+        />
+      )}
+
       {/* Background ambient lighting */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-purple-600/30 via-indigo-600/15 to-transparent rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />

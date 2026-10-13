@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MessageSquare, Send, Sparkles, Volume2, Flame, CheckCircle2, Award, BookOpen } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, Volume2, Flame, CheckCircle2, Award, BookOpen, Crown, AlertCircle } from 'lucide-react';
 import { getTodayConversationChallenge } from '../../data/conversationChallenges';
 import { conversationContextService } from '../../services/conversationContextService';
 import { progressService } from '../../services/progressService';
+import { permissionService } from '../../services/permissionService';
 import { useGamification } from '../../context/GamificationContext';
+import UpgradeModal from '../common/UpgradeModal';
 
 export default function ConversationRoom({ data = {}, user = null }) {
   const { addXp, currentLevel } = useGamification();
@@ -28,6 +30,7 @@ export default function ConversationRoom({ data = {}, user = null }) {
 
   // 2. Dynamic Pedagogical Challenge State
   const [activeChallenge, setActiveChallenge] = useState(fallbackChallenge);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   // Load pedagogical challenge matched to student's studied lessons & songs
   useEffect(() => {
@@ -66,6 +69,14 @@ export default function ConversationRoom({ data = {}, user = null }) {
   const [inputValue, setInputValue] = useState('');
   const [isPracticedToday, setIsPracticedToday] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
+  const [dailyMsgCount, setDailyMsgCount] = useState(() => {
+    const countKey = `magic_conv_count_${todayDateStr}_${user?.id || 'guest'}`;
+    return parseInt(localStorage.getItem(countKey) || '0', 10);
+  });
+
+  // Daily quota from permissionService
+  const dailyLimit = permissionService.getConversationDailyLimit(user);
+  const planDetails = permissionService.getPlanDetails(user);
 
   // Synchronize streak and daily completion state with DB events & localStorage
   useEffect(() => {
@@ -84,8 +95,11 @@ export default function ConversationRoom({ data = {}, user = null }) {
 
         const lastDate = localStorage.getItem('magic_conversation_last_date');
         const savedStreak = parseInt(localStorage.getItem('magic_conversation_streak') || '0', 10);
+        const countKey = `magic_conv_count_${todayDateStr}_${user?.id || 'guest'}`;
+        const currentCount = parseInt(localStorage.getItem(countKey) || '0', 10);
 
         if (isMounted) {
+          setDailyMsgCount(currentCount);
           if (user?.id) {
             if (hasEventToday) {
               setIsPracticedToday(true);
@@ -134,6 +148,12 @@ export default function ConversationRoom({ data = {}, user = null }) {
     const text = (textToSend || inputValue).trim();
     if (!text) return;
 
+    // Check conversation permissions and daily limit
+    if (!permissionService.canSendConversationMessage(user, dailyMsgCount)) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     const newMsg = {
       id: `msg-${Date.now()}`,
       author: user?.name || user?.user_metadata?.full_name || 'Você (Aluno Magic)',
@@ -146,6 +166,12 @@ export default function ConversationRoom({ data = {}, user = null }) {
 
     setMessages((prev) => [...prev, newMsg]);
     setInputValue('');
+
+    // Increment daily message count
+    const nextCount = dailyMsgCount + 1;
+    setDailyMsgCount(nextCount);
+    const countKey = `magic_conv_count_${todayDateStr}_${user?.id || 'guest'}`;
+    localStorage.setItem(countKey, String(nextCount));
 
     // Attempt official XP grant
     try {
@@ -193,6 +219,15 @@ export default function ConversationRoom({ data = {}, user = null }) {
   return (
     <div className="p-6 rounded-3xl bg-[#111426] border border-purple-500/30 shadow-2xl space-y-5">
       
+      {/* Modal de Upgrade de Conversação */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+        featureName="Magic Conversation Ilimitado"
+        customTitle="Limite diário de conversação atingido"
+        customSubtitle={`Você atingiu o limite de ${dailyLimit} mensagens diárias do plano gratuito. Faça upgrade para o plano VIP Pro e converse sem interrupções!`}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1f253d]">
         <div>
@@ -206,6 +241,16 @@ export default function ConversationRoom({ data = {}, user = null }) {
               <span className="text-[10px] font-bold text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
                 <BookOpen className="w-3 h-3 text-cyan-400" />
                 {activeChallenge.lessonRef}
+              </span>
+            )}
+
+            {/* Daily Messages Quota indicator */}
+            {dailyLimit < 999 && !planDetails.isSimulationMode && (
+              <span className="text-[10px] font-bold text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1">
+                <span>Mensagens hoje:</span>
+                <strong className={dailyMsgCount >= dailyLimit ? 'text-amber-400' : 'text-purple-300'}>
+                  {dailyMsgCount}/{dailyLimit}
+                </strong>
               </span>
             )}
 

@@ -4,87 +4,120 @@
 
 export const conversationChallenges = [
   {
-    id: "introduce-yourself",
-    theme: "Apresentações & Cumprimentos",
-    title: "Apresente-se em Inglês",
-    phrase: "Hello! My name is João. Nice to meet you! Where are you from?",
-    translation: "Olá! Meu nome é João. Prazer em conhecer você! De onde você é?",
-    suggestions: [
-      "Hello! My name is Maria. I am from Brazil, nice to meet you!",
-      "Good morning! I am from São Paulo. Nice to meet you too.",
-      "Hi João! Nice to meet you!"
-    ]
-  },
-  {
-    id: "feelings-and-greetings",
+    id: "how-are-you",
     theme: "Cumprimentos & Sentimentos",
-    title: "Como Você Está Hoje?",
-    phrase: "Good morning my friend! How are you doing on this lovely day?",
-    translation: "Bom dia meu amigo! Como você está neste lindo dia?",
+    title: "Como Você Está?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "How are you?",
+    translation: "Como você está?",
     suggestions: [
-      "I'm feeling great, ready to sing and play!",
-      "Hello! I am doing well, ready for a new day.",
-      "Good morning! I am very happy today."
+      "I'm fine.",
+      "I'm good.",
+      "I'm great!"
     ]
   },
   {
-    id: "numbers-and-prices",
-    theme: "Números & Preços",
-    title: "Contando Números & Preços",
-    phrase: "How much does it cost at the store? Can you count for me?",
-    translation: "Quanto custa na loja? Você pode contar para mim?",
+    id: "whats-your-name",
+    theme: "Apresentações & Identificação",
+    title: "Qual é o Seu Nome?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "What's your name?",
+    translation: "Qual é o seu nome?",
     suggestions: [
-      "It is twenty dollars, nothing more.",
-      "One, two, three, let's count together!",
-      "It costs ten dollars at the store."
+      "My name is John.",
+      "My name is Sarah.",
+      "Nice to meet you."
     ]
   },
   {
-    id: "airport-and-travel",
-    theme: "Inglês para Viagens",
-    title: "No Aeroporto — Check-in",
-    phrase: "Good morning! Do you have your passport and ticket ready for your flight?",
-    translation: "Bom dia! Você está com seu passaporte e passagem prontos para o voo?",
+    id: "nice-to-meet-you",
+    theme: "Apresentações & Cortesia",
+    title: "Prazer em Conhecer",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Nice to meet you.",
+    translation: "Prazer em conhecer você.",
     suggestions: [
-      "Yes, here is my passport and ticket. Thank you!",
-      "Yes, I am ready for my flight to New York.",
-      "Good morning! Everything is ready for the trip."
+      "Nice to meet you too.",
+      "Hello!",
+      "Good morning!"
     ]
   },
   {
-    id: "hotel-and-checkin",
-    theme: "No Hotel — Reservas",
-    title: "No Hotel — Recepção",
-    phrase: "Welcome to the hotel! Do you have a reservation for tonight?",
-    translation: "Bem-vindo ao hotel! Você tem uma reserva para esta noite?",
+    id: "where-are-you-from",
+    theme: "Origem & Nacionalidade",
+    title: "De Onde Você É?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Where are you from?",
+    translation: "De onde você é?",
     suggestions: [
-      "Yes, I have a reservation under my name.",
-      "Good evening! Here is my reservation for two days.",
-      "Yes, thank you! What time is breakfast in the morning?"
+      "I'm from Brazil.",
+      "I'm from the United States.",
+      "And you?"
     ]
   },
   {
-    id: "restaurant-and-food",
-    theme: "No Restaurante",
-    title: "Fazendo Pedidos no Restaurante",
-    phrase: "Good evening! What would you like to order for dinner?",
-    translation: "Boa noite! O que você gostaria de pedir para o jantar?",
+    id: "are-you-a-student",
+    theme: "Ocupações & Estudos",
+    title: "Você é Estudante?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Are you a student?",
+    translation: "Você é estudante?",
     suggestions: [
-      "I would like water and pasta, please.",
-      "A delicious pizza and juice, thank you!",
-      "Can I see the food menu, please?"
+      "Yes, I am.",
+      "No, I'm not.",
+      "I want to learn English."
     ]
   },
   {
-    id: "city-and-directions",
-    theme: "Direções & Cidade",
-    title: "Pedindo Informações na Rua",
-    phrase: "Excuse me, where is the nearest station or park?",
-    translation: "Com licença, onde fica a estação ou parque mais próximo?",
+    id: "do-you-speak-english",
+    theme: "Idioma & Aprendizado",
+    title: "Você Fala Inglês?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Do you speak English?",
+    translation: "Você fala inglês?",
     suggestions: [
-      "Go straight and turn left at the corner.",
-      "The station is near the central park, straight ahead.",
-      "It is just two blocks away, thank you!"
+      "Yes, I speak a little English.",
+      "I want to learn English.",
+      "I want to speak English."
+    ]
+  },
+  {
+    id: "can-you-help-me",
+    theme: "Cortesia & Ajuda",
+    title: "Você Pode me Ajudar?",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Can you help me?",
+    translation: "Você pode me ajudar?",
+    suggestions: [
+      "Of course!",
+      "Thank you!",
+      "You're welcome!"
+    ]
+  },
+  {
+    id: "have-a-nice-day",
+    theme: "Despedidas & Bons Desejos",
+    title: "Tenha um Bom Dia!",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Have a nice day!",
+    translation: "Tenha um bom dia!",
+    suggestions: [
+      "Thank you!",
+      "See you later!",
+      "See you tomorrow!"
+    ]
+  },
+  {
+    id: "lets-learn-english-together",
+    theme: "Convite & Aprendizado",
+    title: "Vamos Aprender Juntos",
+    lessonRef: "Aula 01 • Vamos aprender inglês juntos",
+    phrase: "Let's learn English together!",
+    translation: "Vamos aprender inglês juntos!",
+    suggestions: [
+      "Of course!",
+      "I want to speak English.",
+      "Thank you!"
     ]
   }
 ];

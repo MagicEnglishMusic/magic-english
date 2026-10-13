@@ -1,5 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { getDriveImageUrl } from '../utils/googleDriveHelper';
+
+const isRealAvatar = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  // If it is the default Unsplash placeholder, it is NOT a custom student avatar
+  if (trimmed.includes('images.unsplash.com') || trimmed.includes('unsplash.com')) {
+    return false;
+  }
+  return true;
+};
 
 const AuthContext = createContext(null);
 
@@ -108,13 +120,31 @@ export function AuthProvider({ children }) {
       ? 'active' 
       : String(profile?.access_status || 'active').trim().toLowerCase();
 
+    const localAvatar = (typeof window !== 'undefined' && userId)
+      ? localStorage.getItem(`magic_english_avatar_${userId}`)
+      : null;
+
+    // Strict priority: 1. Real profile avatar -> 2. Real user_metadata avatar -> 3. Real localAvatar -> 4. Default Unsplash
+    let rawAvatar = null;
+    if (isRealAvatar(profile?.avatar_url)) {
+      rawAvatar = profile.avatar_url;
+    } else if (isRealAvatar(sessionUser.user_metadata?.avatar_url)) {
+      rawAvatar = sessionUser.user_metadata.avatar_url;
+    } else if (isRealAvatar(localAvatar)) {
+      rawAvatar = localAvatar;
+    }
+
+    const resolvedAvatar = rawAvatar
+      ? getDriveImageUrl(rawAvatar)
+      : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
+
     const cleanUser = profile ? {
       id: profile.id,
       name: profile.name || sessionUser.user_metadata?.name || sessionUser.email?.split('@')[0],
       email: profile.email || sessionUser.email,
       role: resolvedRole,
       accessStatus: resolvedAccessStatus,
-      avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+      avatar: resolvedAvatar,
       level: profile.level || sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
       levelNumber: profile.level_number || 1,
       xp: profile.xp ?? 0,
@@ -134,7 +164,7 @@ export function AuthProvider({ children }) {
       email: sessionUser.email,
       role: resolvedRole,
       accessStatus: resolvedAccessStatus,
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+      avatar: resolvedAvatar,
       level: sessionUser.user_metadata?.level || 'Nível 1 • First Steps',
       levelNumber: 1,
       xp: 0,
@@ -520,6 +550,123 @@ export function AuthProvider({ children }) {
     return { success: true };
   };
 
+  // 4.2. Update Student Avatar (Google Drive URL or direct image link)
+  const updateStudentAvatar = async (rawUrl) => {
+    const userId = authState.user?.id;
+    if (!userId) throw new Error('Usuário não autenticado.');
+
+    const currentName = (authState.user?.name || authState.user?.email?.split('@')[0] || 'Aluno Magic').trim();
+    const currentEmail = (authState.user?.email || '').trim().toLowerCase();
+    const trimmed = (rawUrl || '').trim();
+    const processedUrl = trimmed
+      ? getDriveImageUrl(trimmed)
+      : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
+
+    // 1. Salvar cache local para persistência imediata
+    if (typeof window !== 'undefined' && userId) {
+      try {
+        localStorage.setItem(`magic_english_avatar_${userId}`, trimmed || processedUrl);
+      } catch (storageErr) {
+        console.warn('Erro ao salvar avatar no localStorage:', storageErr);
+      }
+    }
+
+    if (isSupabaseConfigured && !userId.startsWith('std-')) {
+      try {
+        // Fallback para e-mail da sessão caso currentEmail esteja vazio
+        let effectiveEmail = currentEmail;
+        if (!effectiveEmail) {
+          const { data: { session } } = await supabase.auth.getSession();
+          effectiveEmail = session?.user?.email || `aluno_${userId}@magicenglish.com`;
+        }
+
+        // 2. Upsert no profiles garantindo campos obrigatórios (name NOT NULL, email NOT NULL)
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            name: currentName,
+            email: effectiveEmail,
+            avatar_url: trimmed || processedUrl,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+        if (profileErr) throw profileErr;
+
+        // 3. Atualizar metadata do usuário de Auth
+        await supabase.auth.updateUser({
+          data: { avatar_url: trimmed || processedUrl }
+        });
+      } catch (err) {
+        console.warn('Erro ao atualizar avatar no Supabase:', err.message);
+        throw err;
+      }
+    }
+
+    // 4. Atualizar estado React em memória
+    setAuthState((prev) => ({
+      ...prev,
+      user: prev.user ? { ...prev.user, avatar: processedUrl } : prev.user
+    }));
+
+    return { success: true, avatar: processedUrl };
+  };
+
+  // 4.3. Update Student Personal Profile (Name, Objective, Daily Study Time)
+  const updateStudentProfile = async ({ name, objective, dailyStudyTime }) => {
+    const userId = authState.user?.id;
+    if (!userId) throw new Error('Usuário não autenticado.');
+
+    const cleanName = (name || '').trim();
+    if (!cleanName) throw new Error('Por favor, informe seu nome.');
+
+    const cleanObjective = objective || authState.user?.objective || '✈️ Viajar';
+    const cleanTime = dailyStudyTime || authState.user?.dailyStudyTime || '20 minutos';
+
+    if (isSupabaseConfigured && !userId.startsWith('std-')) {
+      try {
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .update({
+            name: cleanName,
+            objective: cleanObjective,
+            daily_study_time: cleanTime,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+
+        if (profileErr) throw profileErr;
+
+        await supabase.auth.updateUser({
+          data: {
+            name: cleanName,
+            objective: cleanObjective,
+            daily_study_time: cleanTime
+          }
+        });
+      } catch (err) {
+        console.warn('Erro ao atualizar perfil do aluno no Supabase:', err.message);
+        throw err;
+      }
+    }
+
+    // Update in-memory state synchronously
+    setAuthState((prev) => {
+      if (!prev.user) return prev;
+      return {
+        ...prev,
+        user: {
+          ...prev.user,
+          name: cleanName,
+          objective: cleanObjective,
+          dailyStudyTime: cleanTime
+        }
+      };
+    });
+
+    return { success: true };
+  };
+
   // 5. Admin Authentication (Real Supabase Auth + profiles.role === 'admin' check)
   const loginAdmin = async (email, password) => {
     if (!email || !password) {
@@ -637,6 +784,8 @@ export function AuthProvider({ children }) {
     completeOnboarding,
     resetPassword,
     updatePassword,
+    updateStudentAvatar,
+    updateStudentProfile,
     loginAdmin,
     refreshSession,
     logout

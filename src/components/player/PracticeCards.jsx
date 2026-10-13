@@ -546,7 +546,7 @@ export default function PracticeCards({ song, xpReward = 50, onClaimXp }) {
               ) : (
                 <>
                   <Lock className="w-4 h-4 text-slate-400" />
-                  <span>Bloqueado (Complete o Quiz)</span>
+                  <span>Bloqueado (Complete o Desafio)</span>
                 </>
               )}
             </button>

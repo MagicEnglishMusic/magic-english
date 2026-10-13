@@ -30,9 +30,15 @@ export default function LearningTracksPage({ onOpenLesson }) {
         const dbProgress = progRes?.data || [];
 
         if (isMounted && dbModules.length > 0) {
+          // Filtragem de Visibilidade Dupla:
+          // 1. Chave DESLIGADA (is_visible === false): oculto de forma absoluta
+          // 2. Status 'draft' (Rascunho): oculto de forma absoluta
+          const visibleModules = dbModules.filter((m) => m.is_visible !== false && m.status !== 'draft');
+
           // Build real module and lesson hierarchy for Track 1 ("Inglês do Zero")
-          const realModulesForTrack = dbModules.map((mod) => {
-            const modLessons = dbLessons.filter((l) => l.module_id === mod.id);
+          const realModulesForTrack = visibleModules.map((mod) => {
+            const isComingSoon = mod.status === 'coming_soon';
+            const modLessons = isComingSoon ? [] : dbLessons.filter((l) => l.module_id === mod.id);
             const formattedLessons = modLessons.map((l, lIdx) => {
               // Match SSOT song for this lesson
               const matchedSong = dbSongs.find((s) => s.lesson_id === l.id || s.module_id === mod.id) || dbSongs[0] || null;
@@ -59,7 +65,9 @@ export default function LearningTracksPage({ onOpenLesson }) {
             return {
               id: mod.id,
               title: mod.title,
-              description: mod.description || 'Módulo Oficial Magic English',
+              description: isComingSoon ? 'Conteúdo em preparação. Em breve disponível!' : (mod.description || 'Módulo Oficial Magic English'),
+              isComingSoon,
+              status: isComingSoon ? 'locked' : (mod.status || 'published'),
               lessons: formattedLessons
             };
           });

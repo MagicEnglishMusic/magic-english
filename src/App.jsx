@@ -3,8 +3,9 @@ import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import RightPanel from './components/layout/RightPanel';
 import HeroBanner from './components/dashboard/HeroBanner';
+import ContinueLearningCard from './components/dashboard/ContinueLearningCard';
+import DashboardFocusCards from './components/dashboard/DashboardFocusCards';
 import MyEvolutionCard from './components/dashboard/MyEvolutionCard';
-import ProgressStats from './components/dashboard/ProgressStats';
 import MagicSongsSection from './components/dashboard/MagicSongsSection';
 import LearningTracksSection from './components/dashboard/LearningTracksSection';
 import LoginStudent from './components/auth/LoginStudent';
@@ -24,8 +25,10 @@ const MyModulesView = lazy(() => import('./components/modules/MyModulesView'));
 const MusicalPracticeView = lazy(() => import('./components/practice/MusicalPracticeView'));
 const MaterialsView = lazy(() => import('./components/materials/MaterialsView'));
 const PronunciationLabView = lazy(() => import('./components/pronunciation/PronunciationLabView'));
+const AvatarPracticeView = lazy(() => import('./components/avatar/AvatarPracticeView'));
 const GamificationHubView = lazy(() => import('./components/gamification/GamificationHubView'));
 const StudentProfileView = lazy(() => import('./components/profile/StudentProfileView'));
+const StudentSettingsView = lazy(() => import('./components/settings/StudentSettingsView'));
 const MagicRankingView = lazy(() => import('./components/ranking/MagicRankingView'));
 const MagicCommunityView = lazy(() => import('./components/community/MagicCommunityView'));
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'));
@@ -36,6 +39,8 @@ const Onboarding = lazy(() => import('./components/auth/Onboarding'));
 const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
 import { songsService } from './services/songsService';
 import { lessonsService } from './services/lessonsService';
+import { communityService } from './services/communityService';
+import { Sparkles } from 'lucide-react';
 import { XP_REWARDS } from './data/gamificationData';
 
 // Determine initial view and parameters from pathname
@@ -111,6 +116,9 @@ export function parseRoute(pathname = '') {
   if (path.startsWith('/pronunciation')) {
     return { view: 'pronunciation', tab: 'pronunciation', path: '/pronunciation' };
   }
+  if (path.startsWith('/avatar-practice') || path.startsWith('/pratique')) {
+    return { view: 'avatar-practice', tab: 'avatar-practice', path: '/avatar-practice' };
+  }
   if (path.startsWith('/achievements')) {
     return { view: 'gamification', tab: 'achievements', path: '/achievements' };
   }
@@ -120,7 +128,10 @@ export function parseRoute(pathname = '') {
   if (path.startsWith('/community')) {
     return { view: 'community', tab: 'community', path: '/community' };
   }
-  if (path.startsWith('/profile') || path.startsWith('/settings')) {
+  if (path.startsWith('/settings')) {
+    return { view: 'settings', tab: 'settings', path: '/settings' };
+  }
+  if (path.startsWith('/profile')) {
     return { view: 'profile', tab: 'profile', path: '/profile' };
   }
 
@@ -140,6 +151,38 @@ function MainApp() {
   const [activeLesson, setActiveLesson] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalItem, setModalItem] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [globalBanner, setGlobalBanner] = useState({ enabled: false, text: '' });
+  const [featureFlags, setFeatureFlags] = useState({
+    enableMagicSongs: true,
+    enablePronunciationAI: true,
+    enableMagicConversation: true,
+    enableCommunity: true,
+    enableRanking: true,
+    enableGamification: true,
+    enablePdfMaterials: true
+  });
+
+  // Load General Settings & Feature Flags from app_settings
+  useEffect(() => {
+    communityService.getAppSettings('general_settings').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setGlobalBanner({
+          enabled: Boolean(res.data.globalBannerEnabled),
+          text: res.data.globalBannerText || ''
+        });
+      }
+    });
+
+    communityService.getAppSettings('feature_flags').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setFeatureFlags((prev) => ({
+          ...prev,
+          ...res.data
+        }));
+      }
+    });
+  }, []);
 
   const { rewardModal, closeRewardModal, addXp } = useGamification();
 
@@ -560,6 +603,8 @@ function MainApp() {
       navigateTo('materials', '/materials');
     } else if (tabId === 'pronunciation') {
       navigateTo('pronunciation', '/pronunciation');
+    } else if (tabId === 'avatar-practice') {
+      navigateTo('avatar-practice', '/avatar-practice');
     } else if (tabId === 'achievements') {
       navigateTo('gamification', '/achievements');
     } else if (tabId === 'ranking') {
@@ -568,6 +613,8 @@ function MainApp() {
       navigateTo('community', '/community');
     } else if (tabId === 'profile') {
       navigateTo('profile', '/profile');
+    } else if (tabId === 'settings') {
+      navigateTo('settings', '/settings');
     } else {
       navigateTo('dashboard', '/dashboard');
     }
@@ -739,21 +786,35 @@ function MainApp() {
     >
       <ErrorBoundary>
         <div className="min-h-screen bg-[#08090e] text-slate-100 flex">
-        {/* 1. Fixed Dark Student Sidebar */}
+        {/* 1. Dark Student Sidebar (Desktop Fixed + Mobile Lateral Drawer) */}
         <Sidebar
           activeTab={activeTab}
-          setActiveTab={handleSidebarTabChange}
+          setActiveTab={(tabId) => {
+            handleSidebarTabChange(tabId);
+            setIsMobileMenuOpen(false);
+          }}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
           onLogout={handleLogout}
         />
 
         {/* 2. Main Content Center Column */}
         <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-          {/* Top Sticky Header with Dynamic User Info */}
+          {/* Top Sticky Header with Dynamic User Info & Mobile Hamburger */}
           <Header 
             searchQuery={searchQuery} 
             onSearch={setSearchQuery}
             onOpenGamification={() => handleSidebarTabChange('ranking')}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
+
+          {/* Global Announcement Banner (Configured via SettingsManager) */}
+          {globalBanner.enabled && globalBanner.text && (
+            <div className="bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-900/90 border-b border-purple-500/40 px-6 py-2.5 text-center text-xs font-bold text-purple-100 flex items-center justify-center gap-2 shadow-lg animate-in fade-in duration-300">
+              <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
+              <span>{globalBanner.text}</span>
+            </div>
+          )}
 
           {/* Dynamic Views Router with Lazy Loading Suspense & Global Error Boundary */}
           <ErrorBoundary>
@@ -775,13 +836,33 @@ function MainApp() {
                   }}
                 />
               ) : currentView === 'musical-practice' ? (
-                <MusicalPracticeView
-                  song={activeSong}
-                  onBack={handleBackFromMusicalPractice}
-                  onGainXp={(amount) => {
-                    // Celebration modal & XP are handled safely within MusicalPracticeView via addXp('practice_complete')
-                  }}
-                />
+                !featureFlags.enableMagicSongs ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Magic Songs em Atualização</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        A prática musical interativa está passando por uma atualização de repertório pelo professor.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <MusicalPracticeView
+                    song={activeSong}
+                    onBack={handleBackFromMusicalPractice}
+                    onGainXp={(amount) => {
+                      // Celebration modal & XP are handled safely within MusicalPracticeView via addXp('practice_complete')
+                    }}
+                  />
+                )
               ) : currentView === 'my-lessons' ? (
                 <MyModulesView
                   selectedModuleId={selectedModuleId}
@@ -797,18 +878,106 @@ function MainApp() {
                   onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
                 />
               ) : currentView === 'materials' ? (
-                <MaterialsView />
+                !featureFlags.enablePdfMaterials ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Materiais em Revisão</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        A biblioteca de apostilas e PDFs está passando por uma revisão pedagógica temporária.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <MaterialsView />
+                )
               ) : currentView === 'pronunciation' ? (
-                <PronunciationLabView />
+                !featureFlags.enablePronunciationAI ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Laboratório de Pronúncia em Atualização</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        O módulo de avaliação de voz com inteligência artificial está passando por melhorias técnicas.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <PronunciationLabView />
+                )
+              ) : currentView === 'avatar-practice' ? (
+                <AvatarPracticeView
+                  onGainXp={(amount) => {
+                    // XP já é somado e celebrado no contexto
+                  }}
+                />
               ) : currentView === 'ranking' ? (
-                <MagicRankingView
-                  onContinueStudy={() => handleSidebarTabChange('classes')}
-                />
+                !featureFlags.enableRanking ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Ranking em Manutenção</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        A classificação semanal está temporariamente em rotação de temporada pelo administrador.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <MagicRankingView
+                    onContinueStudy={() => handleSidebarTabChange('classes')}
+                  />
+                )
               ) : currentView === 'community' ? (
-                <MagicCommunityView
-                  onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
-                  onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
-                />
+                !featureFlags.enableCommunity ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Comunidade Temporariamente Indisponível</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        O mural e os grupos estão passando por manutenção programada pelo administrador.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <MagicCommunityView
+                    onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
+                    onOpenMusicalPractice={(song) => handleOpenMusicalPractice(song)}
+                  />
+                )
+              ) : currentView === 'settings' ? (
+                <StudentSettingsView />
               ) : currentView === 'profile' ? (
                 <StudentProfileView
                   onOpenSong={(song) => handleOpenSongPlayer(song)}
@@ -816,18 +985,58 @@ function MainApp() {
                   onOpenClassroom={(lesson) => handleOpenClassroom(lesson)}
                 />
               ) : currentView === 'gamification' ? (
-                <GamificationHubView 
-                  onOpenLesson={(lesson) => handleOpenClassroom(lesson)}
-                  onOpenSong={(song) => handleOpenSongPlayer(song)}
-                />
+                !featureFlags.enableGamification ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Conquistas em Atualização</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        O painel de medalhas e recompensas está temporariamente em manutenção pelo administrador.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <GamificationHubView 
+                    onOpenLesson={(lesson) => handleOpenClassroom(lesson)}
+                    onOpenSong={(song) => handleOpenSongPlayer(song)}
+                  />
+                )
               ) : currentView === 'song-player' ? (
-                <MagicSongView
-                  song={activeSong}
-                  onBack={handleBackFromSongPlayer}
-                  onGainXp={(amount) => {
-                    // Celebration modal & XP are handled safely within PracticeCards via addXp('song_claim')
-                  }}
-                />
+                !featureFlags.enableMagicSongs ? (
+                  <div className="flex-1 p-8 max-w-2xl mx-auto flex flex-col items-center justify-center text-center space-y-4 my-auto animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-xl">
+                      <Sparkles className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-xl font-bold text-white">Magic Songs em Atualização</h3>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        O catálogo musical está passando por uma atualização de faixas e letras.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleSidebarTabChange('home')}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+                    >
+                      Voltar ao Início
+                    </button>
+                  </div>
+                ) : (
+                  <MagicSongView
+                    song={activeSong}
+                    onBack={handleBackFromSongPlayer}
+                    onGainXp={(amount) => {
+                      // Celebration modal & XP are handled safely within PracticeCards via addXp('song_claim')
+                    }}
+                  />
+                )
               ) : currentView === 'tracks' ? (
                 <LearningTracksPage
                   onOpenLesson={(lesson) => {
@@ -853,23 +1062,42 @@ function MainApp() {
                   <HeroBanner
                     onContinue={() => handleSidebarTabChange('classes')}
                     onExplore={() => handleSidebarTabChange('classes')}
+                    onSelectSong={(song) => handleOpenSongPlayer(song)}
                   />
 
                   {/* 2. Dashboard Body Sections with Standard Layout Container */}
-                  <div className="p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto pb-16">
+                  <div className="p-6 sm:p-8 lg:p-10 space-y-8 sm:space-y-10 max-w-7xl w-full mx-auto pb-16">
+                    {/* Card "Continuar de Onde Parou" (Próxima Aula do Aluno) */}
+                    <ContinueLearningCard
+                      onOpenLesson={(lesson) => handleOpenClassroom(lesson)}
+                      onOpenModule={(modId) => {
+                        setSelectedModuleId(modId);
+                        navigateTo('my-lessons', `/my-lessons/${modId}`);
+                      }}
+                    />
+
+                    {/* Cards "Meu Foco" (profiles.objective) & "Minha Meta Diária" (profiles.daily_study_time) */}
+                    <DashboardFocusCards
+                      onOpenProfile={() => handleSidebarTabChange('profile')}
+                    />
+
                     {/* Minha Evolução Card (Level, XP Bar, Streak & Next Goal) */}
                     <MyEvolutionCard
                       onOpenEvolutionHub={() => handleSidebarTabChange('ranking')}
                     />
 
-                    {/* Progress Overview Stats */}
-                    <ProgressStats />
-
                     {/* "Reforce seu aprendizado com músicas" Section (Magic Songs Fixation) */}
                     <MagicSongsSection onSelectSong={(song) => handleOpenSongPlayer(song)} />
 
-                    {/* "Trilhas de Aprendizado" Section */}
-                    <LearningTracksSection onSelectTrack={() => handleOpenTracksPage()} />
+                    {/* "Trilhas & Módulos de Aprendizado" Section (Módulos Reais do Supabase) */}
+                    <LearningTracksSection 
+                      onSelectTrack={() => handleOpenTracksPage()}
+                      onSelectModule={(modId) => {
+                        setSelectedModuleId(modId);
+                        navigateTo('my-lessons', `/my-lessons/${modId}`);
+                      }}
+                      onViewAll={() => handleOpenTracksPage()}
+                    />
                   </div>
                 </main>
               )}

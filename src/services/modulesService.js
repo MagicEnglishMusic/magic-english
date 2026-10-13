@@ -107,5 +107,38 @@ export const modulesService = {
     } catch (err) {
       return { success: false, error: err.message };
     }
+  },
+
+  // Update order of modules (Admin Drag & Drop)
+  // Preserves all IDs, relationships and contents; updates ONLY order_index
+  async updateModulesOrder(orderedModules) {
+    if (!isSupabaseConfigured || !Array.isArray(orderedModules) || orderedModules.length === 0) {
+      return { success: true, error: null };
+    }
+
+    try {
+      const updatePromises = orderedModules.map((mod, index) => {
+        const newOrder = index + 1;
+        return supabase
+          .from('modules')
+          .update({
+            order_index: newOrder,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', mod.id);
+      });
+
+      const results = await Promise.all(updatePromises);
+      const firstError = results.find((r) => r && r.error);
+      if (firstError) {
+        throw new Error(firstError.error.message);
+      }
+
+      return { success: true, error: null };
+    } catch (err) {
+      console.warn('Error updating modules order in Supabase:', err.message);
+      return { success: false, error: err.message };
+    }
   }
 };
+

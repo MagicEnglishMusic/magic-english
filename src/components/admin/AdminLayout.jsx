@@ -6,7 +6,9 @@ import LessonManager from './LessonManager';
 import SongManager from './SongManager';
 import MaterialManager from './MaterialManager';
 import PronunciationManager from './PronunciationManager';
+import AvatarSettingsView from './AvatarSettingsView';
 import GamificationManager from './GamificationManager';
+import SettingsManager from './SettingsManager';
 import StudentManager from './StudentManager';
 import CommunityManager from './CommunityManager';
 import AdminProfileModal from './AdminProfileModal';
@@ -14,7 +16,22 @@ import { ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLayout({ onLogout }) {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const getInitialAdminTab = () => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('avatar-settings')) return 'avatar-settings';
+      if (path.includes('pronunciation')) return 'pronunciation';
+      if (path.includes('modules')) return 'modules';
+      if (path.includes('lessons')) return 'lessons';
+      if (path.includes('songs')) return 'songs';
+      if (path.includes('settings')) return 'settings';
+      if (path.includes('students')) return 'students';
+      if (path.includes('community')) return 'community';
+    }
+    return 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialAdminTab);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { user, logout } = useAuth();
 
@@ -103,8 +120,12 @@ export default function AdminLayout({ onLogout }) {
             <MaterialManager />
           ) : activeTab === 'pronunciation' ? (
             <PronunciationManager />
-          ) : activeTab === 'gamification' || activeTab === 'settings' ? (
+          ) : activeTab === 'avatar-settings' ? (
+            <AvatarSettingsView />
+          ) : activeTab === 'gamification' ? (
             <GamificationManager />
+          ) : activeTab === 'settings' ? (
+            <SettingsManager />
           ) : activeTab === 'students' ? (
             <StudentManager />
           ) : (

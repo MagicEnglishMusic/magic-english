@@ -16,6 +16,8 @@ import {
 import { communityService } from '../../services/communityService';
 import { rankingService } from '../../services/rankingService';
 import { weeklyChallengeService } from '../../services/weeklyChallengeService';
+import { songsService } from '../../services/songsService';
+import { getDriveImageUrl } from '../../utils/googleDriveHelper';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 
@@ -38,6 +40,9 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
   const [isChallengeAllCompleted, setIsChallengeAllCompleted] = useState(false);
   const [isChallengeClaimed, setIsChallengeClaimed] = useState(false);
   const [isClaimingChallengeXp, setIsClaimingChallengeXp] = useState(false);
+
+  // Dynamic Song of the Week State (with fallback to songOfTheWeekData)
+  const [songOfTheWeek, setSongOfTheWeek] = useState(() => songOfTheWeekData);
 
   // Show Toast helper
   const showToast = (message, type = 'success') => {
@@ -73,17 +78,18 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
     };
   }, []);
 
-  // Load posts, likes, ranking highlights, and dynamic weekly challenge
+  // Load posts, likes, ranking highlights, dynamic weekly challenge, and song of the week
   const loadCommunityData = useCallback(async () => {
     setIsLoading(true);
     setIsUnavailable(false);
 
     try {
-      const [postsRes, likesRes, rankingRes, challengeRes] = await Promise.all([
+      const [postsRes, likesRes, rankingRes, challengeRes, songsRes] = await Promise.all([
         communityService.getPosts(selectedGroupId),
         communityService.getUserLikedPostIds(user?.id),
         rankingService.getRankingLeaderboard(),
-        weeklyChallengeService.getActiveWeeklyChallenge()
+        weeklyChallengeService.getActiveWeeklyChallenge(),
+        songsService.getSongs()
       ]);
 
       if (postsRes.unavailable) {
@@ -122,6 +128,30 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
           setChallengeSteps(chal.steps || []);
           setIsChallengeAllCompleted(false);
           setIsChallengeClaimed(false);
+        }
+      }
+
+      // Process Song of the Week (Deterministic Daily Rotation from public.songs)
+      if (songsRes?.data && songsRes.data.length > 0) {
+        const availableSongs = songsRes.data;
+        const todaySpStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        const [year, month, day] = todaySpStr.split('-').map((n) => parseInt(n, 10));
+        const daySeed = year * 372 + month * 31 + day;
+        const selectedIndex = Math.abs(daySeed) % availableSongs.length;
+        const chosenSong = availableSongs[selectedIndex];
+
+        if (chosenSong) {
+          setSongOfTheWeek({
+            id: chosenSong.id,
+            title: chosenSong.title || 'Magic Song da Semana',
+            subtitle: chosenSong.artist ? `Por ${chosenSong.artist} • Fixação do Dia` : 'Música oficial de fixação',
+            category: '🎵 Magic Song da Semana',
+            cover: getDriveImageUrl(chosenSong.cover_url || chosenSong.coverUrl || chosenSong.image || '') || songOfTheWeekData.cover,
+            bpm: chosenSong.bpm ? (String(chosenSong.bpm).includes('BPM') ? chosenSong.bpm : `${chosenSong.bpm} BPM`) : (songOfTheWeekData.bpm || '108 BPM'),
+            duration: chosenSong.duration || songOfTheWeekData.duration || '3:30',
+            level: chosenSong.level || songOfTheWeekData.level || 'Iniciante',
+            practicingCount: chosenSong.practicingCount || 0
+          });
         }
       }
     } catch (err) {
@@ -273,8 +303,8 @@ export default function MagicCommunityView({ onOpenClassroom, onOpenMusicalPract
         <div className="lg:col-span-4 flex">
           <div className="w-full">
             <SongChallenge 
-              song={songOfTheWeekData}
-              onPlaySong={() => onOpenMusicalPractice && onOpenMusicalPractice(weeklyChallenge?.song_id)}
+              song={songOfTheWeek}
+              onPlaySong={() => onOpenMusicalPractice && onOpenMusicalPractice(songOfTheWeek?.id)}
             />
           </div>
         </div>

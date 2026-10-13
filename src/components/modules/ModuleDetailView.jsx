@@ -41,6 +41,41 @@ export default function ModuleDetailView({ module, onBack, onSelectLesson, onOpe
 
   if (!module) return null;
 
+  // Guarda de Acesso: se o módulo estiver DESLIGADO (isVisible === false), em 'Em Breve' (coming_soon) ou 'Rascunho' (draft), bloquear visualização das aulas
+  if (module.isVisible === false || module.is_visible === false || module.isComingSoon || module.status === 'coming_soon' || module.status === 'draft') {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-300">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1c2035]">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#121524] hover:bg-[#1a1f36] border border-[#22273e] hover:border-purple-500/40 text-slate-300 hover:text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm group"
+          >
+            <ArrowLeft className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
+            <span>Voltar</span>
+          </button>
+        </div>
+
+        <div className="p-12 text-center rounded-3xl bg-[#0e101f] border border-amber-500/30 space-y-4 max-w-xl mx-auto shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 mx-auto">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-xl font-bold text-white">Conteúdo em Preparação</h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              As aulas deste módulo estão sendo finalizadas pelo professor e estarão disponíveis em breve.
+            </p>
+          </div>
+          <button
+            onClick={onBack}
+            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 cursor-pointer"
+          >
+            Ver Outros Módulos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const currentLessonsCount = lessons.length || module.lessonsCount || 0;
 
   return (

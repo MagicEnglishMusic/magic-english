@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
 import { studentProfileData } from '../../data/profileData';
+import { communityService } from '../../services/communityService';
 import ProfileHeader from './ProfileHeader';
+import GoalRoutineCard from './GoalRoutineCard';
 import UserStatsCard from './UserStatsCard';
 import JourneyProgress from './JourneyProgress';
 import BadgeGallery from './BadgeGallery';
 import SongCollection from './SongCollection';
 import ModuleProgressCard from './ModuleProgressCard';
 import ActivityTimeline from './ActivityTimeline';
-import { Trophy, Sparkles, Flame, Zap, Shield, ArrowRight } from 'lucide-react';
+import { Trophy, Sparkles, Flame, Zap, Shield, ArrowRight, Target, Clock, BookOpen, Music } from 'lucide-react';
 
 export default function StudentProfileView({
   onOpenSong,
@@ -17,6 +19,25 @@ export default function StudentProfileView({
   onOpenClassroom
 }) {
   const { user } = useAuth();
+  const [editTrigger, setEditTrigger] = useState(0);
+  const [gamifDisplay, setGamifDisplay] = useState({
+    showUserXpHeader: true,
+    showRankings: true,
+    showBadges: true,
+    showLevelCelebrations: true
+  });
+
+  useEffect(() => {
+    communityService.getAppSettings('gamification_display').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setGamifDisplay((prev) => ({
+          ...prev,
+          ...res.data
+        }));
+      }
+    });
+  }, []);
+
   const {
     xp,
     streak,
@@ -37,6 +58,8 @@ export default function StudentProfileView({
     email: user?.email || studentProfileData.email,
     avatar: user?.avatar || studentProfileData.avatar,
     role: user?.plan ? `Membro ${user.plan}` : studentProfileData.role,
+    objective: user?.objective || '✈️ Viajar',
+    dailyStudyTime: user?.dailyStudyTime || '20 minutos',
     motto: user?.objective ? `Objetivo: ${user.objective}` : studentProfileData.motto,
     joinDate: isRealUser ? "Membro recente" : studentProfileData.joinDate
   };
@@ -86,7 +109,7 @@ export default function StudentProfileView({
   const activityTimeline = isRealUser ? [] : studentProfileData.activityTimeline;
 
   return (
-    <div className="flex-1 p-6 sm:p-8 lg:p-10 space-y-10 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
+    <div className="flex-1 p-6 sm:p-8 lg:p-10 space-y-8 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
       
       {/* 1. Profile Header Banner */}
       <ProfileHeader
@@ -97,62 +120,74 @@ export default function StudentProfileView({
         nextLevel={nextLevel}
         levelProgress={levelProgress}
         xpToNextLevel={xpToNextLevel}
+        openEditTrigger={editTrigger}
       />
 
-      {/* 2. Key Student Statistics */}
+      {/* 2. Cards: Meu Objetivo Principal & Minha Rotina de Estudos */}
+      <GoalRoutineCard
+        objective={currentStudent.objective}
+        dailyStudyTime={currentStudent.dailyStudyTime}
+        onOpenEdit={() => setEditTrigger((prev) => prev + 1)}
+      />
+
+      {/* 3. Key Student Statistics */}
       <UserStatsCard stats={dynamicStats} />
 
-      {/* 3. Future Ranking Teaser Card (Magic Ranking Preparation) */}
-      <div className="relative overflow-hidden p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-950/30 via-[#181c30] to-purple-950/30 border border-amber-500/30 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md flex-shrink-0">
-            <Trophy className="w-6 h-6 fill-amber-400/20 animate-bounce" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
-                Magic Ranking
-              </span>
-              <span className="text-xs text-slate-400 font-medium">Temporada Ativa</span>
+      {/* 4. Magic Ranking Teaser Card (Configurable via gamification_display.showRankings) */}
+      {gamifDisplay.showRankings !== false && (
+        <div className="relative overflow-hidden p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-950/30 via-[#181c30] to-purple-950/30 border border-amber-500/30 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md flex-shrink-0">
+              <Trophy className="w-6 h-6 fill-amber-400/20 animate-bounce" />
             </div>
-            <h4 className="text-base font-black text-white mt-0.5">
-              {rankingInfo.league} • Posição #{rankingInfo.currentRank} ({rankingInfo.tier})
-            </h4>
-            <p className="text-xs text-slate-400">
-              {rankingInfo.weeklyPoints} pontos acumulados nesta semana. Encerramento em {rankingInfo.seasonEndsIn}.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                  Magic Ranking
+                </span>
+                <span className="text-xs text-slate-400 font-medium">Temporada Ativa</span>
+              </div>
+              <h4 className="text-base font-black text-white mt-0.5">
+                {rankingInfo.league} • Posição #{rankingInfo.currentRank} ({rankingInfo.tier})
+              </h4>
+              <p className="text-xs text-slate-400">
+                {rankingInfo.weeklyPoints} pontos acumulados nesta semana. Encerramento em {rankingInfo.seasonEndsIn}.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <span className="text-xs text-amber-300 bg-[#121526] px-3 py-1.5 rounded-xl border border-amber-500/30 font-bold">
+              {isRealUser ? (xp > 0 ? "⚡ Ativo na Liga" : "🌱 Iniciando Jornada") : "⚡ Top 5 da Liga"}
+            </span>
           </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
-          <span className="text-xs text-amber-300 bg-[#121526] px-3 py-1.5 rounded-xl border border-amber-500/30 font-bold">
-            {isRealUser ? (xp > 0 ? "⚡ Ativo na Liga" : "🌱 Iniciando Jornada") : "⚡ Top 5 da Liga"}
-          </span>
-        </div>
-      </div>
-
-      {/* 4. Minha Jornada (6 Levels Progression Roadmap) */}
+      {/* 5. Minha Jornada (6 Levels Progression Roadmap) */}
       <JourneyProgress
         journeySteps={studentProfileData.journeySteps}
         currentLevelNumber={currentLevel.level}
       />
 
-      {/* 5. Minhas Conquistas (Badges Gallery) */}
-      <BadgeGallery badges={badges} />
+      {/* 6. Minhas Conquistas (Badges Gallery - Configurable via gamification_display.showBadges) */}
+      {gamifDisplay.showBadges !== false && (
+        <BadgeGallery badges={badges} />
+      )}
 
-      {/* 6. Minhas Músicas (Personal Music Library) */}
+      {/* 7. Minhas Músicas (Personal Music Library) */}
       <SongCollection
         songs={musicCollection}
         onOpenSong={onOpenSong}
       />
 
-      {/* 7. Meus Módulos (Course Modules Progress) */}
+      {/* 8. Meus Módulos (Course Modules Progress) */}
       <ModuleProgressCard
         modules={modulesProgress}
         onOpenModule={onOpenModule}
       />
 
-      {/* 8. Histórico de Atividades (Timeline) */}
+      {/* 9. Histórico de Atividades (Timeline) */}
       <ActivityTimeline activities={activityTimeline} />
 
     </div>

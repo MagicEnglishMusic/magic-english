@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient.js';
+import { getDriveImageUrl } from '../utils/googleDriveHelper.js';
 
 const LOCAL_STORAGE_GROUPS_KEY = 'magic_english_joined_groups';
 
@@ -22,25 +23,29 @@ export const communityService = {
       const { data, error } = await query;
       if (error) throw error;
 
-      const posts = (data || []).map((item) => ({
-        id: item.id,
-        user_id: item.user_id,
-        author: {
-          name: item.author_name || item.profiles?.name || 'Aluno Magic',
-          avatar: item.author_avatar || item.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-          level: item.author_level || item.profiles?.level || 'Iniciante',
-          streak: item.author_streak ?? item.profiles?.streak ?? 0
-        },
-        type: item.type || 'achievement',
-        title: item.title || '',
-        content: item.content || '',
-        likes: Number(item.likes_count) || 0,
-        comments: Number(item.comments_count) || (item.comments_list?.length || 0),
-        commentsList: item.comments_list || [],
-        timeAgo: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : 'Hoje',
-        group_id: item.group_id || null,
-        created_at: item.created_at
-      }));
+      const posts = (data || []).map((item) => {
+        const rawAvatar = item.author_avatar || item.profiles?.avatar_url;
+        const resolvedAvatar = rawAvatar ? getDriveImageUrl(rawAvatar) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80';
+        return {
+          id: item.id,
+          user_id: item.user_id,
+          author: {
+            name: item.author_name || item.profiles?.name || 'Aluno Magic',
+            avatar: resolvedAvatar,
+            level: item.author_level || item.profiles?.level || 'Iniciante',
+            streak: item.author_streak ?? item.profiles?.streak ?? 0
+          },
+          type: item.type || 'achievement',
+          title: item.title || '',
+          content: item.content || '',
+          likes: Number(item.likes_count) || 0,
+          comments: Number(item.comments_count) || (item.comments_list?.length || 0),
+          commentsList: item.comments_list || [],
+          timeAgo: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : 'Hoje',
+          group_id: item.group_id || null,
+          created_at: item.created_at
+        };
+      });
 
       return { data: posts, error: null, unavailable: false };
     } catch (err) {

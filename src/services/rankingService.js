@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { LEADERBOARDS } from '../data/rankingData';
+import { getDriveImageUrl } from '../utils/googleDriveHelper';
 
 export const rankingService = {
   // Fetch leaderboard ranking
@@ -32,7 +33,7 @@ export const rankingService = {
               id: item.id || `rank-${index}`,
               userId: item.user_id,
               name: item.profiles?.name || 'Estudante Magic',
-              avatar: item.profiles?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
+              avatar: item.profiles?.avatar_url ? getDriveImageUrl(item.profiles.avatar_url) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
               level: item.profiles?.level || 'Nível 1',
               weeklyXp: weeklyXp,
               totalXp: totalXp,

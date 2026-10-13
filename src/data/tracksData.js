@@ -145,7 +145,7 @@ export const tracksData = [
 
 export const userJourneyLevels = [
   { id: 1, name: "Iniciante", emoji: "🌱", desc: "Primeiras palavras e sons" },
-  { id: 2, name: "Music Learner", emoji: "🎵", desc: "Fixando ritmo e estruturas" },
-  { id: 3, name: "Speaker", emoji: "🗣", desc: "Conversação fluida e natural" },
-  { id: 4, name: "Fluent", emoji: "🌎", desc: "Domínio total e automático" }
+  { id: 2, name: "Aprendiz Musical", emoji: "🎵", desc: "Fixando ritmo e estruturas" },
+  { id: 3, name: "Conversador", emoji: "🗣", desc: "Conversação fluida e natural" },
+  { id: 4, name: "Fluente", emoji: "🌎", desc: "Domínio total e automático" }
 ];

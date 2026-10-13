@@ -1,7 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Sparkles, Headphones, ArrowRight } from 'lucide-react';
+import { songsService } from '../../services/songsService';
 
-export default function HeroBanner({ onContinue, onExplore }) {
+export default function HeroBanner({ 
+  onContinue, 
+  onExplore, 
+  activeSong = null, 
+  onSelectSong = null,
+  nextLessonTitle = null 
+}) {
+  const [featuredSong, setFeaturedSong] = useState(activeSong);
+
+  useEffect(() => {
+    if (activeSong) {
+      setFeaturedSong(activeSong);
+      return;
+    }
+
+    let isMounted = true;
+    async function loadFeaturedSong() {
+      try {
+        const { data } = await songsService.getSongs();
+        if (isMounted && data && data.length > 0) {
+          setFeaturedSong(data[0]);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar música em destaque no HeroBanner:', err);
+      }
+    }
+
+    loadFeaturedSong();
+    return () => { isMounted = false; };
+  }, [activeSong]);
+
+  const songTitle = featuredSong?.title || 'Magic Song';
+  const songSubtitle = featuredSong?.level || featuredSong?.difficulty || 'Fixação Musical';
+
+  const handleOpenSong = () => {
+    if (featuredSong && onSelectSong) {
+      onSelectSong(featuredSong);
+    } else if (onExplore) {
+      onExplore();
+    }
+  };
+
   return (
     <section className="relative w-full h-[360px] sm:h-[380px] lg:h-[400px] overflow-hidden border-b border-purple-500/30 bg-[#070811] group select-none transition-all flex items-center">
       
@@ -59,7 +101,7 @@ export default function HeroBanner({ onContinue, onExplore }) {
               <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
                 <Play className="w-3 h-3 fill-white text-white ml-0.5" />
               </div>
-              <span>▶ Continuar aprendendo</span>
+              <span>{nextLessonTitle ? `▶ Continuar: ${nextLessonTitle}` : '▶ Continuar aprendendo'}</span>
             </button>
 
             {/* Botão Secundário */}
@@ -73,9 +115,13 @@ export default function HeroBanner({ onContinue, onExplore }) {
           </div>
         </div>
 
-        {/* Floating "Música do Dia" & Visualizer Widget (Top Right) */}
-        <div className="hidden md:flex items-center gap-3 self-start mt-6">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-[#0c0e1e]/85 backdrop-blur-xl border border-purple-500/35 shadow-2xl shadow-purple-950/70 transition-all hover:border-purple-400/60 group/widget">
+        {/* Floating "Música do Dia" & Visualizer Widget (Top Right) - Now 100% Dynamic & Clickable */}
+        <div 
+          onClick={handleOpenSong}
+          className="hidden md:flex items-center gap-3 self-start mt-6 cursor-pointer group/widget transition-all hover:scale-105"
+          title={`Ouvir e praticar: ${songTitle}`}
+        >
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-[#0c0e1e]/85 backdrop-blur-xl border border-purple-500/35 shadow-2xl shadow-purple-950/70 transition-all hover:border-purple-400/60">
             <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 text-white shadow-md shadow-purple-600/40">
               <Headphones className="w-4 h-4" />
               <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0c0e1e] animate-pulse"></span>
@@ -86,7 +132,9 @@ export default function HeroBanner({ onContinue, onExplore }) {
                   Música do Dia
                 </span>
               </div>
-              <p className="text-xs font-bold text-white leading-tight">London Lights • Pop</p>
+              <p className="text-xs font-bold text-white leading-tight truncate max-w-[140px]">
+                {songTitle} • {songSubtitle}
+              </p>
             </div>
 
             {/* Equalizer sound bars */}

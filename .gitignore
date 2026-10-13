@@ -45,3 +45,7 @@ temp
 scratch/
 supabase/.temp/
 test-e2e-visual.cjs
+*.zip
+*.bak
+scratch_*.json
+supabase_backup_*.json

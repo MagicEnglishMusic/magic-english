@@ -17,7 +17,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useGamification } from '../../context/GamificationContext';
-import { avatarPracticeService, DEFAULT_AVATAR_SETTINGS, TEACHER_PRESETS, validateSpeech, requestAzureTTS, requestAzureBilingualTTS, pickRandomAvatarPhrase } from '../../services/avatarPracticeService';
+import {
+  avatarPracticeService,
+  DEFAULT_AVATAR_SETTINGS,
+  TEACHER_PRESETS,
+  PARTIAL_PHRASE_RETRY_MESSAGE,
+  validateSpeech,
+  requestAzureTTS,
+  requestAzureBilingualTTS,
+  pickRandomAvatarPhrase,
+  concatAudioBuffers
+} from '../../services/avatarPracticeService';
+import { fetchDriveAudioArrayBuffer } from '../../utils/googleDriveHelper';
 import { THEME_PRESETS } from '../admin/AvatarSettingsView';
 
 // Helpers para conversão de áudio da síntese de voz (WAV / PCM)
@@ -190,9 +201,12 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
       DEFAULT_AVATAR_SETTINGS.farewellMessage
     );
     const farewell = pickedFarewell
-      .replace('{nome_aluno}', studentName)
-      .replace('{titulo_musica}', activeSongName || 'Magic English');
-    speakText(farewell);
+      .replace(/\{nome_aluno\}/gi, studentName)
+      .replace(/\{titulo_musica\}/gi, activeSongName || 'Magic English');
+    speakText(farewell, null, 'pt', null, null, {
+      rawTemplate: pickedFarewell,
+      category: 'despedidas'
+    });
 
     setSessionStatus((prev) => ({
       ...prev,
@@ -412,16 +426,21 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
         const canvasesBefore = avatarContainerRef.current.querySelectorAll('canvas');
         canvasesBefore.forEach((c) => c.remove());
 
-        const teacher = TEACHER_PRESETS.find(t => t.id === settings.teacherPresetId) || TEACHER_PRESETS[0];
+        // Validação estrita do professor: garante sincronia atômica entre ID, modelo 3D e vozes neurais
+        const teacher = TEACHER_PRESETS.find(t => t.id === settings.teacherPresetId) 
+          || TEACHER_PRESETS.find(t => t.modelUrl === settings.modelUrl) 
+          || TEACHER_PRESETS[0];
         
         // Sanitização: Se houver URL antiga quebrada de CDN gravada no banco, usa o arquivo local oficial
-        let effectiveModelUrl = settings.modelUrl || teacher.modelUrl;
-        if (effectiveModelUrl.includes('cdn.jsdelivr.net') || effectiveModelUrl.includes('models.readyplayer.me')) {
+        let effectiveModelUrl = teacher.modelUrl || settings.modelUrl;
+        if (!effectiveModelUrl || effectiveModelUrl.includes('cdn.jsdelivr.net') || effectiveModelUrl.includes('models.readyplayer.me')) {
           effectiveModelUrl = teacher.modelUrl;
         }
 
+        // TalkingHead: O módulo oficial 'en' fornece o motor fonético universal para os visemas Oculus/ARKit.
+        // O CDN upstream não possui 'lipsync-pt.mjs' (retorna HTTP 404). Por isso, registramos apenas ['en'].
         headInstance = new TalkingHead(avatarContainerRef.current, {
-          lipsyncModules: ['en', 'pt'],
+          lipsyncModules: ['en'],
           cameraView: 'upper',
           cameraDistance: teacher.cameraDistance !== undefined ? teacher.cameraDistance : 0.6,
           cameraX: 0,
@@ -502,18 +521,24 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
             );
             lastResumePhraseRef.current = rawResume;
             const resumeText = rawResume
-              .replace('{nome_aluno}', studentName)
-              .replace('{titulo_musica}', activeSongName || 'Magic English');
-            speakText(resumeText, null, 'pt');
+              .replace(/\{nome_aluno\}/gi, studentName)
+              .replace(/\{titulo_musica\}/gi, activeSongName || 'Magic English');
+            speakText(resumeText, null, 'pt', null, null, {
+              rawTemplate: rawResume,
+              category: 'retomadas'
+            });
           } else {
             const rawWelcome = pickRandomAvatarPhrase(
               settings.welcomeMessage,
               DEFAULT_AVATAR_SETTINGS.welcomeMessage
             );
             const welcomeText = rawWelcome
-              .replace('{nome_aluno}', studentName)
-              .replace('{titulo_musica}', activeSongName || 'Magic English');
-            speakText(welcomeText);
+              .replace(/\{nome_aluno\}/gi, studentName)
+              .replace(/\{titulo_musica\}/gi, activeSongName || 'Magic English');
+            speakText(welcomeText, null, null, null, null, {
+              rawTemplate: rawWelcome,
+              category: 'saudacoes'
+            });
           }
         }, 1200);
 
@@ -542,15 +567,22 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
     };
   }, [sessionStatus.isLocked, settings.modelUrl, settings.teacherPresetId]);
 
-  // 4. Função para o Avatar Falar (com voz neural natural, cálculo proporcional de visemas e lipsync bilíngue)
-  const speakText = async (text, directAudioUrl = null, explicitLang = null, bilingualPhraseEn = null, onFinished = null) => {
+  // 4. Função para o Avatar Falar (Drive-First + Cache Compartilhado + Composição de Cláusulas + Lipsync 3D)
+  const speakText = async (
+    text,
+    directAudioUrl = null,
+    explicitLang = null,
+    bilingualPhraseEn = null,
+    onFinished = null,
+    messageMeta = null
+  ) => {
     if (!text || !headRef.current) return;
     const head = headRef.current;
 
     // Detecta se a frase é predominantemente em Português ou Inglês
     const isPortuguese = explicitLang ? explicitLang === 'pt' : (
       /[áàâãéèêíïóôõöúçñ]/i.test(text) ||
-      /\b(olá|vamos|muito|bem|treino|tempo|continuar|parabéns|praticar|você|hoje|quase|escutem|repita|frase|inteira|aluno|novamente)\b/i.test(text)
+      /\b(olá|vamos|muito|bem|treino|tempo|continuar|parabéns|praticar|você|hoje|quase|escutem|escute|repita|frase|inteira|aluno|novamente|que|bom|gostei|ótimo|ótima|pronta|pronto|maravilha|uau|estou|caminho|certo|não|descanse|excelente)\b/i.test(text)
     );
     const speechLang = isPortuguese ? 'pt' : 'en';
     const fullSpokenText = bilingualPhraseEn ? `${text} ${bilingualPhraseEn}` : text;
@@ -565,25 +597,65 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
 
       let audioBuffer = null;
 
-      // REQUISITO CUSTO ZERO: Se já possui áudio salvo no Google Drive / Storage, toca direto!
+      // 4.1 REQUISITO CUSTO ZERO (Versos de Músicas ou URL direta do Google Drive):
       if (directAudioUrl) {
         try {
-          const res = await fetch(directAudioUrl);
-          if (res.ok) {
-            const arrayBuf = await res.arrayBuffer();
-            audioBuffer = await head.audioCtx.decodeAudioData(arrayBuf);
+          const driveRes = await fetchDriveAudioArrayBuffer(directAudioUrl);
+          if (driveRes.ok && driveRes.arrayBuffer) {
+            audioBuffer = await head.audioCtx.decodeAudioData(driveRes.arrayBuffer.slice(0));
+          } else {
+            const res = await fetch(directAudioUrl);
+            if (res.ok) {
+              const arrayBuf = await res.arrayBuffer();
+              audioBuffer = await head.audioCtx.decodeAudioData(arrayBuf);
+            }
           }
         } catch (fetchErr) {
-          console.warn('Falha ao reproduzir áudio do Google Drive, fallback para TTS neural:', fetchErr);
+          console.warn('Falha ao reproduzir áudio direto do Google Drive:', fetchErr);
         }
       }
 
-      // Se não havia áudio direto ou se o fetch falhou, sintetiza via Azure TTS
+      // 4.2 REQUISITO CUSTO ZERO (Mensagens Dinâmicas da Professora Avatar — Catálogo Drive-First + Composição):
+      if (!audioBuffer && !directAudioUrl && !bilingualPhraseEn) {
+        try {
+          const resolved = await avatarPracticeService.resolveStudentMessageAudioSegments({
+            text,
+            rawTemplate: messageMeta?.rawTemplate || null,
+            category: messageMeta?.category || 'geral',
+            studentName,
+            songTitle: activeSongName || 'Magic English',
+            userId: user?.id || 'guest',
+            settings,
+            explicitLang: speechLang
+          });
+
+          if (resolved?.segments && resolved.segments.length > 0) {
+            const decodedBuffers = [];
+            for (const seg of resolved.segments) {
+              const audioArrayBuffer = base64ToArrayBuffer(seg.base64Audio);
+              let sampleRate = 24000;
+              const rateMatch = (seg.mimeType || '').match(/rate=(\d+)/);
+              if (rateMatch) sampleRate = parseInt(rateMatch[1], 10);
+              const decoded = await processAudioToBuffer(head.audioCtx, audioArrayBuffer, sampleRate);
+              if (decoded) decodedBuffers.push(decoded);
+            }
+            if (decodedBuffers.length > 0) {
+              audioBuffer = concatAudioBuffers(head.audioCtx, decodedBuffers, 0.04);
+            }
+          }
+        } catch (resolveErr) {
+          console.warn('Aviso na resolução Drive-First da mensagem da Avatar:', resolveErr);
+        }
+      }
+
+      // 4.3 Fallback final para síntese direta caso nenhum buffer tenha sido obtido
       if (!audioBuffer) {
         let ttsResult = null;
-        const activeTeacher = TEACHER_PRESETS.find(t => t.id === settings.teacherPresetId) || TEACHER_PRESETS[0];
+        const activeTeacher = TEACHER_PRESETS.find(t => t.id === settings.teacherPresetId) 
+          || TEACHER_PRESETS.find(t => t.modelUrl === settings.modelUrl) 
+          || TEACHER_PRESETS[0];
+
         if (bilingualPhraseEn) {
-          // SÍNTESE BILÍNGUE NATIVA: Vozes combinadas do(a) professor(a) ativo(a)
           ttsResult = await requestAzureBilingualTTS(text, bilingualPhraseEn, null, {
             voicePt: activeTeacher.voicePt,
             voiceEn: activeTeacher.voiceEn
@@ -635,7 +707,7 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
           wdurations: wdurations
         },
         {
-          lipsyncLang: speechLang
+          lipsyncLang: 'en'
         },
         (sub) => setSubtitles(sub)
       );
@@ -657,7 +729,6 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
         utterance.lang = isPortuguese ? 'pt-BR' : 'en-US';
         utterance.rate = Math.min(Math.max(Number(settings.ttsSpeed) || 1.0, 0.85), 1.50);
 
-        // Tentar selecionar uma voz de alta qualidade no idioma correto
         const voices = window.speechSynthesis.getVoices();
         if (isPortuguese) {
           const ptVoice = voices.find(v => v.lang.startsWith('pt') || v.lang.includes('BR'));
@@ -776,7 +847,10 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
       const successSpeech = rawSuccess
         .replace(/\{nome_aluno\}/gi, studentName)
         .replace(/\{titulo_musica\}/gi, activeSongName || 'Magic English');
-      speakText(successSpeech);
+      speakText(successSpeech, null, null, null, null, {
+        rawTemplate: rawSuccess,
+        category: 'elogios'
+      });
 
       // Avança para a próxima frase após breve pausa
       setTimeout(() => {
@@ -794,12 +868,22 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
       });
 
       if (isPartial) {
-        // Encorajamento específico para frase incompleta (Custo Zero: PT via TTS + EN direto do Google Drive)
-        speakText('Você falou apenas parte da frase. Ouça com atenção e repita a frase inteira:', null, 'pt', null, () => {
-          setTimeout(() => {
-            speakText(currentPhrase.english, currentPhrase.audioUrl, 'en');
-          }, 400);
-        });
+        // Encorajamento específico para frase incompleta (Custo Zero: PT do cache Drive-First + EN direto do Google Drive)
+        speakText(
+          PARTIAL_PHRASE_RETRY_MESSAGE,
+          null,
+          'pt',
+          null,
+          () => {
+            setTimeout(() => {
+              speakText(currentPhrase.english, currentPhrase.audioUrl, 'en');
+            }, 400);
+          },
+          {
+            rawTemplate: PARTIAL_PHRASE_RETRY_MESSAGE,
+            category: 'encorajamentos'
+          }
+        );
       } else {
         const rawRetry = pickRandomAvatarPhrase(
           settings.retryMessage,
@@ -809,15 +893,25 @@ export default function AvatarPracticeView({ onGainXp = () => {} }) {
         lastRetryPhraseRef.current = rawRetry;
 
         const retrySpeech = rawRetry
-          .replace('{nome_aluno}', studentName)
-          .replace('{titulo_musica}', activeSongName || 'Magic English');
+          .replace(/\{nome_aluno\}/gi, studentName)
+          .replace(/\{titulo_musica\}/gi, activeSongName || 'Magic English');
         
-        // Encorajamento de erro (Custo Zero: PT via TTS + EN direto do Google Drive)
-        speakText(retrySpeech, null, 'pt', null, () => {
-          setTimeout(() => {
-            speakText(currentPhrase.english, currentPhrase.audioUrl, 'en');
-          }, 400);
-        });
+        // Encorajamento de erro (Custo Zero: PT do cache Drive-First + EN direto do Google Drive)
+        speakText(
+          retrySpeech,
+          null,
+          'pt',
+          null,
+          () => {
+            setTimeout(() => {
+              speakText(currentPhrase.english, currentPhrase.audioUrl, 'en');
+            }, 400);
+          },
+          {
+            rawTemplate: rawRetry,
+            category: 'encorajamentos'
+          }
+        );
       }
     }
   };

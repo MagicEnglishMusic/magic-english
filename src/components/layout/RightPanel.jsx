@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
   Flame, 
@@ -8,17 +8,35 @@ import {
   Compass, 
   CheckCircle2, 
   Lock, 
-  Quote,
-  Target,
-  Clock,
-  Zap,
-  ChevronRight
+  Quote, 
+  Target, 
+  Clock, 
+  Zap, 
+  ChevronRight 
 } from 'lucide-react';
 import { userData } from '../../data/mockData';
 import { useGamification } from '../../context/GamificationContext';
+import { communityService } from '../../services/communityService';
 
 export default function RightPanel({ onOpenGamification }) {
   const { streak, weeklyDays, badges, xp, currentLevel } = useGamification();
+  const [gamifDisplay, setGamifDisplay] = useState({
+    showUserXpHeader: true,
+    showRankings: true,
+    showBadges: true,
+    showLevelCelebrations: true
+  });
+
+  useEffect(() => {
+    communityService.getAppSettings('gamification_display').then((res) => {
+      if (res?.data && typeof res.data === 'object') {
+        setGamifDisplay((prev) => ({
+          ...prev,
+          ...res.data
+        }));
+      }
+    });
+  }, []);
 
   return (
     <aside className="w-80 bg-[#0c0e17] border-l border-[#1e2235] h-screen sticky top-0 p-6 overflow-y-auto space-y-7 hidden xl:block select-none">
@@ -89,60 +107,62 @@ export default function RightPanel({ onOpenGamification }) {
         </div>
       </div>
 
-      {/* Section 2: Minhas Conquistas */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-400" />
-            Minhas Conquistas
-          </h3>
-          <button
-            onClick={onOpenGamification}
-            className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-0.5 cursor-pointer transition-colors"
-          >
-            <span>Ver todas</span>
-            <ChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        <div className="space-y-2.5">
-          {(badges || []).slice(0, 4).map((ach) => (
-            <div
-              key={ach.id}
+      {/* Section 2: Minhas Conquistas (Configurable via gamification_display.showBadges) */}
+      {gamifDisplay.showBadges !== false && (
+        <div className="space-y-4 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              Minhas Conquistas
+            </h3>
+            <button
               onClick={onOpenGamification}
-              className={`p-3 rounded-xl border flex items-center gap-3.5 transition-all cursor-pointer ${
-                ach.unlocked
-                  ? 'bg-gradient-to-r from-purple-950/30 to-[#141726] border-purple-500/25 hover:border-purple-500/50'
-                  : 'bg-[#10121d] border-slate-800/60 opacity-60 hover:opacity-90'
-              }`}
+              className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-0.5 cursor-pointer transition-colors"
             >
+              <span>Ver todas</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
+            {(badges || []).slice(0, 4).map((ach) => (
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${
+                key={ach.id}
+                onClick={onOpenGamification}
+                className={`p-3 rounded-xl border flex items-center gap-3.5 transition-all cursor-pointer ${
                   ach.unlocked
-                    ? 'bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20'
-                    : 'bg-[#191d2f] text-slate-500'
+                    ? 'bg-gradient-to-r from-purple-950/30 to-[#141726] border-purple-500/25 hover:border-purple-500/50'
+                    : 'bg-[#10121d] border-slate-800/60 opacity-60 hover:opacity-90'
                 }`}
               >
-                {ach.unlocked ? ach.icon : <Lock className="w-4 h-4 text-slate-500" />}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <p className={`text-xs font-bold truncate ${ach.unlocked ? 'text-white' : 'text-slate-400'}`}>
-                    {ach.title}
-                  </p>
-                  {ach.unlocked && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                  )}
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl ${
+                    ach.unlocked
+                      ? 'bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20'
+                      : 'bg-[#191d2f] text-slate-500'
+                  }`}
+                >
+                  {ach.unlocked ? ach.icon : <Lock className="w-4 h-4 text-slate-500" />}
                 </div>
-                <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  {ach.condition}
-                </p>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className={`text-xs font-bold truncate ${ach.unlocked ? 'text-white' : 'text-slate-400'}`}>
+                      {ach.title}
+                    </p>
+                    {ach.unlocked && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {ach.condition}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Section 3: Frase Motivacional */}
       <div className="relative p-5 rounded-2xl bg-gradient-to-br from-purple-900/30 via-[#141728] to-blue-900/30 border border-purple-500/30 shadow-xl overflow-hidden group">

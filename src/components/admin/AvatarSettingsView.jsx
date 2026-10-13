@@ -47,14 +47,31 @@ export default function AvatarSettingsView() {
   const [settings, setSettings] = useState(DEFAULT_AVATAR_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncingAudio, setIsSyncingAudio] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState(null);
+  const [syncProgress, setSyncProgress] = useState(null);
   const [toast, setToast] = useState(null); // { type: 'success' | 'error', text: '' }
+
+  const refreshCacheStatus = async (currentSettings = settings) => {
+    try {
+      const st = await avatarPracticeService.getAvatarMessagesCacheStatus(currentSettings);
+      setCacheStatus(st);
+      return st;
+    } catch (_) {
+      return null;
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
     async function load() {
       try {
         const data = await avatarPracticeService.getSettings();
-        if (isMounted) setSettings(data);
+        if (isMounted) {
+          setSettings(data);
+          const st = await avatarPracticeService.getAvatarMessagesCacheStatus(data);
+          if (isMounted) setCacheStatus(st);
+        }
       } catch (err) {
         console.error('Erro ao carregar configurações do avatar:', err);
       } finally {
@@ -65,9 +82,86 @@ export default function AvatarSettingsView() {
     return () => { isMounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      refreshCacheStatus(settings);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    settings.teacherPresetId,
+    settings.welcomeMessage,
+    settings.successMessage,
+    settings.retryMessage,
+    settings.farewellMessage,
+    settings.resumeMessage
+  ]);
+
   const showToast = (text, type = 'success') => {
     setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleSyncAvatarAudio = async (targetSettings = settings) => {
+    if (isSyncingAudio) return;
+    setIsSyncingAudio(true);
+    setSyncProgress({
+      current: 0,
+      total: cacheStatus?.totalSegments || 0,
+      reusedCount: 0,
+      generatedCount: 0,
+      driveUploadedCount: 0,
+      sharedCacheReadyCount: 0,
+      failedCount: 0,
+      finished: false
+    });
+
+    try {
+      const result = await avatarPracticeService.pregenerateAvatarMessagesAudio(targetSettings, {
+        onProgress: (prog) => {
+          setSyncProgress({
+            ...prog,
+            pendingCount: Math.max(0, (prog.total || 0) - (prog.current || 0)),
+            finished: false
+          });
+        }
+      });
+
+      setSyncProgress({
+        current: result.totalSegments,
+        total: result.totalSegments,
+        reusedCount: result.reusedCount,
+        generatedCount: result.generatedCount,
+        driveUploadedCount: result.driveUploadedCount,
+        sharedCacheReadyCount: result.sharedCacheReadyCount,
+        failedCount: result.failedCount,
+        pendingCount: 0,
+        finished: true
+      });
+
+      if (result.status) {
+        setCacheStatus(result.status);
+      } else {
+        await refreshCacheStatus(targetSettings);
+      }
+
+      if (result.failedCount > 0) {
+        showToast(
+          `Sincronização concluída com ${result.reusedCount} reutilizados, ${result.generatedCount} novos gerados e ${result.failedCount} falha(s).`,
+          'error'
+        );
+      } else {
+        showToast(
+          `Cache Drive-First atualizado! ${result.reusedCount} áudios reutilizados (custo zero) e ${result.generatedCount} novos gerados.`
+        );
+      }
+      return result;
+    } catch (err) {
+      showToast('Aviso ao sincronizar áudios da Avatar: ' + (err?.message || err), 'error');
+      return null;
+    } finally {
+      setIsSyncingAudio(false);
+    }
   };
 
   const handleSave = async (e) => {
@@ -75,10 +169,13 @@ export default function AvatarSettingsView() {
     setIsSaving(true);
     try {
       const res = await avatarPracticeService.saveSettings(settings);
-      if (res?.error) {
+      const currentSt = await refreshCacheStatus(settings);
+      if (currentSt && currentSt.totalMissing > 0) {
+        await handleSyncAvatarAudio(settings);
+      } else if (res?.error) {
         showToast('Configurações salvas localmente! (Aviso do servidor: ' + res.error + ')', 'error');
       } else {
-        showToast('Configurações da Professora Avatar 3D salvas com sucesso!');
+        showToast('Configurações da Professora Avatar 3D salvas! Todos os áudios já estão em cache (0 chamadas Azure).');
       }
     } catch (err) {
       showToast('Configurações salvas localmente no navegador!', 'success');
@@ -551,23 +648,109 @@ export default function AvatarSettingsView() {
 
       {/* 5. Personalização dos Textos da Avatar */}
       <div className="bg-[#0e111d] border border-purple-500/20 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-        <div className="flex items-center gap-3 pb-3 border-b border-purple-500/10">
-          <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-            <MessageSquare className="w-5 h-5" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-purple-500/10">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 flex-shrink-0 mt-0.5">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-white uppercase tracking-wider">
+                5. Personalização dos Textos da Avatar (Repertório Dinâmico Drive-First)
+              </h2>
+              <p className="text-xs text-slate-400">
+                Suporta qualquer quantidade de linhas e as tags <code className="text-purple-300 font-mono">{'{nome_aluno}'}</code> e <code className="text-purple-300 font-mono">{'{titulo_musica}'}</code>
+              </p>
+              <p className="text-[11px] text-cyan-300/90 bg-cyan-950/30 border border-cyan-800/40 rounded-xl px-3 py-1.5 mt-2 flex items-center gap-1.5">
+                <span>💡</span>
+                <span><strong>Economia Azure + Google Drive:</strong> Cada frase ou trecho estático é gerado 1 única vez pela Azure e reutilizado automaticamente por todos os alunos!</span>
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-sm font-black text-white uppercase tracking-wider">
-              5. Personalização dos Textos da Avatar (Repertório Dinâmico)
-            </h2>
-            <p className="text-xs text-slate-400">
-              Suporta as tags dinâmicas <code className="text-purple-300 font-mono">{'{nome_aluno}'}</code> e <code className="text-purple-300 font-mono">{'{titulo_musica}'}</code>
-            </p>
-            <p className="text-[11px] text-cyan-300/90 bg-cyan-950/30 border border-cyan-800/40 rounded-xl px-3 py-1.5 mt-2 flex items-center gap-1.5">
-              <span>💡</span>
-              <span><strong>Dica:</strong> Digite uma frase por linha para a Avatar alternar aleatoriamente entre elas durante a aula, evitando repetições monótonas.</span>
-            </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {cacheStatus && (
+              <div className={`px-3 py-2 rounded-xl border text-[11px] font-bold flex items-center gap-2 ${
+                cacheStatus.isFullyCached
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>
+                  {cacheStatus.totalCached}/{cacheStatus.totalSegments} segmentos em cache
+                  {cacheStatus.totalMissing > 0 ? ` (${cacheStatus.totalMissing} novos/alterados)` : ' (100% prontos)'}
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => handleSyncAvatarAudio(settings)}
+              disabled={isSyncingAudio || isSaving}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+            >
+              {isSyncingAudio ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Sincronizando Áudios...</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4" />
+                  <span>Pré-Gerar / Sincronizar Áudios (Drive-First)</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Painel de Progresso Real de Pré-Geração / Sincronização Drive-First */}
+        {syncProgress && (
+          <div className="bg-[#121526] border border-purple-500/30 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-purple-200 flex items-center gap-2">
+                {syncProgress.finished ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 text-purple-400 animate-spin" />
+                )}
+                {syncProgress.finished
+                  ? 'Sincronização de Áudios da Avatar Concluída'
+                  : `Processando segmento ${syncProgress.current} de ${syncProgress.total}...`}
+              </span>
+              <span className="font-mono text-slate-400">
+                {syncProgress.total > 0 ? Math.round((syncProgress.current / syncProgress.total) * 100) : 100}%
+              </span>
+            </div>
+
+            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 transition-all duration-300"
+                style={{
+                  width: `${syncProgress.total > 0 ? Math.min(100, Math.round((syncProgress.current / syncProgress.total) * 100)) : 100}%`
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <div className="bg-[#0c0e17] border border-emerald-500/20 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] uppercase text-slate-400 font-bold">Existentes Reutilizados</div>
+                <div className="text-base font-black text-emerald-400 font-mono">{syncProgress.reusedCount || 0}</div>
+              </div>
+              <div className="bg-[#0c0e17] border border-cyan-500/20 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] uppercase text-slate-400 font-bold">Novos Gerados (Azure 1x)</div>
+                <div className="text-base font-black text-cyan-400 font-mono">{syncProgress.generatedCount || 0}</div>
+              </div>
+              <div className="bg-[#0c0e17] border border-amber-500/20 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] uppercase text-slate-400 font-bold">Pendentes</div>
+                <div className="text-base font-black text-amber-400 font-mono">{syncProgress.pendingCount || 0}</div>
+              </div>
+              <div className="bg-[#0c0e17] border border-red-500/20 rounded-xl p-2.5 text-center">
+                <div className="text-[10px] uppercase text-slate-400 font-bold">Falhas Reais</div>
+                <div className="text-base font-black text-red-400 font-mono">{syncProgress.failedCount || 0}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
@@ -577,6 +760,7 @@ export default function AvatarSettingsView() {
               </label>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">
                 {String(settings.welcomeMessage || '').split('\n').filter(s => s.trim()).length} variações
+                {cacheStatus?.byCategory?.saudacoes ? ` • ${cacheStatus.byCategory.saudacoes.cachedSegments}/${cacheStatus.byCategory.saudacoes.totalSegments} em cache` : ''}
               </span>
             </div>
             <textarea
@@ -595,6 +779,7 @@ export default function AvatarSettingsView() {
               </label>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                 {String(settings.successMessage || '').split('\n').filter(s => s.trim()).length} variações
+                {cacheStatus?.byCategory?.elogios ? ` • ${cacheStatus.byCategory.elogios.cachedSegments}/${cacheStatus.byCategory.elogios.totalSegments} em cache` : ''}
               </span>
             </div>
             <textarea
@@ -613,6 +798,7 @@ export default function AvatarSettingsView() {
               </label>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
                 {String(settings.retryMessage || '').split('\n').filter(s => s.trim()).length} variações
+                {cacheStatus?.byCategory?.encorajamentos ? ` • ${cacheStatus.byCategory.encorajamentos.cachedSegments}/${cacheStatus.byCategory.encorajamentos.totalSegments} em cache` : ''}
               </span>
             </div>
             <textarea
@@ -631,6 +817,7 @@ export default function AvatarSettingsView() {
               </label>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
                 {String(settings.farewellMessage || '').split('\n').filter(s => s.trim()).length} variações
+                {cacheStatus?.byCategory?.despedidas ? ` • ${cacheStatus.byCategory.despedidas.cachedSegments}/${cacheStatus.byCategory.despedidas.totalSegments} em cache` : ''}
               </span>
             </div>
             <textarea
@@ -649,6 +836,7 @@ export default function AvatarSettingsView() {
               </label>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                 {String(settings.resumeMessage || '').split('\n').filter(s => s.trim()).length} variações
+                {cacheStatus?.byCategory?.retomadas ? ` • ${cacheStatus.byCategory.retomadas.cachedSegments}/${cacheStatus.byCategory.retomadas.totalSegments} em cache` : ''}
               </span>
             </div>
             <textarea
@@ -661,15 +849,15 @@ export default function AvatarSettingsView() {
           </div>
         </div>
 
-        <div className="pt-4 border-t border-purple-500/10 flex justify-end">
+        <div className="pt-4 border-t border-purple-500/10 flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || isSyncingAudio}
             className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-xl shadow-purple-600/30 hover:scale-[1.01] cursor-pointer disabled:opacity-50"
           >
             {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            <span>Salvar Todas as Configurações</span>
+            <span>Salvar e Sincronizar Configurações</span>
           </button>
         </div>
       </div>

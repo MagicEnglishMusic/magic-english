@@ -389,6 +389,64 @@ export function evaluateAchievements({
   });
 }
 
+/**
+ * Calculates Daily Challenges (Missões Diárias) completion state based on real xp_events of today
+ */
+export function calculateDailyChallenges(eventsData = [], todayStr = null) {
+  const currentTodayStr = todayStr || formatIsoDate(getSaoPauloDate());
+
+  // Filter events from today (in America/Sao_Paulo timezone)
+  const todayEvents = (eventsData || []).filter((ev) => {
+    if (!ev?.created_at) return false;
+    const evDate = formatIsoDate(getSaoPauloDate(new Date(ev.created_at)));
+    return evDate === currentTodayStr;
+  });
+
+  // Check activities completed today
+  const hasLessonToday = todayEvents.some((ev) => ev.source === 'lesson_complete');
+  const hasSongToday = todayEvents.some((ev) => ['practice_complete', 'song_claim', 'song_mastery'].includes(ev.source));
+  const hasPronunciationToday = todayEvents.some((ev) => ev.source === 'pronunciation_complete');
+
+  // Check claimed daily challenge rewards
+  const claimedChallengeIds = new Set();
+  todayEvents.forEach((ev) => {
+    if (ev.source === 'daily_challenge') {
+      const ref = String(ev.ref || '');
+      if (ref.includes(':')) {
+        const chId = ref.split(':')[1];
+        if (chId) claimedChallengeIds.add(chId);
+      } else {
+        claimedChallengeIds.add('daily-1');
+      }
+    }
+  });
+
+  return INITIAL_DAILY_CHALLENGES.map((challenge) => {
+    let completed = false;
+    let current = 0;
+
+    if (challenge.id === 'daily-1') {
+      completed = hasLessonToday;
+      current = hasLessonToday ? 1 : 0;
+    } else if (challenge.id === 'daily-2') {
+      completed = hasSongToday;
+      current = hasSongToday ? 1 : 0;
+    } else if (challenge.id === 'daily-3') {
+      completed = hasPronunciationToday;
+      current = hasPronunciationToday ? 1 : 0;
+    }
+
+    const claimed = claimedChallengeIds.has(challenge.id);
+
+    return {
+      ...challenge,
+      current: (completed || claimed) ? challenge.target : current,
+      completed: completed || claimed,
+      claimed: claimed
+    };
+  });
+}
+
 const GamificationContext = createContext(null);
 
 export function GamificationProvider({ children }) {
@@ -487,6 +545,12 @@ export function GamificationProvider({ children }) {
         const calculatedStreak = calculateStudyStreak(studyDatesSet, user.streak || 0);
         setStreak(calculatedStreak);
         setWeeklyDays(generateWeeklyDays(studyDatesSet));
+
+        // 6. Sincroniza Missões Diárias (Daily Challenges) reais a partir dos eventos do dia
+        const todayIso = formatIsoDate(getSaoPauloDate());
+        const calculatedChallenges = calculateDailyChallenges(eventsData || [], todayIso);
+        setDailyChallenges(calculatedChallenges);
+
         setIsGamificationLoaded(true);
       }).catch((err) => {
         console.warn('[GamificationContext] Erro ao sincronizar dados de gamificação:', err);
@@ -617,6 +681,22 @@ export function GamificationProvider({ children }) {
       }
     }
 
+    // Sincroniza estado da missão diária correspondente em tempo real
+    setDailyChallenges((prev) =>
+      prev.map((c) => {
+        if (cleanSource === 'lesson_complete' && c.id === 'daily-1') {
+          return { ...c, completed: true, current: 1 };
+        }
+        if (['practice_complete', 'song_claim', 'song_mastery'].includes(cleanSource) && c.id === 'daily-2') {
+          return { ...c, completed: true, current: 1 };
+        }
+        if (cleanSource === 'pronunciation_complete' && c.id === 'daily-3') {
+          return { ...c, completed: true, current: 1 };
+        }
+        return c;
+      })
+    );
+
     if (!isNewlyGranted) {
       if (options.showModal) {
         setRewardModal({
@@ -679,7 +759,7 @@ export function GamificationProvider({ children }) {
     
     if (res.success) {
       setDailyChallenges((prev) =>
-        prev.map((c) => (c.id === challengeId ? { ...c, claimed: true } : c))
+        prev.map((c) => (c.id === challengeId ? { ...c, claimed: true, completed: true, current: c.target } : c))
       );
       if (res.data?.total_xp !== undefined) setXp(res.data.total_xp);
 
